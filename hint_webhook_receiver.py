@@ -1100,4 +1100,4 @@ if __name__ == "__main__":
     log.info(f"Starting Hint webhook receiver (env={HINT_ENV} dry_run={DRY_RUN} port={PORT})")
     log.info(f"SMTP: {SMTP_USER} via {SMTP_HOST}:{SMTP_PORT} configured={bool(SMTP_PASS)}")
     log.info(f"Review base URL: {REVIEW_BASE_URL}")
-    app.run(host="0.0.0.0", port=PORT, debug=
+    app.run(host="0.0.0.0", port=PORT, debug=False)

@@ -140,7 +140,7 @@ PORT = int(os.environ.get("PORT", 5000))
 #                    Used to build the ?name= link sent in the email.
 
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
 SMTP_USER = os.environ.get("SMTP_USER", "care@mtbakermedical.com")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")   # must be set in production
 REVIEW_BASE_URL = os.environ.get("REVIEW_BASE_URL", "https://mtbakermedical.com")
@@ -160,7 +160,7 @@ log = logging.getLogger("hint_receiver")
 
 # ─── Flask app ────────────────────────────────────────────────────────────────
 
-app = Flask(__name__)
+app = Flash(__name__)
 
 # ─── Signature verification ───────────────────────────────────────────────────
 
@@ -310,9 +310,7 @@ def send_review_email(first_name: str, email: str) -> bool:
         msg.attach(MIMEText(text_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, [email], msg.as_string())
 
@@ -591,10 +589,7 @@ def _email_feedback_alert(entry: dict):
         msg["To"] = FEEDBACK_ALERT_TO
         msg.attach(MIMEText(body_text, "plain"))
         msg.attach(MIMEText(body_html, "html"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.ehlo()
-            server.starttls()
-            server.ehlo()
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
             server.login(SMTP_USER, SMTP_PASS)
             server.sendmail(SMTP_USER, [FEEDBACK_ALERT_TO], msg.as_string())
         log.info(f"Feedback alert sent to {FEEDBACK_ALERT_TO}")

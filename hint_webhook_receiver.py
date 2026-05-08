@@ -625,22 +625,6 @@ def view_feedback():
 
 
 
-# ─── Test endpoint (remove after sandbox verification) ────────────────────────
-
-@app.route("/send-test", methods=["GET"])
-def send_test():
-    """Temporary test endpoint — remove after sandbox verification."""
-    secret = request.args.get("secret", "")
-    if secret != "LE_Iv_WrjzzA7sQG2RU9XQ":
-        return jsonify({"error": "forbidden"}), 403
-    to_email = request.args.get("to", "")
-    fname = request.args.get("fname", "there")
-    if not to_email:
-        return jsonify({"error": "missing to param"}), 400
-    ok = send_review_email(first_name=fname, email=to_email)
-    return jsonify({"sent": ok, "to": to_email, "fname": fname,
-                    "link": f"{REVIEW_BASE_URL}/review?fname={urllib.parse.quote(fname)}"}), 200
-
 if __name__ == "__main__":
     log.info(f"Starting Hint webhook receiver (env={HINT_ENV} dry_run={DRY_RUN} port={PORT})")
     log.info(f"Email: from={FROM_EMAIL} resend_configured={bool(RESEND_API_KEY)}")

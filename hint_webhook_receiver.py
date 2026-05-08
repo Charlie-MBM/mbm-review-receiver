@@ -134,15 +134,13 @@ PORT = int(os.environ.get("PORT", 5000))
 #   myaccount.google.com → Security → 2-Step Verification → App passwords
 #
 # Environment variables:
-#   SMTP_USER      care@mtbakermedical.com  (or set below as default)
-#   SMTP_PASS      16-char Google App Password
+#   RESEND_API_KEY   API key from resend.com (required for live sends)
+#   FROM_EMAIL       Sending address (default: care@mtbakermedical.com)
 #   REVIEW_BASE_URL  Public URL of this receiver, e.g. https://xyz.onrender.com
-#                    Used to build the ?name= link sent in the email.
+#                    Used to build the ?fname= link sent in the email.
 
-SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.environ.get("SMTP_PORT", "465"))
-SMTP_USER = os.environ.get("SMTP_USER", "care@mtbakermedical.com")
-SMTP_PASS = os.environ.get("SMTP_PASS", "")   # must be set in production
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+FROM_EMAIL = os.environ.get("FROM_EMAIL", "Mt. Baker Medical <care@mtbakermedical.com>")
 REVIEW_BASE_URL = os.environ.get("REVIEW_BASE_URL", "https://mtbakermedical.com")
 
 # ─── Logging ──────────────────────────────────────────────────────────────────
@@ -297,25 +295,29 @@ def send_review_email(first_name: str, email: str) -> bool:
         log.info(f"[DRY_RUN] Would email {email}: subject='{_EMAIL_SUBJECT.format(first_name=greeting_name)}' link={review_link}")
         return True
 
-    if not SMTP_PASS:
-        log.warning(f"SMTP_PASS not set — skipping email to {email}. Set SMTP_PASS to a Google App Password.")
+    if not RESEND_API_KEY:
+        log.warning(f"RESEND_API_KEY not set — skipping email to {email}.")
         return False
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = _EMAIL_SUBJECT.format(first_name=greeting_name)
-        msg["From"] = f"Mt. Baker Medical <{SMTP_USER}>"
-        msg["To"] = email
-        msg["Reply-To"] = SMTP_USER
-        msg.attach(MIMEText(text_body, "plain"))
-        msg.attach(MIMEText(html_body, "html"))
-
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, [email], msg.as_string())
-
-        log.info(f"Review email sent to {email} (link={review_link})")
-        return True
+        resp = http.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "from": FROM_EMAIL,
+                "to": [email],
+                "subject": _EMAIL_SUBJECT.format(first_name=greeting_name),
+                "html": html_body,
+                "text": text_body,
+            },
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            log.info(f"Review email sent to {email} (link={review_link})")
+            return True
+        else:
+            log.error(f"Resend returned {resp.status_code}: {resp.text}")
+            return False
 
     except Exception as e:
         log.error(f"Failed to send review email to {email}: {e}")
@@ -487,8 +489,8 @@ def health():
         "status": "ok",
         "env": HINT_ENV,
         "dry_run": DRY_RUN,
-        "smtp_user": SMTP_USER,
-        "smtp_configured": bool(SMTP_PASS),
+        "from_email": FROM_EMAIL,
+        "resend_configured": bool(RESEND_API_KEY),
         "partner_key_set": bool(HINT_PARTNER_API_KEY),
         "practices_key_set": bool(HINT_API_KEY),
     }), 200
@@ -578,21 +580,27 @@ def _email_feedback_alert(entry: dict):
         log.info(f"[DRY_RUN] Would send feedback alert to {FEEDBACK_ALERT_TO}: subject='{subject}'")
         return
 
-    if not SMTP_PASS:
-        log.warning("SMTP_PASS not set — cannot send feedback alert email")
+    if not RESEND_API_KEY:
+        log.warning("RESEND_API_KEY not set — cannot send feedback alert email")
         return
 
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = subject
-        msg["From"] = f"Mt. Baker Medical <{SMTP_USER}>"
-        msg["To"] = FEEDBACK_ALERT_TO
-        msg.attach(MIMEText(body_text, "plain"))
-        msg.attach(MIMEText(body_html, "html"))
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15) as server:
-            server.login(SMTP_USER, SMTP_PASS)
-            server.sendmail(SMTP_USER, [FEEDBACK_ALERT_TO], msg.as_string())
-        log.info(f"Feedback alert sent to {FEEDBACK_ALERT_TO}")
+        resp = http.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "from": FROM_EMAIL,
+                "to": [FEEDBACK_ALERT_TO],
+                "subject": subject,
+                "html": body_html,
+                "text": body_text,
+            },
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            log.info(f"Feedback alert sent to {FEEDBACK_ALERT_TO}")
+        else:
+            log.error(f"Resend returned {resp.status_code}: {resp.text}")
     except Exception as e:
         log.error(f"Failed to send feedback alert: {e}")
 
@@ -635,6 +643,6 @@ def send_test():
 
 if __name__ == "__main__":
     log.info(f"Starting Hint webhook receiver (env={HINT_ENV} dry_run={DRY_RUN} port={PORT})")
-    log.info(f"SMTP: {SMTP_USER} via {SMTP_HOST}:{SMTP_PORT} configured={bool(SMTP_PASS)}")
+    log.info(f"Email: from={FROM_EMAIL} resend_configured={bool(RESEND_API_KEY)}")
     log.info(f"Review base URL: {REVIEW_BASE_URL}")
     app.run(host="0.0.0.0", port=PORT, debug=False)

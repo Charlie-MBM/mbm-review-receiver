@@ -187,7 +187,7 @@ def verify_hint_signature(raw_body: bytes, signature_header: str) -> bool:
 
     return hmac.compare_digest(expected, signature_header)
 
-# ─── Patient lookup ──────────────────────────────────────────────────────────────
+# ─── Patient lookup ───────────────────────────────────────────────────────────
 
 def fetch_patient(patient_id: str) -> dict | None:
     """
@@ -433,6 +433,21 @@ HANDLED_EVENTS = {
     "customer_invoice.paid": handle_invoice_paid,
     "patient.created": handle_patient_created,
 }
+
+
+@app.route("/send-test", methods=["GET"])
+def send_test():
+    """Temporary test endpoint — remove after sandbox verification."""
+    secret = request.args.get("secret", "")
+    if secret != "LE_Iv_WrjzzA7sQG2RU9XQ":
+        return jsonify({"error": "forbidden"}), 403
+    to_email = request.args.get("to", "")
+    fname = request.args.get("fname", "there")
+    if not to_email:
+        return jsonify({"error": "missing to param"}), 400
+    ok = send_review_email(first_name=fname, email=to_email)
+    return jsonify({"sent": ok, "to": to_email, "fname": fname,
+                    "link": f"{REVIEW_BASE_URL}/review?fname={urllib.parse.quote(fname)}"}), 200
 
 
 @app.route("/webhook", methods=["POST"])

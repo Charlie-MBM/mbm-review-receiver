@@ -160,7 +160,7 @@ log = logging.getLogger("hint_receiver")
 
 # ─── Flask app ────────────────────────────────────────────────────────────────
 
-app = Flash(__name__)
+app = Flask(__name__)
 
 # ─── Signature verification ───────────────────────────────────────────────────
 

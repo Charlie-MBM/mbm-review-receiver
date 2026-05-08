@@ -310,7 +310,7 @@ def send_review_email(first_name: str, email: str) -> bool:
         msg.attach(MIMEText(text_body, "plain"))
         msg.attach(MIMEText(html_body, "html"))
 
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
             server.ehlo()
             server.starttls()
             server.login(SMTP_USER, SMTP_PASS)
@@ -591,7 +591,7 @@ def _email_feedback_alert(entry: dict):
         msg["To"] = FEEDBACK_ALERT_TO
         msg.attach(MIMEText(body_text, "plain"))
         msg.attach(MIMEText(body_html, "html"))
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()

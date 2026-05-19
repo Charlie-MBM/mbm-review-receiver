@@ -91,7 +91,7 @@ except ImportError:
     subprocess.run(["pip", "install", "requests", "--break-system-packages", "-q"])
     import requests as http
 
-# ─── Configuration ────────────────────────────────────────────────────────────
+# ─── Configuration ──────────────────────────────────────────────
 
 HINT_ENV = os.environ.get("HINT_ENV", "sandbox")
 
@@ -128,7 +128,7 @@ HINT_BASE_URL = (
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() != "false"
 PORT = int(os.environ.get("PORT", 5000))
 
-# ─── Email configuration ──────────────────────────────────────────────────────
+# ─── Email configuration ─────────────────────────────────────────────
 # SMTP via Google Workspace (care@mtbakermedical.com).
 # Requires a Google App Password (not the login password):
 #   myaccount.google.com → Security → 2-Step Verification → App passwords
@@ -143,7 +143,31 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 FROM_EMAIL = os.environ.get("FROM_EMAIL", "Mt. Baker Medical <care@mtbakermedical.com>")
 REVIEW_BASE_URL = os.environ.get("REVIEW_BASE_URL", "https://mtbakermedical.com")
 
-# ─── Logging ──────────────────────────────────────────────────────────────────
+# --- Spruce SMS configuration -------------------------------------------------
+# Spruce Health (the practice's BAA-signed HIPAA-compliant communication platform)
+# Used to send the review-request as an SMS in parallel with the email.
+#
+# Get the API key:  Spruce dashboard -> Settings -> Integrations & API -> API Access
+# Get the endpoint: Spruce dashboard -> Settings -> Phone System (or call
+#                   GET /v1/internalendpoints and pick the channel of type "phone")
+#
+# Both must be set for SMS to send; otherwise SMS is silently skipped and the
+# existing email path still works.
+
+SPRUCE_API_KEY = os.environ.get("SPRUCE_API_KEY", "")
+SPRUCE_INTERNAL_ENDPOINT_ID = os.environ.get("SPRUCE_INTERNAL_ENDPOINT_ID", "")
+SPRUCE_BASE_URL = "https://api.sprucehealth.com/v1"
+
+# --- Frequency cap configuration ----------------------------------------------
+# Each patient is asked for a review at most MAX_REQUESTS_PER_PATIENT times,
+# with at least MIN_DAYS_BETWEEN_REQUESTS days between asks. Tracked locally in
+# patient_state.json on Render's persistent disk.
+
+MAX_REQUESTS_PER_PATIENT = 3
+MIN_DAYS_BETWEEN_REQUESTS = 30
+PATIENT_STATE_FILE = SCRIPT_DIR / "patient_state.json"
+
+# ─── Logging ───────────────────────────────────────────────────────
 
 LOG_FILE = SCRIPT_DIR / "webhook_receiver.log"
 logging.basicConfig(
@@ -156,11 +180,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("hint_receiver")
 
-# ─── Flask app ────────────────────────────────────────────────────────────────
+# ─── Flask app ──────────────────────────────────────────────────────
 
 app = Flask(__name__)
 
-# ─── Signature verification ───────────────────────────────────────────────────
+# ─── Signature verification ─────────────────────────────────────────────
 
 def verify_hint_signature(raw_body: bytes, signature_header: str) -> bool:
     """
@@ -185,7 +209,7 @@ def verify_hint_signature(raw_body: bytes, signature_header: str) -> bool:
 
     return hmac.compare_digest(expected, signature_header)
 
-# ─── Patient lookup ───────────────────────────────────────────────────────────
+# ─── Patient lookup ──────────────────────────────────────────────────
 
 def fetch_patient(patient_id: str) -> dict | None:
     """
@@ -205,22 +229,30 @@ def fetch_patient(patient_id: str) -> dict | None:
         log.error(f"Failed to fetch patient {patient_id}: {e}")
         return None
 
-def extract_phi_minimal(patient: dict) -> tuple[str, str] | None:
+def extract_phi_minimal(patient: dict) -> tuple[str, str, str] | None:
     """
-    Extract ONLY first_name + email from a patient record.
+    Extract ONLY first_name + email + mobile_phone from a patient record.
     Discards all other fields (last_name, DOB, conditions, MRN, etc.).
-    Returns (first_name, email) or None if email is missing.
+    Returns (first_name, email, phone) or None if BOTH email AND phone are missing.
 
-    PHI boundary: these two fields are the only ones passed to the email sender.
-    All other patient data is discarded. Per CLAUDE.md §2.1.
+    PHI boundary: these three fields are the only ones passed to the delivery
+    layer. All other patient data is discarded. Per CLAUDE.md §2.1.
+
+    Either email or phone may be empty; at least one is required to dispatch.
     """
     first_name = (patient.get("first_name") or "").strip()
     email = (patient.get("email") or "").strip()
-    if not email:
+    phone = (
+        patient.get("mobile_phone")
+        or patient.get("phone")
+        or patient.get("home_phone")
+        or ""
+    ).strip()
+    if not email and not phone:
         return None
-    return first_name, email
+    return first_name, email, phone
 
-# ─── Email delivery ───────────────────────────────────────────────────────────
+# ─── Email delivery ───────────────────────────────────────────────────
 
 _EMAIL_SUBJECT = "How did we do, {first_name}?"
 
@@ -324,7 +356,126 @@ def send_review_email(first_name: str, email: str) -> bool:
         return False
 
 
-# ─── State helpers ────────────────────────────────────────────────────────────
+
+# --- Spruce SMS delivery ------------------------------------------------------
+
+def send_review_sms(first_name: str, phone: str) -> bool:
+    """Send a review-request SMS via Spruce. Returns True on success."""
+    name = first_name.strip() if first_name else "there"
+    name_param = urllib.parse.quote(name) if name and name != "there" else ""
+    if name_param:
+        review_link = f"{REVIEW_BASE_URL}/review?fname={name_param}"
+    else:
+        review_link = f"{REVIEW_BASE_URL}/review"
+
+    body = (
+        f"Hey {name}, this is James from Mt. Baker Medical. "
+        "Thanks for coming in. If your visit went well, would you mind sharing? "
+        f"{review_link} "
+        "Reply DONE if you've already reviewed, STOP to opt out."
+    )
+
+    phone_tail = phone[-4:] if len(phone) >= 4 else "????"
+
+    if DRY_RUN:
+        log.info(f"[DRY_RUN] Would SMS phone ending {phone_tail}")
+        return True
+
+    if not SPRUCE_API_KEY or not SPRUCE_INTERNAL_ENDPOINT_ID:
+        log.warning(
+            "Spruce not configured (SPRUCE_API_KEY/SPRUCE_INTERNAL_ENDPOINT_ID) "
+            f"-- skipping SMS to phone ending {phone_tail}"
+        )
+        return False
+
+    try:
+        url = f"{SPRUCE_BASE_URL}/internalendpoints/{SPRUCE_INTERNAL_ENDPOINT_ID}/conversations"
+        resp = http.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {SPRUCE_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "destination": {
+                    "smsOrEmailEndpoint": {"endpoint": phone},
+                },
+                "message": {"text": body},
+            },
+            timeout=15,
+        )
+        if resp.status_code in (200, 201):
+            log.info(f"Review SMS sent to phone ending {phone_tail}")
+            return True
+        log.error(
+            f"Spruce API returned {resp.status_code} sending to phone ending "
+            f"{phone_tail}: {resp.text[:200]}"
+        )
+        return False
+    except Exception as e:
+        log.error(f"Failed to send SMS to phone ending {phone_tail}: {e}")
+        return False
+
+
+# --- Patient state (30-day spacing + 3-lifetime-cap) --------------------------
+# Stored in patient_state.json on Render's persistent disk. Schema:
+#   { "<patient_id>": { "count": <int>, "last_ask_ts": "<ISO 8601 UTC>" } }
+# No PHI in this file -- only Hint opaque IDs and timestamps.
+
+def _read_patient_state() -> dict:
+    try:
+        if PATIENT_STATE_FILE.exists():
+            return json.loads(PATIENT_STATE_FILE.read_text())
+        return {}
+    except Exception as e:
+        log.warning(f"Could not read patient_state.json: {e}")
+        return {}
+
+
+def _write_patient_state(state: dict):
+    try:
+        PATIENT_STATE_FILE.write_text(json.dumps(state, indent=2, sort_keys=True))
+    except Exception as e:
+        log.error(f"Could not write patient_state.json: {e}")
+
+
+def _should_send_review_request(patient_id: str) -> tuple[bool, str]:
+    """Returns (allowed, reason). Reason is human-readable for log lines."""
+    state = _read_patient_state()
+    patient = state.get(patient_id, {})
+    count = patient.get("count", 0)
+    last_ask_ts = patient.get("last_ask_ts")
+
+    if count >= MAX_REQUESTS_PER_PATIENT:
+        return False, f"cap-hit count={count}/{MAX_REQUESTS_PER_PATIENT}"
+
+    if last_ask_ts:
+        try:
+            last_dt = datetime.fromisoformat(last_ask_ts.replace("Z", "+00:00"))
+            days_since = (datetime.now(timezone.utc) - last_dt).days
+            if days_since < MIN_DAYS_BETWEEN_REQUESTS:
+                return (
+                    False,
+                    f"spacing-not-met {days_since}d since last ask "
+                    f"(count={count}/{MAX_REQUESTS_PER_PATIENT})",
+                )
+        except Exception as e:
+            log.warning(f"Could not parse last_ask_ts={last_ask_ts}: {e}")
+
+    return True, f"ok count={count}/{MAX_REQUESTS_PER_PATIENT}"
+
+
+def _record_request_sent(patient_id: str):
+    """Increment the patient's request count and update last_ask_ts to now."""
+    state = _read_patient_state()
+    patient = state.get(patient_id, {"count": 0, "last_ask_ts": None})
+    patient["count"] = patient.get("count", 0) + 1
+    patient["last_ask_ts"] = datetime.now(timezone.utc).isoformat()
+    state[patient_id] = patient
+    _write_patient_state(state)
+
+
+# ─── State helpers ────────────────────────────────────────────────────
 
 def _update_last_webhook_ts():
     """Update last_webhook_received in bridge_state.json."""
@@ -337,7 +488,7 @@ def _update_last_webhook_ts():
         log.warning(f"Could not update last_webhook_received: {e}")
 
 
-# ─── Event handlers ───────────────────────────────────────────────────────────
+# ─── Event handlers ──────────────────────────────────────────────────
 
 def handle_membership_created(event: dict):
     """
@@ -384,15 +535,22 @@ def handle_patient_created(event: dict):
         return
 
     # For patient.created, first_name is in the object itself
-    # Email may or may not be present — attempt direct extraction first
+    # Email/phone may or may not be present — attempt direct extraction first
     phi = extract_phi_minimal(obj)
     if phi:
-        first_name, email = phi
-        log.info(f"patient.created (direct): patient_id={patient_id} email={email}")
-        _dispatch_to_bridge(patient_id, first_name, email, trigger="patient.created")
+        first_name, email, phone = phi
+        log.info(
+            f"patient.created (direct): patient_id={patient_id} "
+            f"email={'yes' if email else 'no'} phone={'yes' if phone else 'no'}"
+        )
+        _dispatch_to_bridge(
+            patient_id, first_name, email, phone, trigger="patient.created"
+        )
     else:
-        # Email not in payload — fall back to patient API lookup
-        log.info(f"patient.created: no email in payload, fetching patient {patient_id}")
+        # No email or phone in payload — fall back to patient API lookup
+        log.info(
+            f"patient.created: no contact fields in payload, fetching patient {patient_id}"
+        )
         _process_patient_id(patient_id, trigger="patient.created")
 
 
@@ -407,26 +565,57 @@ def _process_patient_id(patient_id: str, trigger: str):
 
     phi = extract_phi_minimal(patient)
     if not phi:
-        log.warning(f"[{trigger}] Patient {patient_id} has no email — skipping")
+        log.warning(
+            f"[{trigger}] Patient {patient_id} has no email or phone — skipping"
+        )
         return
 
-    first_name, email = phi
-    _dispatch_to_bridge(patient_id, first_name, email, trigger=trigger)
+    first_name, email, phone = phi
+    _dispatch_to_bridge(patient_id, first_name, email, phone, trigger=trigger)
 
 
-def _dispatch_to_bridge(patient_id: str, first_name: str, email: str, trigger: str):
+def _dispatch_to_bridge(
+    patient_id: str,
+    first_name: str,
+    email: str,
+    phone: str,
+    trigger: str,
+):
     """
-    Send a review-request email from care@mtbakermedical.com.
+    Send a review-request via both email (Resend) and SMS (Spruce), subject to
+    the 30-day-spacing + 3-lifetime-cap rules tracked in patient_state.json.
 
-    This is the only place first_name + email are used together; all other
-    code in this file operates on patient_id only.
+    Either channel may be skipped if the patient is missing that contact field;
+    cap/spacing applies to the patient (not per channel).
     """
-    log.info(f"[{trigger}] Processing: patient_id={patient_id} email={email} dry_run={DRY_RUN}")
-    email_ok = send_review_email(first_name=first_name, email=email)
-    log.info(f"[{trigger}] Email delivery: {'ok' if email_ok else 'failed'}")
+    allowed, reason = _should_send_review_request(patient_id)
+    if not allowed:
+        log.info(f"[{trigger}] SKIP patient_id={patient_id}: {reason}")
+        return
+
+    log.info(
+        f"[{trigger}] Processing: patient_id={patient_id} "
+        f"email={'yes' if email else 'no'} phone={'yes' if phone else 'no'} "
+        f"dry_run={DRY_RUN} ({reason})"
+    )
+
+    email_ok = send_review_email(first_name=first_name, email=email) if email else False
+    sms_ok = send_review_sms(first_name=first_name, phone=phone) if phone else False
+
+    email_status = "ok" if email_ok else ("skip" if not email else "failed")
+    sms_status = "ok" if sms_ok else ("skip" if not phone else "failed")
+    log.info(f"[{trigger}] Delivery: email={email_status} sms={sms_status}")
+
+    if email_ok or sms_ok:
+        _record_request_sent(patient_id)
+        new_count = _read_patient_state().get(patient_id, {}).get("count")
+        log.info(
+            f"[{trigger}] Recorded: patient_id={patient_id} "
+            f"count={new_count}/{MAX_REQUESTS_PER_PATIENT}"
+        )
 
 
-# ─── Webhook endpoint ─────────────────────────────────────────────────────────────────────────────────
+# ─── Webhook endpoint ────────────────────────────────────────────────────────────
 
 HANDLED_EVENTS = {
     "membership.created": handle_membership_created,
@@ -491,8 +680,12 @@ def health():
         "dry_run": DRY_RUN,
         "from_email": FROM_EMAIL,
         "resend_configured": bool(RESEND_API_KEY),
+        "spruce_configured": bool(SPRUCE_API_KEY) and bool(SPRUCE_INTERNAL_ENDPOINT_ID),
         "partner_key_set": bool(HINT_PARTNER_API_KEY),
         "practices_key_set": bool(HINT_API_KEY),
+        "max_requests_per_patient": MAX_REQUESTS_PER_PATIENT,
+        "min_days_between_requests": MIN_DAYS_BETWEEN_REQUESTS,
+        "tracked_patients": len(_read_patient_state()),
     }), 200
 
 
@@ -628,5 +821,15 @@ def view_feedback():
 if __name__ == "__main__":
     log.info(f"Starting Hint webhook receiver (env={HINT_ENV} dry_run={DRY_RUN} port={PORT})")
     log.info(f"Email: from={FROM_EMAIL} resend_configured={bool(RESEND_API_KEY)}")
+    _sms_configured = bool(SPRUCE_API_KEY) and bool(SPRUCE_INTERNAL_ENDPOINT_ID)
+    log.info(
+        f"SMS:   spruce_configured={_sms_configured} "
+        f"(api_key={'yes' if SPRUCE_API_KEY else 'no'}, "
+        f"endpoint_id={'yes' if SPRUCE_INTERNAL_ENDPOINT_ID else 'no'})"
+    )
+    log.info(
+        f"Cap:   max_requests_per_patient={MAX_REQUESTS_PER_PATIENT} "
+        f"min_days_between={MIN_DAYS_BETWEEN_REQUESTS}"
+    )
     log.info(f"Review base URL: {REVIEW_BASE_URL}")
     app.run(host="0.0.0.0", port=PORT, debug=False)

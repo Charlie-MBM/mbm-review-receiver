@@ -370,7 +370,8 @@ def send_review_sms(first_name: str, phone: str) -> bool:
 
     body = (
         f"Hey {name}, this is James from Mt. Baker Medical. "
-        "Thanks for coming in. If your visit went well, would you mind sharing? "
+        "Thanks for being a patient. Would you mind sharing your experience? "
+        "Honest reviews - whatever you'd say - help the next person find care that fits. "
         f"{review_link} "
         "Reply DONE if you've already reviewed, STOP to opt out."
     )

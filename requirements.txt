@@ -1,3 +1,8 @@
+# Daily-poller runtime deps.
+# Flask is still imported by hint_webhook_receiver.py (library shape preserved),
+# but Flask is NOT started — the entry point is send_review_requests.py (CLI).
+# Gunicorn dropped on 2026-05-24 with the move from hosted to local CLI.
+
 flask>=3.0.0
 requests>=2.31.0
-gunicorn>=21.2.0
+python-dotenv>=1.0.0

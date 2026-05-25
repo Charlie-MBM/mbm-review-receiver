@@ -1,0 +1,38 @@
+# Local-only files that must NEVER be committed.
+# patient_state.json contains per-patient send history (PHI by HIPAA's broad definition).
+# .env contains Hint + Spruce API keys.
+# send_log.txt + webhook_receiver.log may contain phone-number tails for diagnostics.
+
+.env
+.env.local
+patient_state.json
+send_log.txt
+webhook_receiver.log
+bridge_state.json
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local virtual environments
+venv/
+.venv/
+env/

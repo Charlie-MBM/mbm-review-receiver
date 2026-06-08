@@ -25,6 +25,18 @@ import argparse
 import sys
 from datetime import datetime, timedelta, timezone
 
+# Auto-load .env from the script's directory BEFORE importing the receiver,
+# because hint_webhook_receiver reads its config (API keys, DRY_RUN, etc.)
+# from os.environ at import time. If .env isn't loaded yet, the receiver
+# would see empty strings.
+try:
+    from dotenv import load_dotenv
+    from pathlib import Path
+    load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+except ImportError:
+    # dotenv is optional; system env vars still work without it.
+    pass
+
 # Import shared logic from the existing receiver. The Flask app instantiates
 # on import but is never started, which is harmless.
 import hint_webhook_receiver as receiver

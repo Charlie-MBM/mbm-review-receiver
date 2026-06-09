@@ -161,9 +161,15 @@ SPRUCE_BASE_URL = "https://api.sprucehealth.com/v1"
 # --- Frequency cap configuration ----------------------------------------------
 # Each patient is asked for a review at most MAX_REQUESTS_PER_PATIENT times,
 # with at least MIN_DAYS_BETWEEN_REQUESTS days between asks. Tracked locally in
-# patient_state.json on Render's persistent disk.
+# patient_state.json on Charlie's local machine.
+#
+# Cap raised from 3 to effectively unlimited: in a concierge model, repeat
+# patients accrue more care experience to share, and the click-tracker
+# (SHA-256-keyed Cloudflare KV) is the real opt-out — once a patient taps the
+# Google CTA, they're permanently suppressed. The 30-day spacing remains the
+# anti-spam guardrail.
 
-MAX_REQUESTS_PER_PATIENT = 3
+MAX_REQUESTS_PER_PATIENT = 999
 MIN_DAYS_BETWEEN_REQUESTS = 30
 PATIENT_STATE_FILE = SCRIPT_DIR / "patient_state.json"
 

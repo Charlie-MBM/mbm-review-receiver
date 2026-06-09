@@ -22,6 +22,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -109,26 +110,75 @@ def update_last_run_at(state: dict):
     }
 
 
-def fetch_paid_invoices_since(since_iso: str) -> list:
+def fetch_interactions_since(since_iso: str) -> list:
     """
-    Return list of patient_ids from invoices paid since `since_iso`.
+    Return list of patient_ids from Hint Clinical Interactions created since
+    `since_iso`. An Interaction is created whenever the physician writes a
+    note, completes a visit, or has a phone call documented — the cleanest
+    visit-completed signal Hint exposes.
 
-    NOTE: Hint API parameter names (paid_at_after, status filter) and response
-    envelope (list vs {"data": [...]}) may need adjustment based on actual Hint
-    API docs. Verify against https://docs.hint.com when the API key is configured.
+    Replaces the old `fetch_paid_invoices_since` trigger which was noisy in a
+    concierge model (membership invoices auto-pay monthly regardless of visits).
+
+    Hint API: GET /api/provider/interactions?created_at_after=<iso>
     """
-    url = f"{HINT_BASE_URL}/api/provider/customer_invoices"
-    params = {"paid_at_after": since_iso, "status": "paid"}
+    url = f"{HINT_BASE_URL}/api/provider/interactions"
+    params = {"created_at_after": since_iso}
     headers = {"Authorization": f"Bearer {HINT_API_KEY}"}
     try:
         resp = http.get(url, headers=headers, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
-        invoices = data if isinstance(data, list) else data.get("data", [])
-        return [inv.get("patient_id") for inv in invoices if inv.get("patient_id")]
+        interactions = data if isinstance(data, list) else data.get("data", [])
+        return [i.get("patient_id") for i in interactions if i.get("patient_id")]
     except Exception as e:
-        log.error(f"Failed to fetch paid invoices: {e}")
+        log.error(f"Failed to fetch interactions: {e}")
         return []
+
+
+def fetch_clicked_fnames() -> set:
+    """
+    Fetch the set of (lowercased) first names that have clicked the Google
+    review CTA on the /review page. Patients in this set get skipped —
+    they've already engaged with the ask and shouldn't be pestered again.
+
+    Backed by Cloudflare Workers KV namespace REVIEW_CLICKS. See
+    src/server.ts in mbm-rebuild-43f1acd5 for the endpoint impl and
+    HIPAA_AUDIT.md for the design rationale.
+
+    Returns empty set if the token isn't configured or the endpoint fails;
+    that's safe-fail — we just don't suppress sends (the 3-cap still applies).
+    """
+    base = os.environ.get("REVIEW_BASE_URL", "https://mtbakermedical.com")
+    token = os.environ.get("CLICK_TRACKER_TOKEN", "")
+    if not token:
+        log.warning(
+            "CLICK_TRACKER_TOKEN not set — skipping click-tracker check "
+            "(will not suppress already-clicked patients). "
+            "Set in .env once Cloudflare Worker secret is provisioned."
+        )
+        return set()
+    try:
+        resp = http.get(
+            f"{base}/api/review-clicked",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            log.error(
+                f"click-tracker GET returned {resp.status_code}: {resp.text[:200]}"
+            )
+            return set()
+        data = resp.json()
+        records = data.get("records", [])
+        return {
+            (r.get("fname") or "").strip().lower()
+            for r in records
+            if r.get("fname")
+        }
+    except Exception as e:
+        log.error(f"Failed to fetch click list: {e}")
+        return set()
 
 
 def fetch_memberships_created_since(since_iso: str) -> list:
@@ -168,7 +218,15 @@ def main():
         log.error("HINT_API_KEY not set. Aborting.")
         sys.exit(2)
 
-    # Collect unique patient_ids from both event types
+    # Fetch the set of already-clicked first names ONCE up front. Skip any
+    # patient whose first name appears — they've already engaged with the
+    # ask, even if they didn't ultimately leave the review.
+    clicked_fnames = fetch_clicked_fnames()
+    log.info(f"poller: click-tracker returned {len(clicked_fnames)} fname(s) to suppress")
+
+    # Collect unique patient_ids from both event types.
+    # Interactions API is the cleanest visit-completed signal in Hint Clinical;
+    # memberships.created catches new enrollees who haven't had a visit yet.
     patient_ids = set()
     if args.allow_patient:
         patient_ids.add(args.allow_patient)
@@ -176,7 +234,7 @@ def main():
     else:
         for pid in fetch_memberships_created_since(since_iso):
             patient_ids.add(pid)
-        for pid in fetch_paid_invoices_since(since_iso):
+        for pid in fetch_interactions_since(since_iso):
             patient_ids.add(pid)
 
     log.info(f"poller: found {len(patient_ids)} unique patient_id(s) to evaluate")
@@ -197,6 +255,17 @@ def main():
                 skipped += 1
                 continue
             first_name, email, phone = phi
+
+            # Click-tracker suppression — if this patient's first name already
+            # clicked the Google review CTA from any prior SMS, never ask again.
+            if first_name and first_name.strip().lower() in clicked_fnames:
+                log.info(
+                    f"poller: SKIP patient_id={pid} fname={first_name} "
+                    f"— already clicked review CTA (forever)"
+                )
+                skipped += 1
+                continue
+
             before_count = _read_patient_state().get(pid, {}).get("count", 0)
             _dispatch_to_bridge(pid, first_name, email, phone, trigger="poller")
             after_count = _read_patient_state().get(pid, {}).get("count", 0)

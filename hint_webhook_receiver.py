@@ -430,7 +430,7 @@ def send_review_sms(first_name: str, phone: str) -> bool:
         "James was wondering if you'd mind sharing your experience? "
         "Honest reviews - whatever you'd say - help the next person find care that fits. "
         f"{review_link} "
-        "Reply DONE if you've already done so."
+        "Reply DONE if you've already left us a review."
     )
 
     # Spruce requires E.164. Hint returns phones in free-form.

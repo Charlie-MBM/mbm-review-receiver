@@ -240,7 +240,13 @@ def extract_phi_minimal(patient: dict) -> tuple[str, str, str] | None:
 
     Either email or phone may be empty; at least one is required to dispatch.
     """
-    first_name = (patient.get("first_name") or "").strip()
+    # Prefer chosen_first_name (patient's nickname / preferred name) over the
+    # legal first_name — "Charlie" over "Charles", "Mike" over "Michael", etc.
+    # Falls back to first_name if chosen_first_name is empty.
+    first_name = (
+        (patient.get("chosen_first_name") or "").strip()
+        or (patient.get("first_name") or "").strip()
+    )
     email = (patient.get("email") or "").strip()
 
     # Hint stores phones as a list of {number, type} objects under "phones".
@@ -386,12 +392,35 @@ def send_review_email(first_name: str, email: str) -> bool:
 
 # --- Spruce SMS delivery ------------------------------------------------------
 
+def _normalize_phone_e164(phone: str) -> str:
+    """Normalize a phone string to E.164 format (e.g. "+13603498094").
+
+    Spruce's destination endpoint requires E.164. Hint stores phones in
+    free-form like "(360) 349-8094" or "1-360-349-8094".
+    """
+    digits = "".join(c for c in (phone or "") if c.isdigit())
+    if not digits:
+        return ""
+    # If already country-coded (11+ digits and starts with 1 for US, or any
+    # other country code), prepend "+".
+    if len(digits) == 11 and digits.startswith("1"):
+        return f"+{digits}"
+    if len(digits) == 10:
+        # Assume US/CA — prepend +1.
+        return f"+1{digits}"
+    # Longer than 11 digits — assume already a full international number,
+    # just prepend "+".
+    return f"+{digits}"
+
+
 def send_review_sms(first_name: str, phone: str) -> bool:
     """Send a review-request SMS via Spruce. Returns True on success."""
     name = first_name.strip() if first_name else "there"
     name_param = urllib.parse.quote(name) if name and name != "there" else ""
+    # Use the short URL /r?n=Charles (saves ~12 chars vs /review?fname=Charles).
+    # The Worker redirects /r?n=X to /review?fname=X.
     if name_param:
-        review_link = f"{REVIEW_BASE_URL}/review?fname={name_param}"
+        review_link = f"{REVIEW_BASE_URL}/r?n={name_param}"
     else:
         review_link = f"{REVIEW_BASE_URL}/review"
 
@@ -401,14 +430,20 @@ def send_review_sms(first_name: str, phone: str) -> bool:
         "James was wondering if you'd mind sharing your experience? "
         "Honest reviews - whatever you'd say - help the next person find care that fits. "
         f"{review_link} "
-        "Reply DONE if you've already reviewed, STOP to opt out."
+        "Reply DONE if you've already done so."
     )
 
-    phone_tail = phone[-4:] if len(phone) >= 4 else "????"
+    # Spruce requires E.164. Hint returns phones in free-form.
+    normalized_phone = _normalize_phone_e164(phone)
+    phone_tail = normalized_phone[-4:] if len(normalized_phone) >= 4 else "????"
 
     if DRY_RUN:
         log.info(f"[DRY_RUN] Would SMS phone ending {phone_tail}")
         return True
+
+    if not normalized_phone:
+        log.warning(f"send_review_sms: empty/unparseable phone, skipping")
+        return False
 
     if not SPRUCE_API_KEY or not SPRUCE_INTERNAL_ENDPOINT_ID:
         log.warning(
@@ -427,9 +462,11 @@ def send_review_sms(first_name: str, phone: str) -> bool:
             },
             json={
                 "destination": {
-                    "smsOrEmailEndpoint": {"endpoint": phone},
+                    "smsOrEmailEndpoint": normalized_phone,
                 },
-                "message": {"text": body},
+                "message": {
+                    "body": [{"type": "text", "value": body}],
+                },
             },
             timeout=15,
         )

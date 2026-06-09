@@ -242,12 +242,39 @@ def extract_phi_minimal(patient: dict) -> tuple[str, str, str] | None:
     """
     first_name = (patient.get("first_name") or "").strip()
     email = (patient.get("email") or "").strip()
-    phone = (
-        patient.get("mobile_phone")
-        or patient.get("phone")
-        or patient.get("home_phone")
-        or ""
-    ).strip()
+
+    # Hint stores phones as a list of {number, type} objects under "phones".
+    # Prefer mobile/cell types (SMS-capable); fall back to first available.
+    phone = ""
+    phones = patient.get("phones") or []
+    if isinstance(phones, list):
+        # Prefer mobile/cell
+        for p in phones:
+            if isinstance(p, dict):
+                ptype = (p.get("type") or "").lower()
+                if "mobile" in ptype or "cell" in ptype:
+                    candidate = (p.get("number") or "").strip()
+                    if candidate:
+                        phone = candidate
+                        break
+        # Fallback: first non-empty number of any type
+        if not phone:
+            for p in phones:
+                if isinstance(p, dict):
+                    candidate = (p.get("number") or "").strip()
+                    if candidate:
+                        phone = candidate
+                        break
+
+    # Legacy flat-field fallback (older Hint payload shape, just in case)
+    if not phone:
+        phone = (
+            patient.get("mobile_phone")
+            or patient.get("phone")
+            or patient.get("home_phone")
+            or ""
+        ).strip()
+
     if not email and not phone:
         return None
     return first_name, email, phone

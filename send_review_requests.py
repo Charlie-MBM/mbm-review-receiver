@@ -136,15 +136,35 @@ def fetch_interactions_since(since_iso: str) -> list:
         return []
 
 
-def fetch_clicked_fnames() -> set:
+def hash_fname(fname: str) -> str:
     """
-    Fetch the set of (lowercased) first names that have clicked the Google
-    review CTA on the /review page. Patients in this set get skipped —
-    they've already engaged with the ask and shouldn't be pestered again.
+    SHA-256 hash of a lowercased, trimmed first name.
 
-    Backed by Cloudflare Workers KV namespace REVIEW_CLICKS. See
-    src/server.ts in mbm-rebuild-43f1acd5 for the endpoint impl and
-    HIPAA_AUDIT.md for the design rationale.
+    The click-tracker stores hashes (not plain first names) on Cloudflare KV
+    so that no consumer health data lives in third-party storage. Cloudflare
+    isn't under a BAA with the practice, and Washington's My Health My Data
+    Act treats "data that indicates a consumer used healthcare-related
+    services" as protected. Hashing keeps the suppression behavior intact
+    while removing first names from Cloudflare's blast radius entirely.
+
+    Returns hex digest (64 chars) or empty string if fname is empty.
+    """
+    import hashlib
+    normalized = (fname or "").strip().lower()
+    if not normalized:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def fetch_clicked_fname_hashes() -> set:
+    """
+    Fetch the set of SHA-256 hashes of first names that have clicked the
+    Google review CTA on the /review page. Patients whose hashed first name
+    appears get skipped — they've already engaged with the ask.
+
+    Backed by Cloudflare Workers KV namespace REVIEW_CLICKS, which stores
+    hashes only (no plain names). See src/server.ts in mbm-rebuild-43f1acd5
+    for the endpoint impl and HIPAA_AUDIT.md for the design rationale.
 
     Returns empty set if the token isn't configured or the endpoint fails;
     that's safe-fail — we just don't suppress sends (the 3-cap still applies).
@@ -171,34 +191,17 @@ def fetch_clicked_fnames() -> set:
             return set()
         data = resp.json()
         records = data.get("records", [])
+        # The Worker now stores and returns SHA-256 hashes (hex). For backwards
+        # compatibility with any stale plain-name records from earlier testing,
+        # accept both: if the value isn't a 64-char hex hash, ignore it.
         return {
             (r.get("fname") or "").strip().lower()
             for r in records
-            if r.get("fname")
+            if r.get("fname") and len((r.get("fname") or "").strip()) == 64
         }
     except Exception as e:
         log.error(f"Failed to fetch click list: {e}")
         return set()
-
-
-def fetch_memberships_created_since(since_iso: str) -> list:
-    """
-    Return list of patient_ids from memberships created since `since_iso`.
-
-    Same Hint API caveat as fetch_paid_invoices_since.
-    """
-    url = f"{HINT_BASE_URL}/api/provider/memberships"
-    params = {"created_at_after": since_iso}
-    headers = {"Authorization": f"Bearer {HINT_API_KEY}"}
-    try:
-        resp = http.get(url, headers=headers, params=params, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        memberships = data if isinstance(data, list) else data.get("data", [])
-        return [m.get("patient_id") for m in memberships if m.get("patient_id")]
-    except Exception as e:
-        log.error(f"Failed to fetch memberships: {e}")
-        return []
 
 
 def main():
@@ -218,22 +221,24 @@ def main():
         log.error("HINT_API_KEY not set. Aborting.")
         sys.exit(2)
 
-    # Fetch the set of already-clicked first names ONCE up front. Skip any
-    # patient whose first name appears — they've already engaged with the
-    # ask, even if they didn't ultimately leave the review.
-    clicked_fnames = fetch_clicked_fnames()
-    log.info(f"poller: click-tracker returned {len(clicked_fnames)} fname(s) to suppress")
+    # Fetch the set of already-clicked first-name HASHES ONCE up front.
+    # Skip any patient whose hashed first name appears — they've engaged
+    # with the ask, even if they didn't ultimately leave the review.
+    # Stored as SHA-256 hashes so no plain first names live on Cloudflare KV
+    # (which isn't BAA-covered). See hash_fname() for rationale.
+    clicked_hashes = fetch_clicked_fname_hashes()
+    log.info(f"poller: click-tracker returned {len(clicked_hashes)} hash(es) to suppress")
 
-    # Collect unique patient_ids from both event types.
-    # Interactions API is the cleanest visit-completed signal in Hint Clinical;
-    # memberships.created catches new enrollees who haven't had a visit yet.
+    # Collect unique patient_ids from Clinical Interactions only — the cleanest
+    # post-visit signal. Membership creation as a trigger was dropped because
+    # (a) the patient may not have actually been seen yet, (b) reviews after a
+    # signup form but before care don't reflect the practice's quality, and
+    # (c) it ties consent more tightly to "real care has been delivered".
     patient_ids = set()
     if args.allow_patient:
         patient_ids.add(args.allow_patient)
         log.info(f"poller: test mode, processing only {args.allow_patient}")
     else:
-        for pid in fetch_memberships_created_since(since_iso):
-            patient_ids.add(pid)
         for pid in fetch_interactions_since(since_iso):
             patient_ids.add(pid)
 
@@ -256,9 +261,12 @@ def main():
                 continue
             first_name, email, phone = phi
 
-            # Click-tracker suppression — if this patient's first name already
-            # clicked the Google review CTA from any prior SMS, never ask again.
-            if first_name and first_name.strip().lower() in clicked_fnames:
+            # Click-tracker suppression — if this patient's first-name hash
+            # appears in the click-tracker, they've already engaged with the
+            # ask and we don't pester them again. Hashing means no plain
+            # first name lives on Cloudflare KV.
+            fname_hash = hash_fname(first_name)
+            if fname_hash and fname_hash in clicked_hashes:
                 log.info(
                     f"poller: SKIP patient_id={pid} fname={first_name} "
                     f"— already clicked review CTA (forever)"

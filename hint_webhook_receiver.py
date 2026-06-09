@@ -424,11 +424,13 @@ def send_review_sms(first_name: str, phone: str) -> bool:
     else:
         review_link = f"{REVIEW_BASE_URL}/review"
 
+    # SMS body — no physician name (minimum-necessary under HIPAA; WA MHMD).
+    # Prosocial framing per JMIS 2025 healthcare RCT (open appeal > targeted benefit).
+    # Kept under ~180 chars to fit a single SMS segment after the short URL.
     body = (
         f"Hi {name}, this is Mt. Baker Medical. "
-        "Thanks for being a patient. "
-        "James was wondering if you'd mind sharing your experience? "
-        "Honest reviews - whatever you'd say - help the next person find care that fits. "
+        "Thanks for trusting us with your care. "
+        "Honest patient reviews - whatever you'd say - help the next person find care like this. "
         f"{review_link} "
         "Reply DONE if you've already left us a review."
     )

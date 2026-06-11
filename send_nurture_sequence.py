@@ -1,11 +1,31 @@
 #!/usr/bin/env python3
 """
 send_nurture_sequence.py - Daily CLI nurture poller (T5d). Sibling of the review
-and consult-intake pollers; runs on Charlie's laptop via MBM-Nurture-Poller.
-Trigger: Hint FUTURE-DATED PENDING memberships with NO payment source. T5d adds
-per-plan Day-0 links, cross-record duplicate suppression + auto-cancel-once
-reconcile, and a guarded Day-30 cleanup. DRY_RUN gates all sends AND cancels.
-This GitHub copy is the authoritative backup of the local file the scheduler runs.
+and consult-intake pollers; runs on Charlie's laptop via the MBM-Nurture-Poller
+Task Scheduler job.
+
+Trigger (T5c): Hint FUTURE-DATED PENDING memberships with NO payment source.
+T5d adds:
+  A. Per-plan signup LINK on the Day 0 text (config map; link-free fallback).
+  B. Cross-record (duplicate) suppression: before every touch, match the prospect
+     by email AND phone across ALL Hint patients; exit permanently if ANY matched
+     record shows a payment method / active membership / non-pending same-family
+     membership. On a DUPLICATE conversion, auto-CANCEL the stale staff-created
+     pending membership exactly once (prevents double-billing) + reconcile flag.
+  C. Day-30 cleanup: auto-CANCEL the stale pending membership and queue the patient
+     for staff archive (Hint API cannot archive; NEVER delete) - only if all guards
+     pass (no payment, no active membership on any matched record, no future
+     appointment, no inbound Spruce reply). Every auto-cancel/archive is audited.
+
+Usage:
+  py send_nurture_sequence.py --dry-run     # log-only plan, sends/cancels nothing
+  py send_nurture_sequence.py               # respects DRY_RUN in .env
+  py send_nurture_sequence.py --go-live     # stamp go_live_at + run
+  py send_nurture_sequence.py --list-pending
+
+SAFETY: DRY_RUN defaults true; all sends AND Hint cancels are gated by it.
+Pre-existing pending memberships need explicit approval (nurture_approved.json).
+Dan I. (mem-zhNHV8snambF) is hard-excluded (ratified: not for nurture).
 """
 import argparse
 import json
@@ -17,6 +37,7 @@ from nurture_engine import log
 
 APPROVED_FILE = E.SCRIPT_DIR / "nurture_approved.json"
 # Ratified (Charlie, 2026-06-10): Dan I. already said yes verbally, payment manual.
+# Hard-excluded from nurture regardless of approval list.
 MEMBERSHIP_DENYLIST = {"mem-zhNHV8snambF"}
 
 
@@ -28,7 +49,7 @@ def parse_args():
     return p.parse_args()
 
 
-def load_approved():
+def load_approved() -> set:
     try:
         if APPROVED_FILE.exists():
             return set(json.loads(APPROVED_FILE.read_text()))
@@ -58,6 +79,8 @@ def list_pending():
 
 
 def conversion_scan(matched, our_pat_id, our_family):
+    """Across matched patient records, separate conversion signals on OUR record
+    vs OTHER (duplicate) records."""
     our = {"card": False, "active": False, "nonpend_fam": False}
     other = {"card": False, "active": False, "nonpend_fam": False}
     for pt in matched:
@@ -74,7 +97,8 @@ def conversion_scan(matched, our_pat_id, our_family):
 def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
     mem_id, pat_id = m["mem_id"], m["pat_id"]
     name_red = redact(m["patient_name"])
-    plan = {"mem": mem_id, "name": name_red, "plan": m["plan"], "action": None, "reason": None, "day": None}
+    plan = {"mem": mem_id, "name": name_red, "plan": m["plan"], "action": None,
+            "reason": None, "day": None}
 
     if E.is_denylisted(m["patient_name"]):
         plan.update(action="skip", reason="denylist (test dummy)")
@@ -83,6 +107,7 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
         plan.update(action="skip", reason="hard-excluded (ratified not-for-nurture)")
         return plan
 
+    # Re-fetch our membership: canceled/deleted or already active -> exit (T5c).
     fresh = E.hint_get_membership(mem_id)
     if fresh is None:
         plan.update(action="exit", reason="membership canceled/deleted")
@@ -99,19 +124,25 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
     emails, phones = E.patient_emails_phones(our_pt)
     our_family = E.plan_family(m["plan"])
 
+    # ---- Part B: cross-record (duplicate) suppression ----
     matched = E.match_records(all_patients, emails, phones)
     our, other = conversion_scan(matched, pat_id, our_family)
     other_any = other["card"] or other["active"] or other["nonpend_fam"]
-    our_separate_membership = our["active"] or our["nonpend_fam"]
+    our_separate_membership = our["active"] or our["nonpend_fam"]  # active != our pending mem
     conversion_detected = our["card"] or our_separate_membership or other_any
     contact = E.spruce_contact_for_patient(contacts, pat_id, phone_e164)
 
     if conversion_detected:
+        # Cancel our stale pending mem only if the conversion is a SEPARATE
+        # membership (duplicate record, or a separate active mem on our record).
+        # A card on OUR record with only our pending mem = conversion completing
+        # on our mem -> exit, do NOT cancel.
         should_cancel = other_any or our_separate_membership
         already = state.get(mem_id, {}).get("reconciled")
         if should_cancel and (fresh.get("status") == "pending") and not already:
             guards = {"other_record_signal": other_any, "our_separate_membership": our_separate_membership}
-            E.hint_cancel_membership(mem_id, reason="link-conversion reconcile (duplicate)")
+            E.hint_cancel_membership(mem_id, reason="link-conversion reconcile (duplicate)",
+                                     reason_id=E.CANCEL_REASON_RECONCILE)
             E.audit("reconcile_cancel", pat_id, mem_id, "duplicate link-conversion detected", guards)
             _mark(state, mem_id, m, status="suppressed", reason="reconciled_duplicate_conversion")
             state[mem_id]["reconciled"] = True
@@ -122,6 +153,7 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
         _mark(state, mem_id, m, status="suppressed", reason="cross_record_conversion")
         return plan
 
+    # ---- STOP / opt-out ----
     if contact and E.spruce_thread_has_opt_out(contact.get("id")):
         plan.update(action="exit", reason="inbound STOP/opt-out in Spruce thread")
         _mark(state, mem_id, m, status="stopped", reason="opt_out")
@@ -131,6 +163,7 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
         plan.update(action="skip", reason="no sendable phone")
         return plan
 
+    # ---- Approval gating (pre-existing back-scan vs go-forward) ----
     is_new = mem_id not in state or state[mem_id].get("status") == "pending_approval"
     created = m.get("created_at")
     is_preexisting = (go_live_at is None) or (created and created < go_live_at)
@@ -139,6 +172,20 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
                     reason="pre-existing pending membership; awaiting Charlie approval (halt cond. 2)")
         _mark(state, mem_id, m, status="pending_approval", reason="preexisting_back_scan")
         return plan
+
+    # Day-0 timing: never text on the same calendar day as the consult/assignment.
+    # Day 0 fires the morning after created_at (the poller runs ~9:30 daily).
+    # Compared in the practice's local tz (carried on created_at) so there's no
+    # UTC date drift.
+    if not state.get(mem_id, {}).get("enrolled_at"):
+        created = m.get("created_at")
+        try:
+            cdt = datetime.fromisoformat(created)
+            if cdt.date() >= datetime.now(cdt.tzinfo).date():
+                plan.update(action="wait", reason="created today; Day 0 sends next morning ~9:30")
+                return plan
+        except Exception:
+            pass
 
     enrolled_at = _ensure_enrolled(state, mem_id, m, today)
     touches_sent = state[mem_id].get("touches_sent", [])
@@ -150,10 +197,12 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
         return _handle_complete_or_wait(plan, m, state, mem_id, pat_id, matched, our, other,
                                         contact, enrolled_at, touches_sent, name_red)
 
+    # ---- De-confliction with the review poller ----
     if E.review_asked_today(pat_id):
         plan.update(action="defer", day=day, reason="review poller asked this patient today; defer 1 day")
         return plan
 
+    # ---- Send (with per-plan link on Day 0) ----
     url = E.signup_url_for(m["plan_id"])
     body = E.render(day, first_name, url=url)
     ok = E.spruce_send_sms(phone_e164, body)
@@ -176,11 +225,13 @@ def _handle_complete_or_wait(plan, m, state, mem_id, pat_id, matched, our, other
         return plan
     state[mem_id]["status"] = "completed"
 
+    # Start-date-passed staff flag (T5c)
     if E.start_date_passed(m.get("start_date")) and not state[mem_id].get("staff_flagged"):
         state[mem_id]["staff_flagged"] = True
         log.warning(f"STAFF FLAG: {mem_id} ({name_red}) finished Day 21, still pending past "
                     f"start_date {m.get('start_date')}, no payment.")
 
+    # ---- Part C: Day-30 cleanup (guarded) ----
     if E.days_since(enrolled_at) < E.CLEANUP_DAY:
         plan.update(action="completed", reason=f"all touches sent; cleanup at Day {E.CLEANUP_DAY}")
         return plan
@@ -286,3 +337,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+# T5d build complete.

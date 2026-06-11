@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """
 nurture_engine.py - Shared logic for Mt. Baker Medical's post-consult nurture
-sequence (T5b/T5c/T5d). See project tasknotes 2026-06_T5b/T5c/T5d for design.
-T5d: per-plan Day-0 links; cross-record duplicate suppression + reconcile;
-Day-30 cleanup (cancel membership + staff archive list; NEVER delete); audit.
-GUARDRAILS: does NOT import the review/consult-intake pollers; never writes
-patient_state.json; own state file + own schedule + one Task Scheduler job; all
-Hint WRITES gated by DRY_RUN. This GitHub copy is the authoritative backup of the
-local file the scheduler runs.
+sequence (T5b/T5c/T5d). T5d: per-plan Day-0 links; cross-record duplicate
+suppression + reconcile; Day-30 cleanup (cancel membership + staff archive list;
+NEVER delete); audit. All Hint WRITES gated by DRY_RUN. Authoritative backup of
+the local file the MBM-Nurture-Poller scheduler runs.
 """
 import os, csv, json, logging, sys
 from datetime import datetime, timezone, timedelta
@@ -41,7 +38,21 @@ SEQUENCE_DAYS = [0, 7, 21]
 CLEANUP_DAY = 30
 APPT_LOOKAHEAD_DAYS = 45
 OFFICE_LINE = "(360) 498-7529"
-PLAN_SIGNUP_URLS = {"pln-xjukKCU9Xf6M": "https://mtbakermedical.hint.com/signup/concierge"}
+# Hint cancellation_reason ids (GET /api/provider/cancellation_reasons; verified
+# live 2026-06-11). cancellation_reason must be {"id": <cnr-...>} - no "Other".
+CANCEL_REASON_RECONCILE = "cnr-XDiXnv3xSgom"  # Switched plans
+CANCEL_REASON_CLEANUP = "cnr-nQZGCIlgkXEl"    # Contract expired
+# Per-plan signup URLs (verified live 2026-06-11). Ketamine (pln-dByXpvwlpFyg) is
+# intentionally excluded: no controlled-substance agreement on signup + attorney-
+# gated wording (D-006). Unmapped plans fall back to the link-free copy.
+PLAN_SIGNUP_URLS = {
+    "pln-xjukKCU9Xf6M": "https://mtbakermedical.hint.com/signup/concierge",
+    "pln-mjB9MEZD5bio": "https://mtbakermedical.hint.com/signup/so-glp-1-semaglutide",
+    "pln-V8YNuahExamp": "https://mtbakermedical.hint.com/signup/so-glp-1-tirzepatide",
+    "pln-vVp3WOwlYuyO": "https://mtbakermedical.hint.com/signup/so-hormone-focused-care-hrt",
+    "pln-uj91OwP5xH4D": "https://mtbakermedical.hint.com/signup/so-trt-weekly-injection",
+    "pln-SVPYWPV612po": "https://mtbakermedical.hint.com/signup/so-trt-topical-cream",
+}
 
 DAY0_LINK = ("Hi {first_name}, this is James from Mt. Baker Medical. I really enjoyed "
              "meeting you today. When you're ready to get started, here's your signup "
@@ -267,13 +278,12 @@ def hint_has_future_appointment(pat_id):
         return None
 
 
-def hint_cancel_membership(mem_id, reason):
+def hint_cancel_membership(mem_id, reason, reason_id=None):
     fresh = hint_get_membership(mem_id)
     if not fresh:
         return False
     end_date = fresh.get("bill_date") or fresh.get("start_date")
-    body = {"end_date": end_date, "cancellation_reason": {"name": "Other"},
-            "cancellation_reason_other": f"MBM nurture auto-cancel: {reason}"}
+    body = {"end_date": end_date, "cancellation_reason": {"id": reason_id or CANCEL_REASON_CLEANUP}}
     if DRY_RUN:
         log.info(f"[DRY_RUN] would POST cancel {mem_id} end_date={end_date} reason={reason}")
         return True

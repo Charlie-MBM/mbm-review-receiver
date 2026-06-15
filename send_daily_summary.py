@@ -271,9 +271,9 @@ def build_sms(label, bookings, members):
     b_day, b_mtd = bookings
     return (
         f"MBM daily - {label}\n"
-        f"New bookings: {b_day} ({b_mtd} MTD)\n"
-        f"New members: {members['paid_day']} ({members['paid_mtd']} MTD)\n"
-        f"Pending enroll: {members['pending_day']} ({members['pending_mtd']} MTD)"
+        f"Bookings: {b_day} ({b_mtd} MTD)\n"
+        f"Members: {members['paid_day']} ({members['paid_mtd']} MTD)\n"
+        f"Pending: {members['pending_day']} ({members['pending_mtd']} MTD)"
     )
 
 
@@ -411,7 +411,7 @@ def selftest():
     assert mc == {"paid_day": 1, "paid_mtd": 2, "pending_day": 1, "pending_mtd": 1}, mc
 
     sms = build_sms(label, (1, 2), mc)
-    assert "New bookings: 1 (2 MTD)" in sms and "New members: 1 (2 MTD)" in sms, sms
+    assert "Bookings: 1 (2 MTD)" in sms and "Members: 1 (2 MTD)" in sms, sms
     print("SELFTEST OK\n" + sms)
     return True
 

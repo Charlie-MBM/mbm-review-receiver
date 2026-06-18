@@ -36,3 +36,4 @@ desktop.ini
 venv/
 .venv/
 env/
+consult_count_state.json

@@ -204,6 +204,18 @@ def fetch_clicked_fname_hashes() -> set:
         return set()
 
 
+def is_active_member(patient: dict) -> bool:
+    """True only if the Hint patient is an active member.
+
+    Review asks are member-only. A free-consult attendee who did not enroll still
+    produces a Hint clinical interaction, but asking them for a Google review lacks
+    the patient-relationship / ePHI-waiver consent basis the review automation
+    relies on (TCPA), and risks ineligible reviews under Google policy. Added
+    2026-06-10 after non-members were observed receiving review texts.
+    """
+    return (patient.get("membership_status") or "").lower() == "active"
+
+
 def main():
     args = parse_args()
     if args.dry_run:
@@ -254,6 +266,22 @@ def main():
                 log.warning(f"poller: could not fetch patient {pid} — counting as error")
                 errors += 1
                 continue
+
+            # Member-only guard (2026-06-10): only active Hint members get review
+            # asks. A free-consult attendee who didn't enroll still produces a Hint
+            # clinical interaction, but asking them for a Google review lacks the
+            # patient-relationship / ePHI-waiver consent basis (TCPA) and risks
+            # ineligible reviews under Google policy. --allow-patient test mode
+            # bypasses this guard. See is_active_member().
+            if not args.allow_patient and not is_active_member(patient):
+                status = patient.get("membership_status") or "unknown"
+                log.info(
+                    f"poller: SKIP patient_id={pid} — membership_status={status} "
+                    f"(review asks are active-member-only)"
+                )
+                skipped += 1
+                continue
+
             phi = extract_phi_minimal(patient)
             if not phi:
                 log.info(f"poller: patient {pid} has no email or phone — skipping")

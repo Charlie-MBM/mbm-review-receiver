@@ -1,0 +1,45 @@
+2026-06-10 18:09:29,313  INFO      nurture poller start: dry_run=True date=2026-06-10
+2026-06-10 18:09:29,868  INFO      Creating org contact tag 'nurture-prospect' (did not exist).
+2026-06-10 18:09:30,330  INFO      nurture-prospect tag id: tag_2ODMTDUNLS000
+2026-06-10 18:09:30,786  INFO      nurture poller: 0 contact(s) tagged 'nurture-prospect'
+2026-06-10 18:10:20,640  INFO      nurture poller start: dry_run=True date=2026-06-10
+2026-06-10 18:10:21,022  INFO      nurture-prospect tag id: tag_2ODMTDUNLS000
+2026-06-10 18:10:21,431  INFO      nurture poller: 1 contact(s) tagged 'nurture-prospect'
+2026-06-10 18:11:30,027  INFO      [DRY_RUN] would send SMS to ...1234
+2026-06-10 18:11:30,029  INFO      [DRY_RUN] would send SMS to ...1234
+2026-06-10 18:12:12,510  INFO      nurture poller start: dry_run=True date=2026-06-10
+2026-06-10 18:12:12,932  INFO      nurture-prospect tag id: tag_2ODMTDUNLS000
+2026-06-10 18:12:13,381  INFO      nurture poller: 0 contact(s) tagged 'nurture-prospect'
+2026-06-11 02:15:31,116  INFO      nurture poller start: dry_run=True date=2026-06-11
+2026-06-11 02:15:32,355  INFO      nurture poller: 3 pending membership(s) found; go_live_at=None approved=0
+2026-06-11 02:16:16,655  INFO      [DRY_RUN] would send SMS to ...0000
+2026-06-11 02:16:16,656  INFO      [DRY_RUN] would send SMS to ...0000
+2026-06-11 02:16:16,657  INFO      [DRY_RUN] would send SMS to ...0000
+2026-06-11 02:16:16,658  WARNING   STAFF FLAG: mem-I (Dan P.) finished Day 21 but is STILL pending with no payment past start_date 2026-01-01. Human follow-up needed.
+2026-06-11 11:57:02,070  INFO      nurture poller start (T5d): dry_run=True date=2026-06-11
+2026-06-12 09:30:05,151  INFO      nurture poller start (T5d): dry_run=False date=2026-06-12
+2026-06-12 09:30:07,712  INFO      nurture poller: 2 pending; 45 patients scanned; go_live_at=None approved=0
+2026-06-12 14:40:46,139  INFO      nurture poller start (T5d): dry_run=True date=2026-06-12
+2026-06-12 14:40:48,308  INFO      nurture poller: 3 pending; 45 patients scanned; go_live_at=None approved=0
+2026-06-12 14:45:12,912  INFO      nurture poller start (T5d): dry_run=True date=2026-06-12
+2026-06-12 14:45:15,064  INFO      nurture poller: 3 pending; 45 patients scanned; go_live_at=None approved=0
+2026-06-12 14:54:48,618  INFO      nurture poller start (T5d): dry_run=True date=2026-06-12
+2026-06-12 14:54:50,899  INFO      nurture poller: 3 pending; 45 patients scanned; go_live_at=None approved=0
+2026-06-13 09:30:04,400  INFO      nurture poller start (T5d): dry_run=False date=2026-06-13
+2026-06-13 09:30:07,529  INFO      nurture poller: 3 pending; 46 patients scanned; go_live_at=None approved=0
+2026-06-14 09:30:04,397  INFO      nurture poller start (T5d): dry_run=False date=2026-06-14
+2026-06-14 09:30:06,911  INFO      nurture poller: 3 pending; 46 patients scanned; go_live_at=None approved=0
+2026-06-15 09:30:02,615  INFO      nurture poller start (T5d): dry_run=False date=2026-06-15
+2026-06-15 09:30:05,207  INFO      nurture poller: 3 pending; 49 patients scanned; go_live_at=None approved=0
+2026-06-15 09:30:11,141  INFO      canceled membership mem-5E09FqbSumm8 (end_date=2026-06-21)
+2026-06-15 09:30:11,143  INFO      AUDIT reconcile_cancel: {"ts": "2026-06-15T16:30:11.142872+00:00", "action": "reconcile_cancel", "patient_id": "pat-hlEMYb8ANOMM", "membership_id": "mem-5E09FqbSumm8", "reason": "duplicate link-conversion detected", "guards": {"other_record_signal": true, "our_separate_membership": false}, "dry_run": false}
+2026-06-16 09:30:03,297  INFO      nurture poller start (T5d): dry_run=False date=2026-06-16
+2026-06-16 09:30:06,008  INFO      nurture poller: 2 pending; 49 patients scanned; go_live_at=None approved=0
+2026-06-17 09:30:02,630  INFO      nurture poller start (T5d): dry_run=False date=2026-06-17
+2026-06-17 09:30:05,034  INFO      nurture poller: 2 pending; 50 patients scanned; go_live_at=None approved=0
+2026-06-18 09:30:02,362  INFO      nurture poller start (T5d): dry_run=False date=2026-06-18
+2026-06-18 09:30:04,736  INFO      nurture poller: 2 pending; 47 patients scanned; go_live_at=None approved=0
+2026-06-19 09:30:04,473  INFO      nurture poller start (T5d): dry_run=False date=2026-06-19
+2026-06-19 09:30:07,131  INFO      nurture poller: 2 pending; 47 patients scanned; go_live_at=None approved=0
+2026-06-20 09:30:03,686  INFO      nurture poller start (T5d): dry_run=False date=2026-06-20
+2026-06-20 09:30:06,069  INFO      nurture poller: 2 pending; 47 patients scanned; go_live_at=None approved=0

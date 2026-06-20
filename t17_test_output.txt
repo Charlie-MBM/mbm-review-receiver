@@ -1,0 +1,63 @@
+=== _nurture_t5d_test.py === 
+PASS - Day0 link-free from James
+PASS - Day0 LINK contains url + phrase
+PASS - Day0 no-url is link-free (no http)
+PASS - Day21 verbatim STOP
+PASS - service-agnostic (no glp/ketamine/hormone)
+PASS - fallback 'there'
+PASS - E164 10-digit
+PASS - E164 11-digit
+PASS - E164 empty
+PASS - due Day0
+PASS - due Day7
+PASS - due Day21
+PASS - none after all
+PASS - catch-up latest
+PASS - start_date past
+PASS - start_date future
+PASS - denylist ZZTEST NurtureCheck
+PASS - plan_family concierge
+PASS - plan_family glp
+PASS - signup_url known
+PASS - signup_url unknown None
+2026-06-12 14:54:48,359  INFO      [DRY_RUN] would send SMS to ...1212
+PASS - A new-eligible -> would_send Day0 + LINK
+PASS - T0 created today -> wait (next-day Day0)
+2026-06-12 14:54:48,359  INFO      [DRY_RUN] would send SMS to ...1212
+PASS - B plan w/o url -> Day0 link-free
+PASS - C cross-record card -> reconcile_cancel
+PASS - C2 reconcile once only
+PASS - D cross-record active -> reconcile_cancel
+PASS - E own card only -> exit no cancel
+PASS - F status active -> exit
+PASS - G canceled/deleted -> exit
+PASS - H opt-out -> exit
+PASS - I review-today -> defer
+PASS - J pre-existing -> needs_approval
+2026-06-12 14:54:48,359  INFO      [DRY_RUN] would send SMS to ...1212
+PASS - K Day7 due -> would_send Day7
+PASS - Dan I. hard-excluded -> skip
+PASS - dummy -> skip
+PASS - guard: payment blocks cleanup
+PASS - guard: active membership blocks
+PASS - guard: future appointment blocks
+PASS - guard: inbound reply blocks
+PASS - all guards pass -> cleanup (cancel+archive)
+
+TOTAL: ALL PASS
+ 
+=== send_nurture_sequence.py --dry-run === 
+2026-06-12 14:54:48,618  INFO      nurture poller start (T5d): dry_run=True date=2026-06-12
+2026-06-12 14:54:50,899  INFO      nurture poller: 3 pending; 45 patients scanned; go_live_at=None approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-06-12  dry_run=True  pending=3  go_live_at=None
+- [needs_approval] Greg C. (mem-alHh4NEMbBDV) plan=Concierge - Medicare Beneficiary -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+- [exit] Michelle A. (mem-sDqU1B2kixBd) plan=SO - GLP-1 Semaglutide -- cross-record conversion (payment/active elsewhere)
+- [skip] Dan I. (mem-zhNHV8snambF) plan=Concierge 2026 -- hard-excluded (ratified not-for-nurture)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+
+ 
+DONE 

@@ -1,0 +1,36 @@
+
+=== DNS RECORDS ===
+  TXT   _dmarc.mtbakermedical.com                     "v=DMARC1; p=none; aspf=r; adkim=r;"          [dns-only ] id=f157cded47f140e69b50a7b9a34037a1
+  TXT   _lovable.mtbakermedical.com                   "lovable_verify=85ca32a6e73110dccc1d43bc15a11b3514caa01c2b7470c1bc68a5c200572c0c" [dns-only ] id=764e82d35da75fcf8121772391e2bae2
+  TXT   _lovable.www.mtbakermedical.com               "lovable_verify=0b1e17e31c8347ff04cb139cb1a7bd6508d7402c11c605724486107fb840b13a" [dns-only ] id=9e98dac675ff839c91dfaf3180f3212d
+  TXT   google._domainkey.mtbakermedical.com          "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm75NnoTciWyUoi4k0PkkDOVvYuev0nd/xd3/hUYiHYCsuT4qrlGQheNSCE3hxQYMz2mRl9GasRWXwCx2DSM1MsDtGgWNAEvyonIKJJvPoJa0o7LL/PTgcMiXcJWMu+BCkHCD4ElJgFyAZbNR5n3VwkhAMwx+v+BxMSwDSQALGRxhqGDTzLx9+9K8VyiKdS1ga" "6GJXza4iJqQj8TP/jwu6ISP3sLvytftgiDa9sn0cUQrrjWAfSwIHvGivUVMTz+BGtbSLZjF6u2qg3yh9ytabKTzQZtp0yN9HT+OJ4KuHnIxX1czeEIoH/1xvYIlr/n5w/ee9kjh1ARtDL45e2P5VQIDAQAB" [dns-only ] id=ce84c94312fabde372dd002b91c04c5a
+  A     mtbakermedical.com                            185.158.133.1                                 [dns-only ] id=fa35e3728c6ca277116819257ef354e5
+  MX    mtbakermedical.com                            alt4.aspmx.l.google.com                       [dns-only ] id=ed743c3ab08131f43854597539d41166
+  MX    mtbakermedical.com                            alt3.aspmx.l.google.com                       [dns-only ] id=4b14cf24e661de6da17745f0ac25eb85
+  MX    mtbakermedical.com                            alt2.aspmx.l.google.com                       [dns-only ] id=2e3159b08d6b6043b4adbf7703c98cc7
+  MX    mtbakermedical.com                            alt1.aspmx.l.google.com                       [dns-only ] id=961f7d92f2d338353582f41072c95d7e
+  MX    mtbakermedical.com                            aspmx.l.google.com                            [dns-only ] id=fc19a6e65eae1e024c880ae7024c9c17
+  TXT   mtbakermedical.com                            "v=spf1 include:_spf.google.com ~all"         [dns-only ] id=af56e00acf57b4774e03869535b97cfc
+  A     www.mtbakermedical.com                        192.0.2.1                                     [PROXIED  ] id=a006bf1af8a359ee0de0d15ee4aea960
+
+=== ZONE SETTINGS ===
+  always_use_https: off
+  ssl: full
+  min_tls_version: 1.0
+
+=== CURRENT REDIRECT RULESET ===
+  Rules: 1
+  [Redirect www to root (301)]
+    expr:     (http.host eq "www.mtbakermedical.com")
+    status:   301
+    target:   {'expression': 'concat("https://mtbakermedical.com", http.request.uri.path)'}
+    enabled:  True
+
+=== APPLYING 301 / HTTPS FIX ===
+Traceback (most recent call last):
+  File "C:\Users\charl\GitHub\mbm-review-receiver\cf_t16_finish.py", line 102, in <module>
+    print(f"  \u2713 Rule updated. New status_code: {fv.get('status_code')}  target: {fv.get('target_url',{})}")
+  File "C:\Users\charl\AppData\Local\Programs\Python\Python312\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 2: character maps to <undefined>

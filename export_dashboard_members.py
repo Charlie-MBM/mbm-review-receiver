@@ -394,16 +394,16 @@ def main():
                     sraw = a.get(k)
                     start_field = start_field or k
                     break
-            started = False
+            started_appt = False
             if sraw:
                 try:
                     sd = datetime.fromisoformat(str(sraw).replace("Z", "+00:00"))
                     if sd.tzinfo is None:
                         sd = sd.replace(tzinfo=timezone.utc)
-                    started = sd <= now_dt
+                    started_appt = sd <= now_dt
                 except Exception:
-                    started = False
-            if started and not cancelled:
+                    started_appt = False
+            if started_appt and not cancelled:
                 occurred += 1
         consults = {
             "completed_mtd": occurred,        # already happened & not cancelled = a real consult

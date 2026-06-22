@@ -87,6 +87,9 @@ PLAN_SIGNUP_URLS = {
     "pln-uj91OwP5xH4D": "https://mtbakermedical.hint.com/signup/so-trt-weekly-injection",    # SO TRT Weekly Injection
     "pln-SVPYWPV612po": "https://mtbakermedical.hint.com/signup/so-trt-topical-cream",       # SO TRT Topical Cream
     "pln-dByXpvwlpFyg": "https://mtbakermedical.hint.com/signup/so-ketamine-therapy",        # SO - Ketamine Therapy (IV-only CSA published + required-on-signup 2026-06-11)
+    "pln-lN2eJKDLrUPy": "https://mtbakermedical.hint.com/signup/concierge-medicare-couple",       # Concierge - Medicare Beneficiary Couple (per person)
+    "pln-vKXyMzt13o6P": "https://mtbakermedical.hint.com/signup/concierge-medicare-beneficiary",  # Concierge - Medicare Beneficiary (individual)
+    "pln-MHIc5hNWtfhk": "https://mtbakermedical.hint.com/signup/concierge-2026-couple",           # Concierge 2026 - Couple (per person)
 }
 
 # --- Copy --------------------------------------------------------------------

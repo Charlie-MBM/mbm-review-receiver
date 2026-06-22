@@ -100,3 +100,25 @@ date=2026-06-20  dry_run=False  pending=2  go_live_at=None
 ** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
 =======================================================
 
+2026-06-21 09:30:04,897  INFO      nurture poller start (T5d): dry_run=False date=2026-06-21
+2026-06-21 09:30:07,701  INFO      nurture poller: 2 pending; 47 patients scanned; go_live_at=None approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-06-21  dry_run=False  pending=2  go_live_at=None
+- [needs_approval] Greg C. (mem-alHh4NEMbBDV) plan=Concierge - Medicare Beneficiary -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+- [skip] Dan I. (mem-zhNHV8snambF) plan=Concierge - Medicare Beneficiary -- hard-excluded (ratified not-for-nurture)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+
+2026-06-22 09:30:02,177  INFO      nurture poller start (T5d): dry_run=False date=2026-06-22
+2026-06-22 09:30:04,592  INFO      nurture poller: 2 pending; 48 patients scanned; go_live_at=None approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-06-22  dry_run=False  pending=2  go_live_at=None
+- [needs_approval] Greg C. (mem-alHh4NEMbBDV) plan=Concierge - Medicare Beneficiary -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+- [skip] Dan I. (mem-zhNHV8snambF) plan=Concierge - Medicare Beneficiary -- hard-excluded (ratified not-for-nurture)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+

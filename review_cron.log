@@ -1,0 +1,4 @@
+2026-06-22 10:00:01,456  INFO      poller start: since=2026-06-22T15:49:37.021457+00:00 dry_run=False
+2026-06-22 10:00:03,600  INFO      poller: click-tracker returned 1 hash(es) to suppress
+2026-06-22 10:00:04,423  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-06-22 10:00:04,425  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced

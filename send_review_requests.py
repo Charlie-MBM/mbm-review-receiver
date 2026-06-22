@@ -136,6 +136,87 @@ def fetch_interactions_since(since_iso: str) -> list:
         return []
 
 
+def active_membership_start(patient: dict):
+    """Earliest start_date (YYYY-MM-DD) among the patient's ACTIVE memberships,
+    or None. Used to exclude pre-enrollment free consults from review asks: a
+    consult predates the membership start, a real member visit does not."""
+    starts = [
+        m.get("start_date")
+        for m in (patient.get("memberships") or [])
+        if (m.get("status") or "").lower() == "active" and m.get("start_date")
+    ]
+    return min(starts) if starts else None
+
+
+def fetch_member_visit_patients_since(since_iso: str) -> dict:
+    """Return {patient_id: latest qualifying appointment start (ISO)} for Hint
+    appointments between `since_iso` and now that (a) are not cancelled and
+    (b) have already occurred. This is the review trigger: a patient appears here
+    if they had a real visit. Membership-start filtering (consult exclusion) is
+    applied by the caller, where the patient record is available.
+
+    Uses GET /api/provider/appointments with start_date/end_date + limit/offset
+    pagination, chunked into <=30-day windows (the endpoint rejects ranges over
+    31 days). Mirrors fetch_appointments() in send_daily_summary.py. Replaces the
+    old /interactions trigger, which had no date field and was capped at 10 rows,
+    so it silently saw only a fraction of visits. (2026-06-22)
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        since_dt = datetime.fromisoformat(since_iso)
+    except Exception:
+        since_dt = now - timedelta(days=DEFAULT_LOOKBACK_DAYS)
+    if since_dt.tzinfo is None:
+        since_dt = since_dt.replace(tzinfo=timezone.utc)
+
+    url = f"{HINT_BASE_URL}/api/provider/appointments"
+    headers = {"Authorization": f"Bearer {HINT_API_KEY}"}
+    out = {}
+    win_start = since_dt
+    while win_start < now:
+        win_end = min(win_start + timedelta(days=30), now)
+        offset = 0
+        while True:
+            params = {
+                "start_date": win_start.date().isoformat(),
+                "end_date": win_end.date().isoformat(),
+                "limit": 100,
+                "offset": offset,
+            }
+            try:
+                resp = http.get(url, headers=headers, params=params, timeout=30)
+                resp.raise_for_status()
+                batch = resp.json()
+                batch = batch if isinstance(batch, list) else batch.get("data", [])
+            except Exception as e:
+                log.error(
+                    f"Failed to fetch appointments {win_start.date()}..{win_end.date()} "
+                    f"offset={offset}: {e}"
+                )
+                break
+            for a in batch:
+                if (a.get("status") or "").lower() in ("cancelled", "canceled", "declined"):
+                    continue
+                start = a.get("start")
+                if not start:
+                    continue
+                try:
+                    if datetime.fromisoformat(start) > now:
+                        continue  # future appointment — visit hasn't happened yet
+                except Exception:
+                    continue
+                for at in (a.get("attendees") or []):
+                    pid = (at.get("patient") or {}).get("id")
+                    if pid and pid.startswith("pat-"):
+                        if pid not in out or start > out[pid]:
+                            out[pid] = start
+            if len(batch) < 100:
+                break
+            offset += 100
+        win_start = win_end + timedelta(days=1)
+    return out
+
+
 def hash_fname(fname: str) -> str:
     """
     SHA-256 hash of a lowercased, trimmed first name.
@@ -241,20 +322,20 @@ def main():
     clicked_hashes = fetch_clicked_fname_hashes()
     log.info(f"poller: click-tracker returned {len(clicked_hashes)} hash(es) to suppress")
 
-    # Collect unique patient_ids from Clinical Interactions only — the cleanest
-    # post-visit signal. Membership creation as a trigger was dropped because
-    # (a) the patient may not have actually been seen yet, (b) reviews after a
-    # signup form but before care don't reflect the practice's quality, and
-    # (c) it ties consent more tightly to "real care has been delivered".
-    patient_ids = set()
+    # Collect patients who had a real member VISIT since `since`, from Hint
+    # appointments (the cleanest "care delivered" signal). visit_dates maps
+    # patient_id -> latest qualifying appointment date, used below to exclude
+    # pre-enrollment free consults. Membership creation is intentionally NOT the
+    # trigger: a signup before care doesn't reflect practice quality.
+    visit_dates = {}
     if args.allow_patient:
-        patient_ids.add(args.allow_patient)
+        patient_ids = {args.allow_patient}
         log.info(f"poller: test mode, processing only {args.allow_patient}")
     else:
-        for pid in fetch_interactions_since(since_iso):
-            patient_ids.add(pid)
+        visit_dates = fetch_member_visit_patients_since(since_iso)
+        patient_ids = set(visit_dates.keys())
 
-    log.info(f"poller: found {len(patient_ids)} unique patient_id(s) to evaluate")
+    log.info(f"poller: found {len(patient_ids)} patient(s) with member visits to evaluate")
 
     sent = 0
     skipped = 0
@@ -282,6 +363,21 @@ def main():
                 skipped += 1
                 continue
 
+            # Exclude the free initial consult: only ask for visits dated on/after
+            # the patient's active-membership start. A pre-enrollment consult
+            # predates membership, so it's skipped — we ask only after real member
+            # appointments. (2026-06-22, per Charlie.)
+            if not args.allow_patient:
+                mstart = active_membership_start(patient)
+                appt_date = (visit_dates.get(pid) or "")[:10]
+                if mstart and appt_date and appt_date < mstart:
+                    log.info(
+                        f"poller: SKIP patient_id={pid} — visit {appt_date} predates "
+                        f"membership start {mstart} (free consult, not a member visit)"
+                    )
+                    skipped += 1
+                    continue
+
             phi = extract_phi_minimal(patient)
             if not phi:
                 log.info(f"poller: patient {pid} has no email or phone — skipping")
@@ -302,10 +398,11 @@ def main():
                 skipped += 1
                 continue
 
-            before_count = _read_patient_state().get(pid, {}).get("count", 0)
-            _dispatch_to_bridge(pid, first_name, email, phone, trigger="poller")
-            after_count = _read_patient_state().get(pid, {}).get("count", 0)
-            if after_count > before_count:
+            # _dispatch_to_bridge returns True when a request was sent (or, in
+            # dry-run, WOULD be sent) and False when spacing/cap suppressed it.
+            # Count off the return value so dry-run previews are accurate (it no
+            # longer mutates state, so the old before/after count diff read 0).
+            if _dispatch_to_bridge(pid, first_name, email, phone, trigger="poller"):
                 sent += 1
             else:
                 skipped += 1

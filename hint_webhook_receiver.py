@@ -665,7 +665,7 @@ def _dispatch_to_bridge(
     allowed, reason = _should_send_review_request(patient_id)
     if not allowed:
         log.info(f"[{trigger}] SKIP patient_id={patient_id}: {reason}")
-        return
+        return False
 
     log.info(
         f"[{trigger}] Processing: patient_id={patient_id} "
@@ -681,12 +681,24 @@ def _dispatch_to_bridge(
     log.info(f"[{trigger}] Delivery: email={email_status} sms={sms_status}")
 
     if email_ok or sms_ok:
-        _record_request_sent(patient_id)
-        new_count = _read_patient_state().get(patient_id, {}).get("count")
-        log.info(
-            f"[{trigger}] Recorded: patient_id={patient_id} "
-            f"count={new_count}/{MAX_REQUESTS_PER_PATIENT}"
-        )
+        if DRY_RUN:
+            # Dry-run must NOT mutate persistent state. The send helpers return
+            # truthy in dry-run (they only log "Would..."), so without this guard a
+            # preview "burns" the patient's spacing/cap and they never get a real
+            # ask. (2026-06-22)
+            log.info(
+                f"[{trigger}] [DRY_RUN] Would record patient_id={patient_id} "
+                f"(state unchanged)"
+            )
+        else:
+            _record_request_sent(patient_id)
+            new_count = _read_patient_state().get(patient_id, {}).get("count")
+            log.info(
+                f"[{trigger}] Recorded: patient_id={patient_id} "
+                f"count={new_count}/{MAX_REQUESTS_PER_PATIENT}"
+            )
+        return True
+    return False
 
 
 # ─── Webhook endpoint ───────────────────────────────────────────

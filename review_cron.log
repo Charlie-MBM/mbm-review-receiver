@@ -2,3 +2,18 @@
 2026-06-22 10:00:03,600  INFO      poller: click-tracker returned 1 hash(es) to suppress
 2026-06-22 10:00:04,423  INFO      poller: found 0 patient(s) with member visits to evaluate
 2026-06-22 10:00:04,425  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-06-23 10:00:02,857  INFO      poller start: since=2026-06-22T17:21:43.333678+00:00 dry_run=False
+2026-06-23 10:00:04,939  INFO      poller: click-tracker returned 1 hash(es) to suppress
+2026-06-23 10:00:06,077  INFO      poller: found 3 patient(s) with member visits to evaluate
+2026-06-23 10:00:06,986  INFO      [poller] SKIP patient_id=pat-28xvYLdRMBaQ: spacing-not-met 13d since last ask (count=1/999)
+2026-06-23 10:00:07,853  INFO      [poller] Processing: patient_id=pat-8ulmhciPz7AH email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-23 10:00:07,853  WARNING   RESEND_API_KEY not set — skipping email to korbmacher@hotmail.com.
+2026-06-23 10:00:08,690  INFO      Review SMS sent to phone ending 8879
+2026-06-23 10:00:08,690  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-23 10:00:08,702  INFO      [poller] Recorded: patient_id=pat-8ulmhciPz7AH count=1/999
+2026-06-23 10:00:09,559  INFO      [poller] Processing: patient_id=pat-9CkcnrciIGhJ email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-23 10:00:09,559  WARNING   RESEND_API_KEY not set — skipping email to abspros.maulday@gmail.com.
+2026-06-23 10:00:10,375  INFO      Review SMS sent to phone ending 0411
+2026-06-23 10:00:10,376  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-23 10:00:10,398  INFO      [poller] Recorded: patient_id=pat-9CkcnrciIGhJ count=1/999
+2026-06-23 10:00:10,398  INFO      poller end: ok | sent=2 skipped=1 errors=0 | last_run_at advanced

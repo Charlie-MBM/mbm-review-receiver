@@ -17,3 +17,14 @@
 2026-06-23 10:00:10,376  INFO      [poller] Delivery: email=failed sms=ok
 2026-06-23 10:00:10,398  INFO      [poller] Recorded: patient_id=pat-9CkcnrciIGhJ count=1/999
 2026-06-23 10:00:10,398  INFO      poller end: ok | sent=2 skipped=1 errors=0 | last_run_at advanced
+2026-06-24 10:00:02,609  INFO      poller start: since=2026-06-23T17:00:10.398110+00:00 dry_run=False
+2026-06-24 10:00:06,537  INFO      poller: click-tracker returned 1 hash(es) to suppress
+2026-06-24 10:00:07,432  INFO      poller: found 3 patient(s) with member visits to evaluate
+2026-06-24 10:00:08,152  INFO      [poller] SKIP patient_id=pat-28xvYLdRMBaQ: spacing-not-met 14d since last ask (count=1/999)
+2026-06-24 10:00:08,906  INFO      [poller] SKIP patient_id=pat-QH8NbSeeH1kR: spacing-not-met 14d since last ask (count=1/999)
+2026-06-24 10:00:09,548  INFO      [poller] Processing: patient_id=pat-x6mlcomOtTBc email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-24 10:00:09,548  WARNING   RESEND_API_KEY not set — skipping email to kswordmaker@gmail.com.
+2026-06-24 10:00:10,246  INFO      Review SMS sent to phone ending 8591
+2026-06-24 10:00:10,248  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-24 10:00:10,279  INFO      [poller] Recorded: patient_id=pat-x6mlcomOtTBc count=1/999
+2026-06-24 10:00:10,279  INFO      poller end: ok | sent=1 skipped=2 errors=0 | last_run_at advanced

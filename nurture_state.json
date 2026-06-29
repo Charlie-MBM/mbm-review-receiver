@@ -1,7 +1,7 @@
 {
   "_meta": {
     "go_live_at": null,
-    "last_run_at": "2026-06-24T16:30:06.692756+00:00",
+    "last_run_at": "2026-06-28T16:30:09.812636+00:00",
     "version": 3
   },
   "mem-5E09FqbSumm8": {
@@ -19,6 +19,14 @@
     "plan": "Concierge - Medicare Beneficiary",
     "reason": "preexisting_back_scan",
     "start_date": "2026-07-12",
+    "status": "pending_approval"
+  },
+  "mem-dZRQTdp7Tilu": {
+    "created_at": "2026-06-24T12:51:20.124382-07:00",
+    "pat_id": "pat-yvlG4V847blk",
+    "plan": "Concierge 2026",
+    "reason": "preexisting_back_scan",
+    "start_date": "2026-06-29",
     "status": "pending_approval"
   },
   "mem-sDqU1B2kixBd": {

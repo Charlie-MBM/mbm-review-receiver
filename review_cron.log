@@ -28,3 +28,45 @@
 2026-06-24 10:00:10,248  INFO      [poller] Delivery: email=failed sms=ok
 2026-06-24 10:00:10,279  INFO      [poller] Recorded: patient_id=pat-x6mlcomOtTBc count=1/999
 2026-06-24 10:00:10,279  INFO      poller end: ok | sent=1 skipped=2 errors=0 | last_run_at advanced
+2026-06-25 10:00:02,659  INFO      poller start: since=2026-06-24T17:00:10.279355+00:00 dry_run=False
+2026-06-25 10:00:04,967  INFO      poller: click-tracker returned 1 hash(es) to suppress
+2026-06-25 10:00:05,850  INFO      poller: found 3 patient(s) with member visits to evaluate
+2026-06-25 10:00:06,508  INFO      [poller] SKIP patient_id=pat-311AF26NTrpM: spacing-not-met 15d since last ask (count=1/999)
+2026-06-25 10:00:07,127  INFO      [poller] Processing: patient_id=pat-i1ubaQPUX9Vt email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-25 10:00:07,127  WARNING   RESEND_API_KEY not set — skipping email to sandstromcynthia@gmail.com.
+2026-06-25 10:00:07,749  INFO      Review SMS sent to phone ending 8861
+2026-06-25 10:00:07,750  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-25 10:00:07,774  INFO      [poller] Recorded: patient_id=pat-i1ubaQPUX9Vt count=1/999
+2026-06-25 10:00:08,422  INFO      poller: SKIP patient_id=pat-yvlG4V847blk — membership_status=pending (review asks are active-member-only)
+2026-06-25 10:00:08,423  INFO      poller end: ok | sent=1 skipped=2 errors=0 | last_run_at advanced
+2026-06-26 10:00:02,956  INFO      poller start: since=2026-06-25T17:00:08.422451+00:00 dry_run=False
+2026-06-26 10:00:04,993  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-06-26 10:00:04,995  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-06-26 10:00:05,953  INFO      poller: found 1 patient(s) with member visits to evaluate
+2026-06-26 10:00:06,578  INFO      [poller] SKIP patient_id=pat-i1ubaQPUX9Vt: spacing-not-met 0d since last ask (count=1/999)
+2026-06-26 10:00:06,579  INFO      poller end: ok | sent=0 skipped=1 errors=0 | last_run_at advanced
+2026-06-27 10:00:02,732  INFO      poller start: since=2026-06-26T17:00:06.578711+00:00 dry_run=False
+2026-06-27 10:00:04,652  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-06-27 10:00:04,654  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-06-27 10:00:05,466  INFO      poller: found 1 patient(s) with member visits to evaluate
+2026-06-27 10:00:06,046  INFO      [poller] SKIP patient_id=pat-83miTYUbgeMf: spacing-not-met 4d since last ask (count=1/999)
+2026-06-27 10:00:06,046  INFO      poller end: ok | sent=0 skipped=1 errors=0 | last_run_at advanced
+2026-06-28 10:00:02,628  INFO      poller start: since=2026-06-27T17:00:06.046131+00:00 dry_run=False
+2026-06-28 10:00:04,907  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-06-28 10:00:04,909  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-06-28 10:00:05,741  INFO      poller: found 1 patient(s) with member visits to evaluate
+2026-06-28 10:00:06,481  INFO      [poller] Processing: patient_id=pat-GZ3CanPF2nMf email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-28 10:00:06,481  WARNING   RESEND_API_KEY not set — skipping email to kfcamenzind@gmail.com.
+2026-06-28 10:00:07,106  INFO      Review SMS sent to phone ending 1371
+2026-06-28 10:00:07,107  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-28 10:00:07,137  INFO      [poller] Recorded: patient_id=pat-GZ3CanPF2nMf count=1/999
+2026-06-28 10:00:07,139  INFO      poller end: ok | sent=1 skipped=0 errors=0 | last_run_at advanced

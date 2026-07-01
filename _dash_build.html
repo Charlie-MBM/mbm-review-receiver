@@ -1,0 +1,952 @@
+<!DOCTYPE html><script type="application/json" id="cowork-artifact-meta">
+{
+  "name": "Mbm Performance Dashboard",
+  "schemaVersion": 1,
+  "description": "Mt. Baker Medical performance dashboard — north-star new-member leads, blended cost-per-lead, acquisition funnel, auto-updating SEO section (GSC + Rank Tracker + Site Explorer via Ahrefs MCP), manual paid-ads entry, and persisted data-entry forms. Works manual-first; SEO section goes live once an Ahrefs project ID is entered in Settings.",
+  "mcpTools": [
+    "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__gsc-performance-history",
+    "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__rank-tracker-overview",
+    "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__gsc-keywords",
+    "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__gsc-pages",
+    "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__site-explorer-domain-rating-history",
+    "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__site-explorer-refdomains-history",
+    "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action"
+  ],
+  "mcpServerNames": [
+    "Ahrefs",
+    "Ahrefs",
+    "Ahrefs",
+    "Ahrefs",
+    "Ahrefs",
+    "Ahrefs",
+    "Zapier"
+  ]
+}
+</script>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mt. Baker Medical — Performance Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js" integrity="sha384-iU8HYtnGQ8Cy4zl7gbNMOhsDTTKX02BTXptVP/vqAWIaTfM7isw76iyZCsjL2eVi" crossorigin="anonymous"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --forest:#144120; --sage:#4A8D66; --lightsage:#94C1AB;
+    --ink:#1c2b22; --muted:#5e6f64; --line:#e3e7e1; --bg:#FBFAF7; --card:#ffffff;
+    --good:#2f7d50; --bad:#b4452f; --warn:#9a6b1f;
+    --display:'Cormorant Garamond',Georgia,'Times New Roman',serif;
+    --body:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --label:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.5;font-size:15px}
+  .wrap{max-width:1080px;margin:0 auto;padding:22px 22px 80px}
+  header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid var(--forest);padding-bottom:14px;margin-bottom:8px;flex-wrap:wrap}
+  .brand h1{font-family:var(--display);font-weight:600;color:var(--forest);margin:0;font-size:30px;letter-spacing:.2px;line-height:1.05}
+  .brand .tag{font-family:var(--display);font-style:italic;color:var(--sage);font-size:18px;margin-top:2px}
+  .brand .sub{font-family:var(--label);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+  .hdr-right{font-family:var(--label);font-size:12px;color:var(--muted);text-align:right}
+  .hdr-right .period-pick{margin-top:6px}
+  select,input{font-family:var(--label);font-size:13px;color:var(--ink);background:#fff;border:1px solid var(--line);border-radius:7px;padding:7px 9px}
+  select:focus,input:focus{outline:2px solid var(--lightsage);outline-offset:0}
+  h2.sec{font-family:var(--display);color:var(--forest);font-size:23px;font-weight:600;margin:34px 0 4px;display:flex;align-items:center;gap:10px}
+  h2.sec .rule{flex:1;height:1px;background:var(--line)}
+  .sec-note{font-family:var(--label);font-size:12px;color:var(--muted);margin:0 0 14px}
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .card .k{font-family:var(--label);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+  .card .v{font-family:var(--label);font-weight:600;font-size:27px;color:var(--forest);margin-top:6px;letter-spacing:-.5px}
+  .card .v small{font-size:14px;color:var(--muted);font-weight:500}
+  .trend{font-family:var(--label);font-size:12px;margin-top:6px;font-weight:600}
+  .trend.up{color:var(--good)} .trend.down{color:var(--bad)} .trend.flat{color:var(--muted)}
+  .trend .ctx{color:var(--muted);font-weight:400}
+  .mix{display:flex;gap:4px;margin-top:10px;height:9px;border-radius:5px;overflow:hidden;background:#eef1ec}
+  .mix span{display:block;height:100%}
+  .mixlegend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:8px;font-family:var(--label);font-size:11px;color:var(--muted)}
+  .mixlegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:middle}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:14px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  /* funnel */
+  .funnel{display:flex;flex-direction:column;gap:0}
+  .fstage{display:flex;align-items:center;gap:12px;padding:2px 0}
+  .fbar-wrap{flex:1}
+  .fbar{height:34px;border-radius:8px;background:linear-gradient(90deg,var(--forest),var(--sage));display:flex;align-items:center;padding:0 12px;color:#fff;font-family:var(--label);font-size:13px;font-weight:600;min-width:54px}
+  .flabel{font-family:var(--label);font-size:12px;color:var(--muted);width:150px;text-align:right}
+  .fconv{font-family:var(--label);font-size:11px;color:var(--sage);text-align:center;padding:2px 0 2px 162px}
+  .fbar-split{padding:0;background:none;position:relative;overflow:hidden}
+  .fbar-split .fnum{position:absolute;left:12px;top:0;height:100%;display:flex;align-items:center;color:#fff;font-weight:600;z-index:1;text-shadow:0 1px 2px rgba(0,0,0,.28)}
+  .fbar-split>span:not(.fnum){display:block;height:100%}
+  .fbar-empty{background:#e3e7e1;color:var(--muted)}
+  .fbar-empty .fsub{font-weight:400;font-style:italic;margin-left:4px}
+  /* tables */
+  table{border-collapse:collapse;width:100%;font-family:var(--label);font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:hover td{background:#f6f8f5}
+  .btn{font-family:var(--label);font-size:13px;font-weight:600;border:1px solid var(--forest);background:var(--forest);color:#fff;border-radius:8px;padding:8px 14px;cursor:pointer}
+  .btn:hover{background:#0e3018}
+  .btn.ghost{background:#fff;color:var(--forest)}
+  .btn.sm{padding:4px 9px;font-size:12px}
+  .btn.danger{border-color:var(--bad);color:var(--bad);background:#fff}
+  .btn.danger:hover{background:#fbeeea}
+  .formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;align-items:end}
+  .field{display:flex;flex-direction:column;gap:4px}
+  .field label{font-family:var(--label);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .tab{font-family:var(--label);font-size:13px;font-weight:600;border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer}
+  .tab.active{background:var(--lightsage);color:var(--forest);border-color:var(--lightsage)}
+  .banner{font-family:var(--label);font-size:13px;border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:center}
+  .banner.info{background:#eef4ef;color:var(--forest);border:1px solid var(--lightsage)}
+  .banner.warn{background:#fbf3e6;color:var(--warn);border:1px solid #e7d3aa}
+  .chartbox{position:relative;height:190px}
+  .small{font-family:var(--label);font-size:11px;color:var(--muted)}
+  .pill{font-family:var(--label);font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#eef1ec;color:var(--sage)}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end}
+  .seo-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px}
+  .dist{display:flex;gap:18px;align-items:baseline}
+  .dist .d{font-family:var(--label)} .dist .dv{font-size:24px;font-weight:600;color:var(--forest)} .dist .dl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .foot{font-family:var(--label);font-size:11px;color:var(--muted);margin-top:30px;border-top:1px solid var(--line);padding-top:14px}
+  @media(max-width:820px){.cards,.seo-kpi{grid-template-columns:repeat(2,1fr)}.grid2,.grid3{grid-template-columns:1fr}.flabel{width:96px}.fconv{padding-left:108px}}
+  #kwTableWrap table{font-size:12.5px}
+  #kwTableWrap th{position:sticky;top:0;background:#f3f6f2;cursor:pointer;white-space:nowrap;z-index:1}
+  #kwTableWrap th:hover{color:var(--forest)}
+  #kwTableWrap td{padding:6px 10px}
+  #kwTableWrap tr.t1 td:first-child{box-shadow:inset 3px 0 0 var(--sage)}
+  .pospill{display:inline-block;min-width:30px;text-align:center;font-weight:700;border-radius:5px;padding:1px 6px;font-variant-numeric:tabular-nums}
+  .pos-top3{background:#dff0e4;color:#1f6b3c}
+  .pos-top10{background:#eef4ef;color:var(--sage)}
+  .pos-low{background:#f1efe9;color:var(--muted)}
+  .pos-none{color:#b9b9b9}
+  .tierbadge{display:inline-block;font-size:10px;font-weight:700;border-radius:4px;padding:1px 5px}
+  .tb1{background:#dff0e4;color:#1f6b3c}.tb2{background:#eef1ec;color:var(--sage)}.tb3{background:#f1efe9;color:var(--muted)}
+  .dlt-up{color:var(--good);font-weight:600}.dlt-dn{color:var(--bad);font-weight:600}.dlt-flat{color:#c2c2c2}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Mt. Baker Medical</h1>
+      <div class="tag">Feel Better. Live Longer.</div>
+      <div class="sub">Performance Dashboard · New-Member Leads</div>
+    </div>
+    <div class="hdr-right">
+      <div>Concierge Primary Care · Bellingham, WA</div>
+      <div class="period-pick">
+        <label class="small" for="granSel">Granularity</label>
+        <select id="granSel"></select>
+        <label class="small" for="periodSel" style="margin-left:8px">Period</label>
+        <select id="periodSel"></select>
+      </div>
+    </div>
+  </header>
+
+  <!-- NORTH STAR -->
+  <h2 class="sec">North Star<span class="rule"></span><span class="pill" id="nsRange"></span></h2>
+  <p class="sec-note" id="nsNote"></p>
+  <div class="cards" id="northstar"></div>
+
+  <!-- FUNNEL -->
+  <h2 class="sec">Acquisition Funnel<span class="rule"></span><span class="pill" id="funnelRange"></span></h2>
+  <p class="sec-note">All-source conversion funnel (<b>GSC + Google Ads + GA4 + Hint</b>): <b>impressions → site visits → inquiries → consults → new members</b>. <b>Window:</b> the conversion stages (visits → new members) are <b>month-to-date</b>. The top <b>impressions</b> band is search reach only (organic GSC + paid Google Ads), carries <b>no</b> impression→visit rate (direct/referral/social visits have no upstream impression), and is the one mixed-window element here — its <b>paid</b> half is actual month-to-date, and its <b>organic</b> half is an <b>estimate</b> — because GSC finalizes 2–3 days late, the current month's organic is prorated (last complete month's impressions ÷ its days × days elapsed) and flagged "est." Visits &amp; inquiries are split by <b>traffic source</b>; <b>booked new-member consults</b> and <b>new members</b> come from Hint (no web channel — consults are a count, members split by plan type, Concierge + SO).</p>
+  <div class="panel"><div class="funnel" id="funnel"></div></div>
+  <div class="panel" style="margin-top:14px">
+    <div class="small" style="font-weight:600;font-size:13px;color:var(--forest);margin-bottom:8px">New members by lead source <span class="small" style="font-weight:400">— self-reported in Hint (how each member first reached the practice; may predate the membership for existing patients). This is the relationship/offline attribution that GA4 &amp; paid tracking can't see.</span></div>
+    <div id="memSourceBar"></div>
+    <div id="memSourceLegend" class="mixlegend" style="margin-top:8px"></div>
+  </div>
+
+  <!-- SEO -->
+  <h2 class="sec">Website &amp; SEO<span class="rule"></span><span class="pill" id="seoLiveState">manual</span></h2>
+  <p class="sec-note">Auto-updating from Google Search Console, Rank Tracker &amp; Site Explorer via your Ahrefs project. <button class="btn sm" id="refreshBtn" style="margin-left:6px">↻ Refresh live data</button> <span class="small" id="seoSyncNote"></span></p>
+  <div class="banner warn" style="margin:6px 0 14px">⏱ <div><b>Reporting-lag note:</b> Google Search Console finalizes data 2–3 days after the fact, so the <b>current month is always partial</b> until it settles — and just after a reconnect it can take a few days to fully backfill. Treat recent dips in impressions, clicks, CTR, average position and the funnel’s top two stages as <b>incomplete data, not real drops</b> — they firm up over the following days.</div></div>
+  <p class="sec-note" style="margin-top:-6px"><b>Windows vary by metric</b> (SEO data spans different ranges by nature): KPI cards = <b>latest complete month</b> · clicks/impressions &amp; position charts = <b>last 12 months</b> · keyword "GSC 6mo" column = <b>trailing 6 months</b> · Domain Rating &amp; referring domains = <b>current</b>.</p>
+  <div id="seoConnect"></div>
+  <div id="seoBody">
+    <div class="seo-kpi" id="seoKpis"></div>
+    <div class="grid2">
+      <div class="panel"><div class="small" style="margin-bottom:6px">GSC clicks &amp; impressions</div><div class="chartbox"><canvas id="chGsc"></canvas></div></div>
+      <div class="panel"><div class="small" style="margin-bottom:6px">Average position (lower is better)</div><div class="chartbox"><canvas id="chPos"></canvas></div></div>
+    </div>
+    <div class="grid3" style="margin-top:14px">
+      <div class="panel">
+        <div class="small" style="margin-bottom:10px">Tracked-keyword ranking distribution</div>
+        <div class="dist"><div class="d"><div class="dv" id="kwTop3">—</div><div class="dl">Top 3</div></div><div class="d"><div class="dv" id="kwTop10">—</div><div class="dl">Top 10</div></div><div class="d"><div class="dv" id="kwTotal">—</div><div class="dl">Ranking</div></div></div>
+        <div class="small" style="margin-top:10px">of 119 tracked keywords</div>
+      </div>
+      <div class="panel"><div class="small" style="margin-bottom:6px">Domain Rating</div><div class="card" style="border:0;padding:0"><div class="v" id="drVal">—</div></div><div class="chartbox" style="height:90px"><canvas id="chDr"></canvas></div></div>
+      <div class="panel"><div class="small" style="margin-bottom:6px">Referring domains</div><div class="card" style="border:0;padding:0"><div class="v" id="refVal">—</div></div><div class="chartbox" style="height:90px"><canvas id="chRef"></canvas></div></div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div class="small" style="font-weight:600;font-size:13px;color:var(--forest)">Tracked keyword rankings <span id="kwCount" class="small" style="font-weight:400"></span></div>
+        <div class="tabs" id="kwFilters" style="margin-bottom:0"></div>
+      </div>
+      <div id="kwTableWrap" style="max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div>
+      <div class="small" id="kwNote" style="margin-top:8px"></div>
+    </div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="panel"><div class="small" style="margin-bottom:8px">Top queries</div><div id="topQueries" class="small">No data yet.</div></div>
+      <div class="panel"><div class="small" style="margin-bottom:8px">Top pages</div><div id="topPages" class="small">No data yet.</div></div>
+    </div>
+  </div>
+
+  <!-- PAID ADS -->
+  <h2 class="sec">Paid Ads<span class="rule"></span><span class="pill" id="paidRange"></span></h2>
+  <p class="sec-note"><b>Google Ads pulls automatically (month-to-date)</b>; Meta is entered manually (whatever period you enter). CPC, CTR and CPL are computed; blended CPL spans all paid channels. The two trend charts below span the <b>last 8 periods</b>, not just this month.</p>
+  <div class="cards" id="paidCards"></div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="panel"><div class="small" style="margin-bottom:6px">Spend by platform</div><div class="chartbox"><canvas id="chSpend"></canvas></div></div>
+    <div class="panel"><div class="small" style="margin-bottom:6px">Blended cost-per-lead trend</div><div class="chartbox"><canvas id="chCpl"></canvas></div></div>
+  </div>
+
+  <!-- DATA ENTRY -->
+  <h2 class="sec">Data Entry<span class="rule"></span></h2>
+  <p class="sec-note">All entries save to this dashboard's local storage and persist across sessions. Entering a period that already exists overwrites it.</p>
+  <div class="panel">
+    <div class="tabs" id="entryTabs">
+      <button class="tab active" data-tab="ads">Ad numbers</button>
+      <button class="tab" data-tab="leads">Leads by channel</button>
+      <button class="tab" data-tab="funnel">Consults &amp; members</button>
+      <button class="tab" data-tab="settings">Settings</button>
+    </div>
+    <div id="entryBody"></div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Mt. Baker Medical — Performance Dashboard
+   Storage API: localStorage (the "window.storage" data model).
+   Keys: config | ads:{period}:{google|meta|bing} |
+         leads:{period} | funnel:{period} | seo_snapshot:{date}
+   ============================================================ */
+const NS = "mbm_dash_";                       // localStorage namespace
+const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
+const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
+const GA4 = { account:"accounts/375484286", property:"properties/513547844" };  // Mt Baker Medical GA4
+const GADS_ACCOUNT = "1167880168";  // Google Ads account
+const KW={"nad iv therapy":{"t":1,"r":"/services/nad-therapy/","p":null,"kd":8,"v":15000},"nad iv therapy bellingham":{"t":1,"r":"/services/nad-therapy/","p":6,"kd":0,"v":0,"d":-1},"nad+ therapy":{"t":1,"r":"/services/nad-therapy/","p":null,"kd":34,"v":1500},"nad iv therapy cost":{"t":1,"r":"/services/nad-therapy/","p":null,"kd":3,"v":400},"nad iv therapy benefits":{"t":1,"r":"/services/nad-therapy/","p":null,"kd":2,"v":800},"perimenopause symptoms":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":52,"v":146000},"perimenopause treatment bellingham":{"t":1,"r":"/conditions/perimenopause/","p":10,"kd":0,"v":0,"d":2},"perimenopause doctor bellingham":{"t":1,"r":"/conditions/perimenopause/","p":17,"kd":9,"v":0,"d":8},"what are the 34 symptoms of perimenopause":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":null,"v":null},"how long does perimenopause last":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":3,"v":5800},"perimenopause vs menopause":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":22,"v":4100},"perimenopause hair loss":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":22,"v":2000},"perimenopause joint pain":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":13,"v":1000},"am i in perimenopause":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":12,"v":600},"dexa scan near me":{"t":1,"r":"/dexa-scan-bellingham/","p":null,"kd":0,"v":22000},"dexa scan bellingham":{"t":1,"r":"/dexa-scan-bellingham/","p":null,"kd":0,"v":70},"dexa scan cost":{"t":1,"r":"/dexa-scan-bellingham/","p":null,"kd":2,"v":5600},"dexa scan body fat":{"t":1,"r":"/dexa-scan-bellingham/","p":null,"kd":14,"v":3000},"longevity medicine":{"t":1,"r":"/longevity-medicine/","p":10,"kd":16,"v":700,"d":1},"longevity medicine bellingham":{"t":1,"r":"/longevity-medicine/","p":1,"kd":24,"v":0,"d":2},"anti-aging doctor bellingham":{"t":1,"r":"/longevity-medicine/","p":7,"kd":13,"v":0,"d":-1},"longevity doctor near me":{"t":1,"r":"/longevity-medicine/","p":4,"kd":7,"v":450,"d":2},"longevity clinic":{"t":1,"r":"/longevity-medicine/","p":null,"kd":22,"v":450},"what is brain fog":{"t":1,"r":"/conditions/brain-fog/","p":null,"kd":null,"v":null},"how to get rid of brain fog":{"t":1,"r":"/conditions/brain-fog/","p":null,"kd":19,"v":7000},"what causes brain fog":{"t":1,"r":"/conditions/brain-fog/","p":null,"kd":null,"v":null},"brain fog meaning":{"t":1,"r":"/conditions/brain-fog/","p":null,"kd":22,"v":4500},"brain fog perimenopause":{"t":1,"r":"/conditions/brain-fog/","p":null,"kd":17,"v":600},"midlife weight gain":{"t":1,"r":"/conditions/weight-management/","p":null,"kd":35,"v":30},"perimenopause weight gain":{"t":1,"r":"/conditions/weight-management/","p":null,"kd":28,"v":4800},"hormonal belly fat":{"t":1,"r":"/conditions/weight-management/","p":null,"kd":27,"v":3600},"medical weight loss bellingham":{"t":1,"r":"/conditions/weight-management/","p":16,"kd":38,"v":40,"d":0},"functional medicine doctor near me":{"t":1,"r":"/functional-medicine/","p":null,"kd":37,"v":14000},"what is functional medicine":{"t":1,"r":"/functional-medicine/","p":null,"kd":null,"v":null},"functional medicine practitioner":{"t":1,"r":"/functional-medicine/","p":null,"kd":45,"v":2000},"is functional medicine legit":{"t":1,"r":"/functional-medicine/","p":null,"kd":28,"v":700},"root cause primary care bellingham":{"t":1,"r":"/functional-medicine/","p":null,"kd":null,"v":null},"functional medicine bellingham":{"t":1,"r":"/bellingham-functional-medicine/","p":28,"kd":46,"v":60,"d":-3},"metabolic health":{"t":1,"r":"/metabolic-health/","p":null,"kd":20,"v":2200},"metabolic health doctor":{"t":1,"r":"/metabolic-health/","p":null,"kd":0,"v":30},"insulin resistance treatment":{"t":1,"r":"/metabolic-health/","p":null,"kd":52,"v":1800},"myers cocktail":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":20,"v":8300},"iv therapy near me":{"t":2,"r":"/services/iv-therapy/","p":22,"kd":2,"v":43000,"d":-8},"iv therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":11,"kd":2,"v":30,"d":-1},"iv vitamin therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":6,"kd":2,"v":0,"d":3},"myers cocktail bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":0,"v":0},"peptide therapy near me":{"t":2,"r":"/services/peptide-therapy/","p":null,"kd":3,"v":4500},"peptide therapy bellingham":{"t":2,"r":"/services/peptide-therapy/","p":20,"kd":0,"v":0},"peptide therapy clinic":{"t":2,"r":"/services/peptide-therapy/","p":null,"kd":0,"v":350},"ketamine clinic":{"t":2,"r":"/services/ketamine-therapy/","p":3,"kd":27,"v":3700,"d":1},"ketamine therapy bellingham":{"t":2,"r":"/services/ketamine-therapy/","p":2,"kd":13,"v":100,"d":0},"ketamine therapy near me":{"t":2,"r":"/services/ketamine-therapy/","p":2,"kd":13,"v":3100,"d":0},"ketamine assisted therapy":{"t":2,"r":"/services/ketamine-therapy/","p":null,"kd":25,"v":1600},"what does ketamine therapy feel like":{"t":2,"r":"/services/ketamine-therapy/","p":null,"kd":null,"v":null},"trt clinic":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":18,"kd":0,"v":2400},"trt bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":19,"kd":0,"v":0,"d":-9},"testosterone replacement therapy bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":null,"kd":null,"v":null},"low testosterone treatment":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":null,"kd":79,"v":3100},"testosterone clinic bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":null,"kd":null,"v":null},"weight loss clinic":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":null,"kd":null,"v":null},"weight loss clinic near me":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":14,"kd":29,"v":19000,"d":-1},"semaglutide bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":5,"kd":16,"v":150,"d":7},"tirzepatide bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":null,"kd":null,"v":null},"glp-1 bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":1,"kd":20,"v":0,"d":0},"weight loss injections bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":null,"kd":null,"v":null},"menopause doctor":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":22,"v":1800},"hrt bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":29,"kd":0,"v":0,"d":-3},"bioidentical hormone replacement therapy bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":25,"kd":0,"v":0,"d":1},"hrt near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":15,"kd":0,"v":1700,"d":1},"hormone replacement therapy near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":16,"kd":0,"v":3300,"d":1},"menopause doctor bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":16,"v":0},"hrt clinic near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":28,"kd":0,"v":2100,"d":-10},"signs you need hormone replacement therapy":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":null,"v":null},"scream cream":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":null,"v":null},"o-shot bellingham":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":0,"v":0},"vaginal dryness treatment":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":null,"v":null},"low libido women treatment":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":68,"v":50},"ed treatment bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":15,"kd":0,"v":0,"d":-7},"p-shot bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":null,"kd":11,"v":0},"erectile dysfunction treatment bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":0,"v":0,"d":17},"mens health bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":29,"kd":25,"v":0,"d":-3},"gainswave bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":null,"kd":26,"v":0},"gender affirming care bellingham":{"t":2,"r":"/services/gender-affirming-care/","p":13,"kd":0,"v":0,"d":0},"gaht bellingham":{"t":2,"r":"/services/gender-affirming-care/","p":1,"kd":2,"v":0,"d":0},"transgender hormone therapy bellingham":{"t":2,"r":"/services/gender-affirming-care/","p":null,"kd":null,"v":null},"pharmaceutical grade supplements":{"t":2,"r":"/services/custom-supplements-and-nutraceutical/","p":null,"kd":0,"v":350},"pharmaceutical grade supplements bellingham":{"t":2,"r":"/services/custom-supplements-and-nutraceutical/","p":8,"kd":0,"v":0,"d":-2},"custom supplements bellingham":{"t":2,"r":"/services/custom-supplements-and-nutraceutical/","p":1,"kd":11,"v":0,"d":6},"renasculpt":{"t":2,"r":"/services/renasculpt-muscle-therapy/","p":null,"kd":0,"v":150},"renasculpt bellingham":{"t":2,"r":"/services/renasculpt-muscle-therapy/","p":9,"kd":0,"v":0,"d":0},"emsculpt alternative":{"t":2,"r":"/services/renasculpt-muscle-therapy/","p":null,"kd":0,"v":10},"body sculpting bellingham":{"t":2,"r":"/services/renasculpt-muscle-therapy/","p":null,"kd":0,"v":0},"functional medicine depression":{"t":2,"r":"/conditions/depression/","p":null,"kd":1,"v":50},"depression treatment bellingham":{"t":2,"r":"/conditions/depression/","p":4,"kd":1,"v":0,"d":0},"treatment resistant depression":{"t":2,"r":"/conditions/depression/","p":null,"kd":null,"v":null},"functional medicine anxiety":{"t":2,"r":"/conditions/anxiety/","p":null,"kd":0,"v":30},"anxiety treatment bellingham":{"t":2,"r":"/conditions/anxiety/","p":null,"kd":0,"v":0},"root cause anxiety":{"t":2,"r":"/conditions/anxiety/","p":null,"kd":26,"v":30},"menopause treatment bellingham":{"t":2,"r":"/conditions/menopause/","p":null,"kd":9,"v":0},"menopause symptoms":{"t":2,"r":"/conditions/menopause/","p":null,"kd":67,"v":93000},"menopause treatment":{"t":2,"r":"/conditions/menopause/","p":null,"kd":71,"v":2600},"executive physical":{"t":2,"r":"/executive-health/","p":null,"kd":1,"v":1000},"executive health program":{"t":2,"r":"/executive-health/","p":null,"kd":1,"v":200},"executive physical near me":{"t":2,"r":"/executive-health/","p":null,"kd":2,"v":250},"bellingham concierge medicine":{"t":3,"r":"/","p":2,"kd":35,"v":0,"d":0},"concierge primary care bellingham":{"t":3,"r":"/","p":2,"kd":17,"v":0,"d":0},"concierge doctor bellingham":{"t":3,"r":"/","p":3,"kd":19,"v":0,"d":2},"direct primary care bellingham":{"t":3,"r":"/","p":null,"kd":17,"v":10},"bellingham primary care":{"t":3,"r":"/","p":null,"kd":10,"v":20},"mt baker medical":{"t":3,"r":"/","p":1,"kd":2,"v":10,"d":0},"concierge primary care":{"t":3,"r":"/concierge-primary-care/","p":7,"kd":11,"v":900,"d":-2},"concierge medicine":{"t":3,"r":"/concierge-primary-care/","p":10,"kd":24,"v":11000,"d":0},"concierge doctor":{"t":3,"r":"/concierge-primary-care/","p":2,"kd":32,"v":14000,"d":8},"is concierge medicine worth it":{"t":3,"r":"/concierge-primary-care/","p":null,"kd":7,"v":200},"concierge medicine cost":{"t":3,"r":"/concierge-primary-care/","p":null,"kd":20,"v":200},"dr james scribner bellingham":{"t":3,"r":"/providers/dr-scribner/","p":2,"kd":0,"v":0,"d":0},"james scribner md":{"t":3,"r":"/providers/dr-scribner/","p":1,"kd":0,"v":0,"d":0},"wellness clinic bellingham":{"t":3,"r":"/services/","p":null,"kd":null,"v":null},"womens health bellingham":{"t":3,"r":"/womens-health/","p":null,"kd":null,"v":null}};
+/* GSC actual-demand: real Google Search Console impressions over the trailing ~6 months,
+   summed across the live queries that contain each tracked term. This is MEASURED demand
+   (vs. Ahrefs "v" which is a modeled estimate that rounds local/long-tail to 0). A tracked
+   keyword absent here got 0 measured impressions — Google never showed the site for it.
+   Point-in-time snapshot (pulled 2026-06-09); can be wired into the weekly refresh. */
+const GSCI={"ketamine therapy bellingham":271,"treatment resistant depression":94,"ketamine clinic":80,"mt baker medical":63,"semaglutide bellingham":58,"weight loss clinic":47,"depression treatment bellingham":37,"medical weight loss bellingham":35,"iv therapy bellingham":26,"renasculpt":20,"trt clinic":12,"iv vitamin therapy bellingham":10,"ketamine therapy near me":4};
+const GSCI_WINDOW="6mo (through 2026-06-09)";
+let kwState={filter:"all", sortKey:"pos", sortDir:1};
+const PLATFORMS = ["google","meta","bing"];
+const PLAT_LABEL = {google:"Google Ads", meta:"Meta", bing:"Bing"};
+const CH_COLOR = {organic:"#144120", google:"#4A8D66", meta:"#94C1AB", bing:"#c7a14b"};
+
+/* ---------- storage helpers ---------- */
+const store = {
+  get(k, d){ try{ const v=localStorage.getItem(NS+k); return v==null?d:JSON.parse(v);}catch(e){return d;} },
+  set(k, v){ try{ localStorage.setItem(NS+k, JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem(NS+k); }catch(e){} },
+  keys(prefix){ const out=[]; for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i); if(key&&key.startsWith(NS+prefix)) out.push(key.slice(NS.length));} return out; }
+};
+
+/* ---------- config ---------- */
+function cfg(){ return Object.assign({project_id:"9915753", ahrefs_domain:"mtbakermedical.com", period_granularity:"monthly"}, store.get("config",{})); }
+function saveCfg(patch){ store.set("config", Object.assign(cfg(), patch)); }
+
+/* One-time seed with real data pulled from GA4 + Ahrefs (last-30-day snapshot), so the
+   dashboard opens showing live numbers instead of zeros. Only fills keys that don't exist;
+   never overwrites anything you've entered. Refresh re-pulls fresh values over the top. */
+/* The weekly scheduled refresh re-pulls live data and bumps DATA_VERSION + the SEED/KW
+   values below. On a version change the connector-sourced metrics overwrite cached values;
+   manually-entered new_members (from Hint) is preserved. */
+const DATA_VERSION = "2026-06-30a";
+const SEED = {
+  leads:      {organic:39, google:12, meta:0, bing:0, source:"ga4"},
+  funnel:     {site_visits:1020, inq_booking:32, inq_phone:10, consults:8, new_members:11},
+  ads_google: {spend:1174.93, impressions:5671, clicks:288, conversions:10},
+  snap_date:  "2026-06-18",
+  snap:       {dr:1.7, ref_domains:186, gsc_clicks:193, gsc_impressions:3943, gsc_ctr:4.9, gsc_position:17.6},
+  gsc_trend:  [
+    {date:"2025-11", clicks:16, impressions:130, position:25.1},
+    {date:"2025-12", clicks:43, impressions:496, position:33.2},
+    {date:"2026-01", clicks:49, impressions:941, position:28.0},
+    {date:"2026-02", clicks:29, impressions:1244, position:28.3},
+    {date:"2026-03", clicks:53, impressions:2566, position:30.8},
+    {date:"2026-04", clicks:73, impressions:2158, position:30.5},
+    {date:"2026-05", clicks:193, impressions:3943, position:17.6}
+  ],
+  funnel_src: {
+    visits:    {organic:378, direct:451, google:145, meta:0, other:46},
+    inquiries: {organic:20,  direct:7,   google:12, meta:0, other:3}
+  },
+  members_split: {concierge:3, so:8},
+  members_source: {google:0, bing:2, ai:0, social:0, provider_referral:0, word_of_mouth:0, other:9},
+  consults_hint:  {completed:30, scheduled:40, upcoming:10, cancelled:13, source:"hint"},
+  // Pending = membership created but NO payment method on file (NOT counted in new members).
+  // null until export_dashboard_members.py reruns with the payment gate; the daily/weekly
+  // task then bakes feed.members_pending here. Shape when populated: {concierge,so,total}.
+  members_pending: {concierge:2, so:2, total:4}
+};
+function seedRealData(){
+  if(store.get("data_version")===DATA_VERSION) return;
+  const per = curPeriod(cfg().period_granularity);
+  store.set("leads:"+per, SEED.leads);                                  // GA4 — refresh each version
+  store.set("funnel:"+per, SEED.funnel);                                // GA4 totals (new_members comes from Hint via the weekly task)
+  store.set("ads:"+per+":google", SEED.ads_google);                     // Google Ads — refresh
+  store.set("seo_snapshot:"+SEED.snap_date, SEED.snap);                 // Ahrefs/GSC
+  store.set("gsc_trend", SEED.gsc_trend);                              // GSC monthly trend (through latest complete month)
+  store.set("funnel_src:"+per, SEED.funnel_src);                       // GA4 channel split (organic/direct/google/meta/other)
+  store.set("members_split:"+per, SEED.members_split);                 // Hint: concierge + SO (weekly task re-bakes from Hint each run)
+  store.set("members_source:"+per, SEED.members_source);               // Hint Lead Source per new member — aggregate counts only (weekly task re-reads each run)
+  store.set("consults_hint:"+per, SEED.consults_hint);                 // Hint appointments MTD: completed / scheduled / cancelled (all sources)
+  store.set("members_pending:"+per, SEED.members_pending);             // Hint: memberships w/ no payment on file (pending) — weekly/daily task re-bakes from feed
+  store.set("data_version", DATA_VERSION);
+}
+
+/* ---------- period helpers ---------- */
+function pad(n){return String(n).padStart(2,"0");}
+function isoWeek(d){ const dt=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=dt.getUTCDay()||7; dt.setUTCDate(dt.getUTCDate()+4-day); const ys=new Date(Date.UTC(dt.getUTCFullYear(),0,1)); const wk=Math.ceil((((dt-ys)/86400000)+1)/7); return dt.getUTCFullYear()+"-W"+pad(wk); }
+function curPeriod(g){ const d=new Date(); return g==="weekly"?isoWeek(d):d.getFullYear()+"-"+pad(d.getMonth()+1); }
+function recentPeriods(g, n){
+  const out=[]; const d=new Date();
+  for(let i=0;i<n;i++){ if(g==="weekly"){ const t=new Date(d); t.setDate(d.getDate()-7*i); out.push(isoWeek(t)); } else { const t=new Date(d.getFullYear(), d.getMonth()-i, 1); out.push(t.getFullYear()+"-"+pad(t.getMonth()+1)); } }
+  return out;
+}
+function prevOf(period, g){ const arr=recentPeriods(g, 36); const i=arr.indexOf(period); return (i>=0&&i<arr.length-1)?arr[i+1]:arr[0]; }
+
+/* ---------- data accessors ---------- */
+function getAds(period){ const o={}; PLATFORMS.forEach(p=>{ o[p]=Object.assign({spend:0,impressions:0,clicks:0,conversions:0}, store.get("ads:"+period+":"+p, {})); }); return o; }
+function getLeads(period){ return Object.assign({organic:0,google:0,meta:0,bing:0,source:"manual"}, store.get("leads:"+period, {})); }
+function getFunnel(period){ return Object.assign({site_visits:0,inq_booking:0,inq_phone:0,consults:0,new_members:0}, store.get("funnel:"+period, {})); }
+function latestSnapshot(){ const ks=store.keys("seo_snapshot:").sort(); return ks.length?store.get(ks[ks.length-1],{}):null; }
+function snapshotsSorted(){ return store.keys("seo_snapshot:").sort().map(k=>({date:k.split(":")[1], ...store.get(k,{})})); }
+
+/* ---------- computed metrics ---------- */
+function paidTotals(period){ const a=getAds(period); let spend=0,impr=0,clk=0,conv=0; PLATFORMS.forEach(p=>{spend+=+a[p].spend||0;impr+=+a[p].impressions||0;clk+=+a[p].clicks||0;conv+=+a[p].conversions||0;}); return {spend,impr,clk,conv}; }
+function blendedCPL(period){ const t=paidTotals(period); return t.conv>0 ? t.spend/t.conv : null; }            // sum paid spend / sum paid-attributed conversions
+function platformCPL(period,p){ const a=getAds(period)[p]; return (+a.conversions>0)? (+a.spend)/(+a.conversions): null; }
+function totalLeads(period){ const l=getLeads(period); return (+l.organic||0)+(+l.google||0)+(+l.meta||0)+(+l.bing||0); }
+function costPerNewMember(period){ const t=paidTotals(period); const m=+getFunnel(period).new_members||0; return m>0? t.spend/m : null; }
+
+/* ---------- formatting ---------- */
+const fmtN = n => (n==null||isNaN(n))?"—":Math.round(n).toLocaleString();
+const fmtUSD = n => (n==null||isNaN(n))?"—":"$"+(Math.round(n*100)/100).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:2});
+const fmtPct = n => (n==null||isNaN(n))?"—":(Math.round(n*10)/10)+"%";
+const fmtPos = n => (n==null||isNaN(n))?"—":(Math.round(n*10)/10);
+function trendHTML(cur, prev, opts){
+  opts=opts||{}; const lowerBetter=!!opts.lowerBetter; const money=!!opts.money; const pct=!!opts.pct;
+  if(cur==null||prev==null||isNaN(cur)||isNaN(prev)||prev===0) return '<div class="trend flat">— <span class="ctx">vs prior</span></div>';
+  const diff=cur-prev; const rel=(diff/Math.abs(prev))*100; const better = lowerBetter? diff<0 : diff>0;
+  const cls = Math.abs(rel)<0.5? "flat" : (better?"up":"down");
+  const arrow = diff>0?"▲":(diff<0?"▼":"—");
+  return '<div class="trend '+cls+'">'+arrow+' '+(Math.abs(Math.round(rel*10)/10))+'% <span class="ctx">vs prior period</span></div>';
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let CHARTS={};
+function destroyChart(id){ if(CHARTS[id]){CHARTS[id].destroy(); delete CHARTS[id];} }
+function lineChart(id, labels, datasets, opts){
+  const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return;
+  destroyChart(id);
+  CHARTS[id]=new Chart(el.getContext("2d"),{type:"line",data:{labels,datasets},options:Object.assign({
+    responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:"index"},
+    plugins:{legend:{display:datasets.length>1,labels:{font:{family:"Inter",size:11},boxWidth:10}}},
+    scales:{x:{ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{display:false}},
+            y:{ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{color:"#eef1ec"},beginAtZero:!opts||!opts.noZero}},
+    elements:{point:{radius:2},line:{tension:.3,borderWidth:2}}
+  },opts||{})});
+}
+function barChart(id, labels, dataset){
+  const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return;
+  destroyChart(id);
+  CHARTS[id]=new Chart(el.getContext("2d"),{type:"bar",data:{labels,datasets:[dataset]},options:{
+    responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+    scales:{x:{ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{display:false}},y:{beginAtZero:true,ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{color:"#eef1ec"}}}
+  }});
+}
+
+function selectedPeriod(){ return document.getElementById("periodSel").value; }
+function periodRange(period){
+  const p=(period||"").split("-"); const y=+p[0], m=+p[1];
+  const M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  if(!y||!m) return "";
+  const now=new Date();
+  if(y===now.getFullYear() && (m===now.getMonth()+1)) return M[m-1]+" 1–"+now.getDate()+", "+y+" · month-to-date";
+  return M[m-1]+" "+y+" · full month";
+}
+function setRangePill(id, period){ const el=document.getElementById(id); if(el) el.textContent=periodRange(period); }
+
+function renderNorthStar(){
+  const g=cfg().period_granularity; const period=selectedPeriod(); const prev=prevOf(period,g);
+  setRangePill("nsRange", period);
+  document.getElementById("nsNote").innerHTML="All North Star metrics use one window: <b>"+periodRange(period)+"</b>. Trends compare to "+periodRange(prev)+".";
+  const leadsNow=totalLeads(period), leadsPrev=totalLeads(prev);
+  const cplNow=blendedCPL(period), cplPrev=blendedCPL(prev);
+  const cpmNow=costPerNewMember(period), cpmPrev=costPerNewMember(prev);
+  const l=getLeads(period); const tl=leadsNow||1;
+  const mixOrder=["organic","google","meta","bing"];
+  const mix = mixOrder.map(c=>'<span style="width:'+(((+l[c]||0)/tl)*100)+'%;background:'+CH_COLOR[c]+'"></span>').join("");
+  const legend = mixOrder.map(c=>'<span><i style="background:'+CH_COLOR[c]+'"></i>'+(c==="google"?"Google":c[0].toUpperCase()+c.slice(1))+' '+(+l[c]||0)+'</span>').join("");
+  document.getElementById("northstar").innerHTML =
+    card("New leads", fmtN(leadsNow), trendHTML(leadsNow,leadsPrev)) +
+    card("Blended cost / lead", fmtUSD(cplNow), trendHTML(cplNow,cplPrev,{lowerBetter:true})+ (cplNow==null?'<div class="small">add paid spend + conversions</div>':'')) +
+    card("Cost / new member", fmtUSD(cpmNow), trendHTML(cpmNow,cpmPrev,{lowerBetter:true})+ (cpmNow==null?'<div class="small">add new members below</div>':'')) +
+    '<div class="card"><div class="k">Leads by channel</div><div class="v" style="font-size:20px">'+fmtN(leadsNow)+' <small>total</small></div><div class="mix">'+mix+'</div><div class="mixlegend">'+legend+'</div></div>';
+}
+function card(k,v,extra){ return '<div class="card"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(extra||"")+'</div>'; }
+
+/* Funnel-stage benchmarks (industry rule-of-thumb; edit values here to retune the
+   good / watch / low thresholds). Keyed by funnel transition. */
+const BENCH = {
+  ctr:   {good:3,  watch:1.5, name:"Search CTR (impressions→clicks)"},
+  lead:  {good:3,  watch:1.5, name:"Visit→inquiry"},
+  book:  {good:60, watch:40,  name:"Inquiry→consult"},
+  close: {good:40, watch:25,  name:"Consult→member"}
+};
+const TRANS_METRIC=["ctr",null,"lead","book","close"];   // benchmark per stage→next transition
+const TRANS_SUBSET=[true,false,true,true,true];          // is next stage a TRUE subset? organic clicks → all-source visits is NOT
+function benchTag(metric,pct){
+  if(metric==null||pct==null||!(pct>0)) return "";        // hide on no/zero data (e.g. members not entered)
+  const b=BENCH[metric]; if(!b) return "";
+  let txt,col;
+  if(pct>=b.good){ txt="good"; col="var(--good)"; }
+  else if(pct>=b.watch){ txt="watch"; col="var(--warn)"; }
+  else { txt="low"; col="var(--bad)"; }
+  return ' <span style="font-weight:700;color:'+col+'" title="'+b.name+' — good ≥'+b.good+'%, watch ≥'+b.watch+'%, below = low">● '+txt+'</span>';
+}
+function srcSegs(split, colors){
+  let segs=''; let tot=0;
+  colors.forEach(function(c){ tot+=+(split&&split[c[0]])||0; });
+  colors.forEach(function(c){ const v=+(split&&split[c[0]])||0; if(v>0) segs+='<span style="flex:'+v+';background:'+c[1]+'" title="'+(c[2]||c[0])+': '+v+'"></span>'; });
+  if(tot<=0) segs='<span style="flex:1;background:#d3dcd5"></span>';
+  return segs;
+}
+function fbar(val, w, split, colors){
+  if(split && colors) return '<div class="fbar fbar-split" style="width:'+w+'%"><span class="fnum">'+fmtN(val)+'</span>'+srcSegs(split,colors)+'</div>';
+  return '<div class="fbar" style="width:'+w+'%">'+fmtN(val)+'</div>';
+}
+function renderFunnel(){
+  const period=selectedPeriod(); const f=getFunnel(period); const paid=paidTotals(period); const snap=latestSnapshot()||{};
+  setRangePill("funnelRange", period);
+  const src = store.get("funnel_src:"+period, null);
+  const memRaw = store.get("members_split:"+period, null);
+  const ch = store.get("consults_hint:"+period, null);
+  const mp = store.get("members_pending:"+period, null);   // {concierge,so,total} or null = not yet measured
+  const SRCC=[["organic","#144120","Organic search"],["direct","#4A8D66","Direct"],["google","#c7a14b","Google Ads"],["meta","#3b6ea5","Meta"],["other","#b8c2bb","Other"]];
+  const MEMC=[["concierge","#144120","Concierge"],["so","#4A8D66","SO"]];
+  const IMPC=[["organic","#144120","Organic search"],["paid","#c7a14b","Paid ads"]];
+  // Organic impressions: GSC lags 2-3 days, so true month-to-date organic isn't available.
+  // For the CURRENT (partial) month we PRORATE the last complete GSC month to days-elapsed
+  // (a run-rate estimate, flagged "est."); for a PAST selected month we use that month's
+  // actual organic impressions from the GSC trend. Paid stays actual MTD.
+  const _now=new Date();
+  const _isCur=(period===_now.getFullYear()+"-"+pad(_now.getMonth()+1));
+  const _trend=store.get("gsc_trend",[])||[];
+  let orgImpr, orgEst=false;
+  if(_isCur){
+    const _last=_trend.length?_trend[_trend.length-1]:null;
+    const _base=_last?(+_last.impressions||0):(+snap.gsc_impressions||0);
+    const _ld=_last?String(_last.date).split("-"):null;
+    const _bd=_ld?new Date(+_ld[0], +_ld[1], 0).getDate():30;   // days in the base month
+    orgImpr=Math.round(_base/_bd*_now.getDate()); orgEst=true;
+  } else {
+    const _row=_trend.find(function(t){return t.date===period;});
+    orgImpr=_row?(+_row.impressions||0):(+snap.gsc_impressions||0);
+  }
+  const paidImpr=(+paid.impr||0);
+  const searchImpr=orgImpr+paidImpr;
+  const visits = (+f.site_visits||0) || ((+snap.gsc_clicks||0) + paid.clk);
+  const inquiries = (+f.inq_booking||0)+(+f.inq_phone||0);
+  const consults = +f.consults||0;
+  const memSplitTot = memRaw ? ((+memRaw.concierge||0)+(+memRaw.so||0)) : 0;
+  const memTot = memSplitTot>0 ? memSplitTot : (+f.new_members||0);
+  const stages=[
+    {label:"Impressions (organic + ads)", val:searchImpr, split:{organic:orgImpr, paid:paidImpr}, colors:IMPC, noConv:true},
+    {label:"Site visits", val:visits, split:(src&&src.visits)||null, colors:SRCC},
+    {label:"Inquiries (booking + phone clicks)", val:inquiries, split:(src&&src.inquiries)||null, colors:SRCC},
+    {label:"Booked new-member consults", val:consults, split:null, isConsult:true},
+    {label:"New members added", val:memTot, split:null, isMembers:true}
+  ];
+  const METRIC=[null,"lead","book","close"];
+  const max=Math.max.apply(null,stages.map(function(s){return s.val;}).concat([1]));
+  let html="";
+  for(let i=0;i<stages.length;i++){
+    const s=stages[i]; const w=Math.max(6,(s.val/max)*100); let bar;
+    if(s.isMembers){
+      if(memSplitTot>0) bar=fbar(memTot,w,memRaw,MEMC);
+      else if(memTot>0) bar=fbar(memTot,w,null,null);
+      else bar='<div class="fbar fbar-empty" style="width:'+w+'%">0 <span class="fsub">awaiting Hint</span></div>';
+    } else if(s.isConsult){
+      if(s.val>0) bar='<div class="fbar" style="width:'+w+'%">'+fmtN(s.val)+'</div>';
+      else bar='<div class="fbar fbar-empty" style="width:'+w+'%">0 <span class="fsub">awaiting Hint</span></div>';
+    } else {
+      bar=fbar(s.val, w, s.split, s.colors);
+    }
+    html+='<div class="fstage"><div class="flabel">'+s.label+'</div><div class="fbar-wrap">'+bar+'</div></div>';
+    if(i<stages.length-1){
+      const next=stages[i+1].val;
+      if(s.noConv){
+        html+='<div class="fconv" style="color:var(--muted);font-style:italic">search reach (organic + paid ads) — direct/referral/social visits have no upstream impression, so no conversion % shown here</div>';
+      } else if(i===stages.length-2){
+        html+='<div class="fconv" style="color:var(--muted);font-style:italic">no rate shown — SO/GLP enrollments and prior-month consults mean new members can exceed the consults captured this month</div>';
+      } else {
+        const cr=s.val>0?((next/s.val)*100):null;
+        html+='<div class="fconv">'+(cr==null?'—':(cr<10?cr.toFixed(1):Math.round(cr))+'% →')+'</div>';
+      }
+    }
+  }
+  const srcLegend=SRCC.map(function(c){return '<span style="color:'+c[1]+';font-weight:700">●</span> '+c[2];}).join(' &nbsp; ');
+  html+='<div class="small" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);line-height:1.9">'+
+    '<b>Impressions (top band):</b> <span style="color:#144120;font-weight:700">●</span> Organic search ('+(orgEst?'GSC — est. month-to-date, run-rate from last complete month':'GSC, full-month actual')+') &nbsp; <span style="color:#c7a14b;font-weight:700">●</span> Paid ads (Google Ads, month-to-date; Meta not yet automated) &nbsp; <span style="font-style:italic">— search-only reach, so no impression→visit rate is shown.</span><br>'+
+    '<b>Traffic source</b> (visits &amp; inquiries): '+srcLegend+' &nbsp;<span style="font-style:italic">— inquiries = booking-button + phone-number clicks (GA4).</span><br>'+
+    '<b>Booked new-member consults</b> &amp; <b>new members</b> come from Hint via the laptop poller (not the website), so they carry no web-channel split — members split by plan instead (<span style="color:#144120;font-weight:700">●</span> Concierge &nbsp; <span style="color:#4A8D66;font-weight:700">●</span> SO). <b>The consult count is conservative</b> — it captures only prospects still tagged as Contacts when the poller runs, so fast converters can be missed. <b>New members counts only memberships with a payment method on file.</b><br>'+
+    ((mp && mp.total!=null)
+      ? ('<b>Pending new members</b> (membership created, awaiting payment on file): <b style="color:var(--warn)">'+fmtN(mp.total)+'</b>'+(((mp.concierge!=null)&&(mp.so!=null)&&(mp.total>0))?(' &nbsp;('+fmtN(mp.concierge)+' Concierge / '+fmtN(mp.so)+' SO)'):'')+' <span style="font-style:italic">— not counted in New members above until payment is on file.</span><br>')
+      : '<span style="font-style:italic">Pending new members (membership, awaiting payment): — awaiting next members export.</span><br>')+
+    (ch?('<b>Hint appointments this month</b> (all sources — incl. phone, walk-in &amp; existing patients): <b style="color:var(--forest)">'+fmtN(ch.completed)+' completed</b> · '+fmtN(ch.upcoming)+' upcoming · '+fmtN(ch.cancelled)+' cancelled. <span style="font-style:italic">This counts every appointment, including existing-patient visits and follow-ups, so it’s larger than the booked new-member consult stage above.</span><br>'):'')+
+    '<span style="font-style:italic">Consults &amp; new members refresh only when the laptop Hint poller runs — if those tasks lag, these two stages trail reality.</span></div>';
+  document.getElementById("funnel").innerHTML=html;
+}
+
+function renderMemberSource(){
+  const el=document.getElementById("memSourceBar"); const legEl=document.getElementById("memSourceLegend"); if(!el) return;
+  const period=selectedPeriod();
+  const ms=store.get("members_source:"+period, null);
+  const order=[["google","Google","#144120"],["bing","Bing","#4A8D66"],["ai","AI","#7a5ea7"],["social","Social media","#3b6ea5"],["provider_referral","Provider/ER referral","#c7a14b"],["word_of_mouth","Word of mouth","#94C1AB"],["other","Other","#b8c2bb"]];
+  const tot=ms?order.reduce(function(a,c){return a+(+ms[c[0]]||0);},0):0;
+  if(!ms||tot<=0){ el.innerHTML='<div class="fbar fbar-empty" style="width:100%">awaiting Hint lead-source data</div>'; if(legEl) legEl.innerHTML=''; return; }
+  let bar=''; order.forEach(function(c){ const v=+ms[c[0]]||0; if(v>0) bar+='<span style="flex:'+v+';background:'+c[2]+'" title="'+c[1]+': '+v+'"></span>'; });
+  el.innerHTML='<div style="display:flex;height:30px;border-radius:7px;overflow:hidden;background:#eef1ec">'+bar+'</div>';
+  if(legEl) legEl.innerHTML=order.map(function(c){ const v=+ms[c[0]]||0; return v>0?'<span><i style="background:'+c[2]+'"></i>'+c[1]+' '+v+'</span>':''; }).join('');
+}
+
+function renderPaid(){
+  const period=selectedPeriod(); const a=getAds(period); const t=paidTotals(period);
+  setRangePill("paidRange", period);
+  let cards="";
+  PLATFORMS.forEach(p=>{
+    const d=a[p]; const cpc=(+d.clicks>0)?(+d.spend)/(+d.clicks):null; const ctr=(+d.impressions>0)?((+d.clicks)/(+d.impressions))*100:null; const cpl=platformCPL(period,p);
+    cards+='<div class="card"><div class="k">'+PLAT_LABEL[p]+'</div>'+
+      '<div class="v" style="font-size:20px">'+fmtUSD(d.spend)+' <small>spend</small></div>'+
+      '<div class="small" style="margin-top:6px;line-height:1.7">CPC '+fmtUSD(cpc)+' · CTR '+fmtPct(ctr)+'<br>Leads '+fmtN(d.conversions)+' · CPL <b style="color:var(--forest)">'+fmtUSD(cpl)+'</b></div></div>';
+  });
+  const bcpl=blendedCPL(period);
+  cards+='<div class="card" style="background:#eef4ef;border-color:var(--lightsage)"><div class="k">Blended (all paid)</div><div class="v">'+fmtUSD(bcpl)+'</div><div class="small" style="margin-top:6px">'+fmtUSD(t.spend)+' spend · '+fmtN(t.conv)+' leads</div></div>';
+  document.getElementById("paidCards").innerHTML=cards;
+  // trends
+  const g=cfg().period_granularity; const periods=recentPeriods(g,8).reverse();
+  const spendData={}; PLATFORMS.forEach(p=>spendData[p]=[]); const cplSeries=[];
+  periods.forEach(per=>{ const aa=getAds(per); PLATFORMS.forEach(p=>spendData[p].push(+aa[p].spend||0)); const tt=paidTotals(per); cplSeries.push(tt.conv>0?Math.round((tt.spend/tt.conv)*100)/100:null); });
+  barChartStacked("chSpend", periods, PLATFORMS.map(p=>({label:PLAT_LABEL[p],data:spendData[p],backgroundColor:CH_COLOR[p]})));
+  lineChart("chCpl", periods, [{label:"Blended CPL",data:cplSeries,borderColor:"#144120",backgroundColor:"rgba(20,65,32,.08)",fill:true,spanGaps:true}], {noZero:false});
+}
+function barChartStacked(id, labels, datasets){
+  const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return; destroyChart(id);
+  CHARTS[id]=new Chart(el.getContext("2d"),{type:"bar",data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:"Inter",size:11},boxWidth:10}}},
+    scales:{x:{stacked:true,ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{color:"#eef1ec"}}}
+  }});
+}
+
+/* ---------- SEO section ---------- */
+function renderSEO(){
+  const c=cfg(); const connected = !!c.project_id;
+  document.getElementById("seoLiveState").textContent = connected? "live" : "manual";
+  const connectEl=document.getElementById("seoConnect"); const bodyEl=document.getElementById("seoBody");
+  if(!connected){
+    connectEl.innerHTML='<div class="banner info">🔗 <div><b>Connect your Ahrefs project to enable live data.</b> Once the project + Google Search Console are set up, paste the <b>project ID</b> into Settings below and Refresh will pull clicks, impressions, rankings, DR and backlinks automatically.</div></div>';
+    bodyEl.style.opacity=.45; bodyEl.style.pointerEvents="none";
+  } else {
+    connectEl.innerHTML=""; bodyEl.style.opacity=1; bodyEl.style.pointerEvents="auto";
+  }
+  const snap=latestSnapshot()||{};
+  document.getElementById("seoKpis").innerHTML =
+    card("GSC clicks", fmtN(snap.gsc_clicks)) +
+    card("Impressions", fmtN(snap.gsc_impressions)) +
+    card("CTR", fmtPct(snap.gsc_ctr)) +
+    card("Avg position", fmtPos(snap.gsc_position));
+  document.getElementById("kwTop3").textContent = snap.kw_top3!=null?fmtN(snap.kw_top3):"—";
+  document.getElementById("kwTop10").textContent = snap.kw_top10!=null?fmtN(snap.kw_top10):"—";
+  document.getElementById("kwTotal").textContent = snap.kw_total!=null?fmtN(snap.kw_total):"—";
+  document.getElementById("drVal").textContent = snap.dr!=null?fmtN(snap.dr):"—";
+  document.getElementById("refVal").textContent = snap.ref_domains!=null?fmtN(snap.ref_domains):"—";
+  // trends from snapshot history (and any GSC trend stored)
+  const hist = (store.get("gsc_trend",[])||[]);
+  if(hist.length){
+    const labels=hist.map(h=>h.date);
+    lineChart("chGsc",labels,[
+      {label:"Clicks",data:hist.map(h=>h.clicks),borderColor:"#144120",backgroundColor:"rgba(20,65,32,.07)",fill:true,yAxisID:"y"},
+      {label:"Impressions",data:hist.map(h=>h.impressions),borderColor:"#94C1AB",backgroundColor:"rgba(148,193,171,.10)",fill:true,yAxisID:"y1"}
+    ],{scales:{x:{grid:{display:false},ticks:{font:{family:"Inter",size:10}}},y:{position:"left",beginAtZero:true,grid:{color:"#eef1ec"}},y1:{position:"right",beginAtZero:true,grid:{display:false}}}});
+    lineChart("chPos",labels,[{label:"Avg position",data:hist.map(h=>h.position),borderColor:"#4A8D66",backgroundColor:"rgba(74,141,102,.10)",fill:true}],{noZero:true,scales:{y:{reverse:true,grid:{color:"#eef1ec"},ticks:{font:{family:"Inter",size:10}}},x:{grid:{display:false},ticks:{font:{family:"Inter",size:10}}}}});
+  }
+  const drh=snapshotsSorted().filter(s=>s.dr!=null);
+  if(drh.length){ lineChart("chDr",drh.map(s=>s.date),[{label:"DR",data:drh.map(s=>s.dr),borderColor:"#144120"}],{noZero:true,plugins:{legend:{display:false}}}); }
+  const refh=snapshotsSorted().filter(s=>s.ref_domains!=null);
+  if(refh.length){ lineChart("chRef",refh.map(s=>s.date),[{label:"Ref",data:refh.map(s=>s.ref_domains),borderColor:"#4A8D66"}],{plugins:{legend:{display:false}}}); }
+  // top queries / pages
+  const tq=store.get("top_queries",[])||[]; const tp=store.get("top_pages",[])||[];
+  document.getElementById("topQueries").innerHTML = tq.length? listTable(tq,"query") : "No data yet — Refresh once your project is connected.";
+  document.getElementById("topPages").innerHTML = tp.length? listTable(tp,"page") : "No data yet — Refresh once your project is connected.";
+  renderKeywords();
+}
+function listTable(rows,keyName){
+  let h='<table><tr><th>'+(keyName==="query"?"Query":"Page")+'</th><th class="num">Clicks</th><th class="num">Impr</th><th class="num">Pos</th></tr>';
+  rows.slice(0,10).forEach(r=>{ h+='<tr><td>'+escapeHtml(r.label)+'</td><td class="num">'+fmtN(r.clicks)+'</td><td class="num">'+fmtN(r.impressions)+'</td><td class="num">'+fmtPos(r.position)+'</td></tr>'; });
+  return h+'</table>';
+}
+function escapeHtml(s){ return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ---------- tracked keyword rankings table ---------- */
+function kwMerged(){
+  const live=store.get("kw_live",{})||{};
+  return Object.keys(KW).map(k=>{ const m=KW[k], lv=live[k]||{};
+    return {kw:k, tier:m.t, route:m.r,
+      pos:(lv.p!==undefined?lv.p:m.p),
+      kd:(lv.kd!=null?lv.kd:m.kd),
+      vol:(lv.v!=null?lv.v:m.v),
+      gi:(GSCI[k]!=null?GSCI[k]:null),
+      delta:(lv.d!=null?lv.d:(m.d!=null?m.d:null))}; });
+}
+function renderKeywords(){
+  const wrap=document.getElementById("kwTableWrap"); if(!wrap) return;
+  const rows=kwMerged();
+  let t3=0,t10=0,tot=0; rows.forEach(r=>{ if(r.pos!=null){tot++; if(r.pos<=3)t3++; if(r.pos<=10)t10++;} });
+  const e3=document.getElementById("kwTop3"), e10=document.getElementById("kwTop10"), et=document.getElementById("kwTotal");
+  if(e3) e3.textContent=t3; if(e10) e10.textContent=t10; if(et) et.textContent=tot;
+  const filters=[["all","All "+rows.length],["t1","Tier 1"],["top10","Top 10"],["ranking","Ranking"],["unranked","Not yet"]];
+  document.getElementById("kwFilters").innerHTML=filters.map(f=>'<button class="tab'+(kwState.filter===f[0]?" active":"")+'" onclick="kwSetFilter(\''+f[0]+'\')">'+f[1]+'</button>').join("");
+  let f=rows;
+  if(kwState.filter==="t1") f=rows.filter(r=>r.tier===1);
+  else if(kwState.filter==="top10") f=rows.filter(r=>r.pos!=null&&r.pos<=10);
+  else if(kwState.filter==="ranking") f=rows.filter(r=>r.pos!=null);
+  else if(kwState.filter==="unranked") f=rows.filter(r=>r.pos==null);
+  const k=kwState.sortKey, dir=kwState.sortDir;
+  f=f.slice().sort((a,b)=>{
+    if(k==="kw") return a.kw.localeCompare(b.kw)*dir;
+    if(k==="route") return a.route.localeCompare(b.route)*dir;
+    const av=a[k], bv=b[k];
+    const an=(av==null?(k==="pos"?99999:-1):av), bn=(bv==null?(k==="pos"?99999:-1):bv);
+    return (an-bn)*dir;
+  });
+  document.getElementById("kwCount").textContent="— "+tot+" of "+rows.length+" ranking";
+  const arrow=key=>kwState.sortKey===key?(kwState.sortDir>0?" ▲":" ▼"):"";
+  let h='<table><thead><tr>'+
+    '<th onclick="kwSort(\'kw\')">Keyword'+arrow("kw")+'</th>'+
+    '<th onclick="kwSort(\'tier\')">Tier'+arrow("tier")+'</th>'+
+    '<th class="num" onclick="kwSort(\'pos\')">Pos'+arrow("pos")+'</th>'+
+    '<th class="num" onclick="kwSort(\'delta\')">&Delta;'+arrow("delta")+'</th>'+
+    '<th class="num" onclick="kwSort(\'vol\')">Vol'+arrow("vol")+'</th>'+
+    '<th class="num" onclick="kwSort(\'gi\')" title="Real Google Search Console impressions over the last 6 months — measured demand, not an estimate">GSC 6mo'+arrow("gi")+'</th>'+
+    '<th class="num" onclick="kwSort(\'kd\')">KD'+arrow("kd")+'</th>'+
+    '<th onclick="kwSort(\'route\')">Target page'+arrow("route")+'</th></tr></thead><tbody>';
+  f.forEach(r=>{
+    const pc=r.pos==null?'<span class="pos-none">—</span>':'<span class="pospill '+(r.pos<=3?"pos-top3":r.pos<=10?"pos-top10":"pos-low")+'">'+r.pos+'</span>';
+    let dc='<span class="dlt-flat">—</span>';
+    if(r.delta!=null && r.delta!==0) dc=r.delta>0?'<span class="dlt-up">▲'+r.delta+'</span>':'<span class="dlt-dn">▼'+Math.abs(r.delta)+'</span>';
+    h+='<tr class="'+(r.tier===1?"t1":"")+'"><td>'+escapeHtml(r.kw)+'</td>'+
+      '<td><span class="tierbadge tb'+r.tier+'">T'+r.tier+'</span></td>'+
+      '<td class="num">'+pc+'</td><td class="num">'+dc+'</td>'+
+      '<td class="num">'+(r.vol!=null?fmtN(r.vol):"—")+'</td>'+
+      '<td class="num">'+(r.gi!=null?'<b style="color:var(--forest)">'+fmtN(r.gi)+'</b>':'<span class="pos-none">—</span>')+'</td>'+
+      '<td class="num">'+(r.kd!=null?r.kd:"—")+'</td>'+
+      '<td class="small">'+escapeHtml(r.route)+'</td></tr>';
+  });
+  wrap.innerHTML=h+'</tbody></table>';
+  const synced=store.get("kw_live_date","");
+  const gscNote=' &nbsp;·&nbsp; <b>GSC '+GSCI_WINDOW+'</b> = real Search Console impressions (measured demand); <span class="pos-none">—</span> means Google never showed the site for that term, no matter what Ahrefs <b>Vol</b> (a modeled estimate) says. Sort by GSC 6mo to see what actually has demand.';
+  document.getElementById("kwNote").innerHTML = (synced? ("Positions synced "+synced+" · Bellingham, mobile. Click any column to sort.") : ("Latest Ahrefs Rank Tracker snapshot · Bellingham, mobile. Tier-1 rows are flagged green; Δ (position change) appears after the next refresh.")) + gscNote;
+}
+window.kwSetFilter=function(x){ kwState.filter=x; renderKeywords(); };
+window.kwSort=function(k){ if(kwState.sortKey===k) kwState.sortDir*=-1; else { kwState.sortKey=k; kwState.sortDir=(k==="pos"||k==="kw"||k==="route")?1:-1; } renderKeywords(); };
+
+async function refreshKeywords(){
+  if(!(window.cowork && window.cowork.callMcpTool)) return false;
+  const pid=parseInt(cfg().project_id,10); if(!pid) return false;
+  try{
+    const r=await window.cowork.callMcpTool(AHREFS+"rank-tracker-overview",{project_id:pid,date:todayISO(),device:"mobile",select:"keyword,position,keyword_difficulty,volume,url",limit:1000});
+    const data=unwrap(r); const ov=(data&&data.overviews)||[];
+    if(!ov.length) return false;
+    const prev=store.get("kw_live",{})||{};
+    const live={};
+    ov.forEach(o=>{ const k=o.keyword; const prevPos=(prev[k]&&prev[k].p!=null)?prev[k].p:(KW[k]?KW[k].p:null);
+      let d=null; if(o.position!=null&&prevPos!=null) d=prevPos-o.position;
+      live[k]={p:o.position, kd:o.keyword_difficulty, v:o.volume, d:d, url:o.url}; });
+    store.set("kw_live", live); store.set("kw_live_date", todayISO());
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ============================================================
+   LIVE REFRESH — Ahrefs MCP via window.cowork.callMcpTool
+   ============================================================ */
+function unwrap(res){
+  // callMcpTool may return the object directly, or {content:[{text:"<json>"}]}
+  if(res==null) return null;
+  if(typeof res==="object" && !Array.isArray(res) && !res.content) return res;
+  try{
+    if(res.content && res.content.length){ const t=res.content.map(x=>x.text||"").join(""); return JSON.parse(t); }
+  }catch(e){}
+  if(typeof res==="string"){ try{return JSON.parse(res);}catch(e){return null;} }
+  return res;
+}
+function isoDaysAgo(n){ const d=new Date(); d.setDate(d.getDate()-n); return d.toISOString().slice(0,10); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+async function callTool(name, args){
+  if(!(window.cowork && window.cowork.callMcpTool)) throw new Error("MCP bridge unavailable");
+  return unwrap(await window.cowork.callMcpTool(AHREFS+name, args));
+}
+
+async function refreshLive(){
+  const c=cfg(); const note=document.getElementById("seoSyncNote");
+  if(!c.project_id){ note.textContent="— add a project ID in Settings to enable live refresh."; return; }
+  const pid=parseInt(c.project_id,10);
+  note.textContent="syncing…";
+  const snap={}; let anyOk=false; const errs=[];
+  // 1) GSC performance history (clicks/impressions/CTR/position trend)
+  try{
+    const r=await callTool("gsc-performance-history",{project_id:pid,date_from:isoDaysAgo(365),date_to:todayISO(),history_grouping:(c.period_granularity==="weekly"?"weekly":"monthly")});
+    const m=(r&&r.metrics)||[];
+    if(m.length){ const last=m[m.length-1];
+      snap.gsc_clicks=last.clicks; snap.gsc_impressions=last.impressions; snap.gsc_ctr=(last.ctr!=null? (last.ctr<=1?last.ctr*100:last.ctr):null); snap.gsc_position=last.position;
+      store.set("gsc_trend", m.map(x=>({date:x.date, clicks:x.clicks, impressions:x.impressions, position:x.position})));
+      anyOk=true;
+    }
+  }catch(e){ errs.push("GSC history"); }
+  // 2) Rank Tracker overview -> distribution
+  try{
+    const r=await callTool("rank-tracker-overview",{project_id:pid,date:todayISO(),device:"mobile",select:"keyword,position",limit:1000});
+    const ov=(r&&r.overviews)||[];
+    if(ov.length){ let t3=0,t10=0,tot=0; ov.forEach(k=>{ const p=k.position; if(p!=null){ tot++; if(p<=3)t3++; if(p<=10)t10++; } });
+      snap.kw_top3=t3; snap.kw_top10=t10; snap.kw_total=tot; anyOk=true; }
+  }catch(e){ errs.push("Rank Tracker"); }
+  // 3) Top queries
+  try{
+    const r=await callTool("gsc-keywords",{project_id:pid,date_from:isoDaysAgo(90),date_to:todayISO(),limit:10,order_by:"clicks:desc"});
+    const rows=(r&&(r.keywords||r.rows||r.queries))||[];
+    if(rows.length){ store.set("top_queries", rows.slice(0,10).map(x=>({label:x.keyword||x.query||x.term, clicks:x.clicks, impressions:x.impressions, position:x.position}))); anyOk=true; }
+  }catch(e){ errs.push("GSC queries"); }
+  // 4) Top pages
+  try{
+    const r=await callTool("gsc-pages",{project_id:pid,date_from:isoDaysAgo(90),date_to:todayISO(),limit:10,order_by:"clicks:desc"});
+    const rows=(r&&(r.pages||r.rows))||[];
+    if(rows.length){ store.set("top_pages", rows.slice(0,10).map(x=>({label:x.url||x.page, clicks:x.clicks, impressions:x.impressions, position:x.position}))); anyOk=true; }
+  }catch(e){ errs.push("GSC pages"); }
+  // 5) Domain Rating history
+  try{
+    const r=await callTool("site-explorer-domain-rating-history",{target:c.ahrefs_domain,date_from:isoDaysAgo(365)});
+    const rows=(r&&(r.metrics||r.domain_rating||r.rows))||[];
+    if(rows.length){ const last=rows[rows.length-1]; snap.dr=last.domain_rating!=null?last.domain_rating:(last.dr!=null?last.dr:last.value); anyOk=true; }
+  }catch(e){ errs.push("DR"); }
+  // 6) Referring domains history
+  try{
+    const r=await callTool("site-explorer-refdomains-history",{target:c.ahrefs_domain,date_from:isoDaysAgo(365)});
+    const rows=(r&&(r.metrics||r.refdomains||r.rows))||[];
+    if(rows.length){ const last=rows[rows.length-1]; snap.ref_domains=last.refdomains!=null?last.refdomains:(last.value!=null?last.value:last.count); anyOk=true; }
+  }catch(e){ errs.push("Ref domains"); }
+
+  if(anyOk){
+    const prev=latestSnapshot()||{};
+    const merged=Object.assign({}, prev, snap);   // keep fields a failed call didn't refresh
+    store.set("seo_snapshot:"+todayISO(), merged);
+    note.textContent = "last sync "+todayISO()+(errs.length?(" · partial ("+errs.join(", ")+" unavailable)"):"");
+  } else {
+    note.textContent = "⚠ refresh unavailable — using last sync"+(latestSnapshot()?(" ("+(store.keys('seo_snapshot:').sort().pop()||"").split(":")[1]+")"):"");
+  }
+  renderSEO(); renderFunnel(); renderNorthStar();
+}
+
+/* Live GA4 pull (via Zapier MCP): leads by channel + funnel events, last 30 days,
+   written to the current period. Non-blocking; falls back silently to seeded/manual data. */
+async function refreshLeads(){
+  if(!(window.cowork && window.cowork.callMcpTool)) return false;
+  try{
+    const res = await window.cowork.callMcpTool(ZAPIER, {
+      selected_api:"GoogleAnalytics4CLIAPI", action:"runReport",
+      instructions:"Lead events by channel for the last 30 days.",
+      params:{ accountId:GA4.account, propertyId:GA4.property,
+        dimensions:["sessionDefaultChannelGroup","eventName"], metrics:["eventCount"],
+        startDate:isoDaysAgo(30), endDate:todayISO(), dateName:"last30", limit:200 },
+      output:"channel, event_name, event_count rows"
+    });
+    const data = unwrap(res); const rows = (data && (data.results||data.rows)) || [];
+    if(!rows.length) return false;
+    const lead={organic:0,google:0,meta:0,bing:0}; const f={visits:0,book:0,phone:0};
+    const src={visits:{organic:0,direct:0,google:0,meta:0,other:0}, inquiries:{organic:0,direct:0,google:0,meta:0,other:0}};
+    const bucketOf=(ch,paidG,paidM)=> paidG?"google":paidM?"meta":(ch.indexOf("organic")>=0?"organic":(ch==="direct"?"direct":"other"));
+    rows.forEach(r=>{
+      const ch=String(r.channel||r.sessionDefaultChannelGroup||"").toLowerCase();
+      const ev=r.event_name||r.eventName||"";
+      const c=parseInt(r.event_count||r.eventCount||0,10)||0;
+      const paidG=ch.indexOf("paid search")>=0, paidM=ch.indexOf("paid social")>=0;
+      const b=bucketOf(ch,paidG,paidM);
+      if(ev==="session_start"){ f.visits+=c; src.visits[b]+=c; }
+      if(ev==="phone_click"){ f.phone+=c; src.inquiries[b]+=c; }
+      if(ev==="booking_click"){ f.book+=c; src.inquiries[b]+=c; }
+      if(ev==="booking_click"||ev==="phone_click"||ev==="form_start"){
+        if(paidG) lead.google+=c; else if(paidM) lead.meta+=c; else lead.organic+=c;
+      }
+    });
+    const per=curPeriod(cfg().period_granularity);
+    store.set("leads:"+per, {organic:lead.organic, google:lead.google, meta:lead.meta, bing:lead.bing, source:"ga4"});
+    // booking + phone clicks = inquiries; do NOT overwrite consults/new_members (the Hint poller owns those)
+    store.set("funnel:"+per, Object.assign(getFunnel(per), {site_visits:f.visits, inq_booking:f.book, inq_phone:f.phone}));
+    store.set("funnel_src:"+per, src);
+    return true;
+  }catch(e){ return false; }
+}
+
+/* Live Google Ads pull (via Zapier MCP): campaign spend/impressions/clicks/conversions,
+   last 30 days, summed and written to ads:{period}:google. Non-blocking. */
+async function refreshAds(){
+  if(!(window.cowork && window.cowork.callMcpTool)) return false;
+  try{
+    const res = await window.cowork.callMcpTool(ZAPIER, {
+      selected_api:"GoogleAdsCLIAPI", action:"create_report",
+      instructions:"Campaign performance for the last 30 days: cost, impressions, clicks, conversions.",
+      params:{ mainAccountId:GADS_ACCOUNT, resource:"campaign", datePreset:"LAST_30_DAYS", limit:50 },
+      output:"per-campaign cost, impressions, clicks, conversions"
+    });
+    const data = unwrap(res); const rows = (data && (data.results||data.rows)) || [];
+    if(!rows.length) return false;
+    let spend=0,impr=0,clk=0,conv=0;
+    rows.forEach(r=>{ const cst=(r.cost_micros!=null)?(+r.cost_micros||0)/1e6:(+r.cost||0); spend+=cst; impr+=+r.impressions||0; clk+=+r.clicks||0; conv+=+r.conversions||0; });
+    const per=curPeriod(cfg().period_granularity);
+    store.set("ads:"+per+":google", {spend:Math.round(spend*100)/100, impressions:impr, clicks:clk, conversions:conv});
+    return true;
+  }catch(e){ return false; }
+}
+
+async function refreshAllLive(){
+  await Promise.allSettled([ refreshLive(), refreshLeads(), refreshAds(), refreshKeywords() ]);
+  renderNorthStar(); renderFunnel(); renderSEO(); renderPaid();
+}
+
+/* ============================================================
+   DATA ENTRY FORMS
+   ============================================================ */
+let activeTab="ads";
+function renderEntry(){
+  const period=selectedPeriod(); const g=cfg().period_granularity; const body=document.getElementById("entryBody");
+  if(activeTab==="ads"){
+    const a=getAds(period);
+    let f='<div class="small" style="margin-bottom:10px">Enter for period <b>'+period+'</b> (change period at top right). One row per platform.</div>';
+    f+='<table><tr><th>Platform</th><th class="num">Spend $</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">Conversions/Leads</th></tr>';
+    PLATFORMS.forEach(p=>{ const d=a[p];
+      f+='<tr><td>'+PLAT_LABEL[p]+'</td>'+
+        '<td class="num"><input style="width:90px" type="number" step="0.01" id="ad_'+p+'_spend" value="'+(d.spend||"")+'"></td>'+
+        '<td class="num"><input style="width:90px" type="number" id="ad_'+p+'_impressions" value="'+(d.impressions||"")+'"></td>'+
+        '<td class="num"><input style="width:80px" type="number" id="ad_'+p+'_clicks" value="'+(d.clicks||"")+'"></td>'+
+        '<td class="num"><input style="width:90px" type="number" id="ad_'+p+'_conversions" value="'+(d.conversions||"")+'"></td></tr>';
+    });
+    f+='</table><div style="margin-top:12px"><button class="btn" id="saveAds">Save ad numbers</button></div>';
+    f+=historySection("ads");
+    body.innerHTML=f;
+    document.getElementById("saveAds").onclick=()=>{ PLATFORMS.forEach(p=>{ store.set("ads:"+period+":"+p,{spend:num("ad_"+p+"_spend"),impressions:num("ad_"+p+"_impressions"),clicks:num("ad_"+p+"_clicks"),conversions:num("ad_"+p+"_conversions")}); }); refreshAll(); };
+  } else if(activeTab==="leads"){
+    const l=getLeads(period);
+    body.innerHTML='<div class="small" style="margin-bottom:10px">Leads attributed to each channel for <b>'+period+'</b>. Organic is counted at $0 marginal cost (mix only, no CPL).</div>'+
+      '<div class="formgrid">'+
+      fieldNum("New leads — Organic","ld_organic",l.organic)+
+      fieldNum("Google Ads","ld_google",l.google)+
+      fieldNum("Meta","ld_meta",l.meta)+
+      fieldNum("Bing","ld_bing",l.bing)+
+      '</div><div style="margin-top:12px"><button class="btn" id="saveLeads">Save leads</button></div>'+historySection("leads");
+    document.getElementById("saveLeads").onclick=()=>{ store.set("leads:"+period,{organic:num("ld_organic"),google:num("ld_google"),meta:num("ld_meta"),bing:num("ld_bing"),source:(window.__leadSourceAdapter?"adapter":"manual")}); refreshAll(); };
+  } else if(activeTab==="funnel"){
+    const ff=getFunnel(period);
+    body.innerHTML='<div class="small" style="margin-bottom:10px">Mid/bottom funnel for <b>'+period+'</b>. Visits &amp; inquiry clicks come from GA4; <b>consults &amp; new members come from the Hint poller</b> — edit here only to override.</div>'+
+      '<div class="formgrid">'+
+      fieldNum("Site visits (optional)","fn_visits",ff.site_visits)+
+      fieldNum("Inquiries — booking clicks","fn_book",ff.inq_booking)+
+      fieldNum("Inquiries — phone clicks","fn_phone",ff.inq_phone)+
+      fieldNum("Booked new-member consults","fn_consults",ff.consults)+
+      fieldNum("New members added","fn_members",ff.new_members)+
+      '</div><div style="margin-top:12px"><button class="btn" id="saveFunnel">Save consults &amp; members</button></div>'+historySection("funnel");
+    document.getElementById("saveFunnel").onclick=()=>{ store.set("funnel:"+period,Object.assign(getFunnel(period),{site_visits:num("fn_visits"),inq_booking:num("fn_book"),inq_phone:num("fn_phone"),consults:num("fn_consults"),new_members:num("fn_members")})); refreshAll(); };
+  } else if(activeTab==="settings"){
+    const c=cfg();
+    body.innerHTML='<div class="formgrid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">'+
+      '<div class="field"><label>Ahrefs project ID</label><input id="set_pid" value="'+escapeHtml(c.project_id)+'" placeholder="e.g. 1234567"></div>'+
+      '<div class="field"><label>Ahrefs domain</label><input id="set_dom" value="'+escapeHtml(c.ahrefs_domain)+'"></div>'+
+      '<div class="field"><label>Period granularity</label><select id="set_gran"><option value="monthly"'+(c.period_granularity==="monthly"?" selected":"")+'>Monthly</option><option value="weekly"'+(c.period_granularity==="weekly"?" selected":"")+'>Weekly</option></select></div>'+
+      '</div><div style="margin-top:12px"><button class="btn" id="saveSettings">Save settings</button> <span class="small" id="setNote"></span></div>'+
+      '<div class="banner info" style="margin-top:16px">Once you enter the <b>project ID</b> (from Task D handback), the Website &amp; SEO section switches to <b>live</b> and the Refresh button pulls real data. Leave it blank to run fully manual.</div>'+
+      '<div class="small" style="margin-top:16px">Lead source: <b>'+(window.__leadSourceAdapter?"external adapter detected":"manual")+'</b>. To wire GA4 / call-tracking later, define <code>window.__leadSourceAdapter</code> (see footer note) — no other changes needed.</div>';
+    document.getElementById("saveSettings").onclick=()=>{ saveCfg({project_id:document.getElementById("set_pid").value.trim(),ahrefs_domain:document.getElementById("set_dom").value.trim(),period_granularity:document.getElementById("set_gran").value}); document.getElementById("setNote").textContent="saved ✓"; buildPeriodPickers(); refreshAll(); };
+  }
+}
+function num(id){ const v=parseFloat(document.getElementById(id).value); return isNaN(v)?0:v; }
+function fieldNum(label,id,val){ return '<div class="field"><label>'+label+'</label><input type="number" step="any" id="'+id+'" value="'+(val||"")+'"></div>'; }
+
+function historySection(kind){
+  const g=cfg().period_granularity; const periods=recentPeriods(g,18);
+  let rows="";
+  periods.forEach(per=>{
+    if(kind==="ads"){ const t=paidTotals(per); if(t.spend||t.impr||t.clk||t.conv){ rows+=hrow(per,[fmtUSD(t.spend),fmtN(t.impr),fmtN(t.clk),fmtN(t.conv)],kind); } }
+    else if(kind==="leads"){ const l=getLeads(per); const tot=(+l.organic||0)+(+l.google||0)+(+l.meta||0)+(+l.bing||0); if(tot){ rows+=hrow(per,[fmtN(l.organic),fmtN(l.google),fmtN(l.meta),fmtN(l.bing)],kind); } }
+    else if(kind==="funnel"){ const f=getFunnel(per); if((+f.inq_booking)||(+f.inq_phone)||(+f.consults)||(+f.new_members)){ rows+=hrow(per,[fmtN((+f.inq_booking)+(+f.inq_phone)),fmtN(f.consults),fmtN(f.new_members),""],kind); } }
+  });
+  if(!rows) return '<div class="small" style="margin-top:16px">No saved history yet.</div>';
+  const heads = kind==="ads"?["Spend","Impr","Clicks","Leads"]:kind==="leads"?["Organic","Google","Meta","Bing"]:["Inquiries","Consults","Members",""];
+  return '<div style="margin-top:18px"><div class="small" style="margin-bottom:6px">Saved history (click a period to edit; delete removes that period)</div><table><tr><th>Period</th>'+heads.map(h=>'<th class="num">'+h+'</th>').join("")+'<th></th></tr>'+rows+'</table></div>';
+}
+function hrow(period,vals,kind){
+  return '<tr><td><b>'+period+'</b></td>'+vals.map(v=>'<td class="num">'+v+'</td>').join("")+
+    '<td class="num"><div class="row-actions"><button class="btn ghost sm" onclick="editPeriod(\''+period+'\')">Edit</button><button class="btn danger sm" onclick="deletePeriod(\''+kind+'\',\''+period+'\')">Delete</button></div></td></tr>';
+}
+window.editPeriod=function(period){ document.getElementById("periodSel").value=period; onPeriodChange(); window.scrollTo({top:document.getElementById("entryTabs").offsetTop-20,behavior:"smooth"}); };
+window.deletePeriod=function(kind,period){
+  if(!confirm("Delete "+kind+" data for "+period+"?")) return;
+  if(kind==="ads"){ PLATFORMS.forEach(p=>store.del("ads:"+period+":"+p)); }
+  else if(kind==="leads"){ store.del("leads:"+period); }
+  else if(kind==="funnel"){ store.del("funnel:"+period); }
+  refreshAll();
+};
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+function buildPeriodPickers(){
+  const g=cfg().period_granularity;
+  const gs=document.getElementById("granSel");
+  gs.innerHTML='<option value="monthly"'+(g==="monthly"?" selected":"")+'>Monthly</option><option value="weekly"'+(g==="weekly"?" selected":"")+'>Weekly</option>';
+  const ps=document.getElementById("periodSel"); const prevVal=ps.value;
+  const periods=recentPeriods(g,18);
+  ps.innerHTML=periods.map(p=>'<option value="'+p+'">'+p+'</option>').join("");
+  if(prevVal && periods.indexOf(prevVal)>=0) ps.value=prevVal; else ps.value=curPeriod(g);
+}
+function refreshAll(){ renderNorthStar(); renderFunnel(); renderMemberSource(); renderSEO(); renderPaid(); renderEntry(); }
+function onPeriodChange(){ refreshAll(); }
+
+function init(){
+  buildPeriodPickers();
+  document.getElementById("granSel").onchange=e=>{ saveCfg({period_granularity:e.target.value}); buildPeriodPickers(); refreshAll(); };
+  document.getElementById("periodSel").onchange=onPeriodChange;
+  document.getElementById("refreshBtn").onclick=()=>refreshAllLive();
+  document.querySelectorAll("#entryTabs .tab").forEach(t=>{ t.onclick=()=>{ document.querySelectorAll("#entryTabs .tab").forEach(x=>x.classList.remove("active")); t.classList.add("active"); activeTab=t.dataset.tab; renderEntry(); }; });
+  document.getElementById("foot").innerHTML='Data lives in this dashboard’s local storage and persists across sessions. SEO figures auto-refresh from your Ahrefs project (GSC, Rank Tracker, Site Explorer) when a project ID is set; otherwise the dashboard runs fully on manually-entered data. <br>GA4 / call-tracking hook: define <code>window.__leadSourceAdapter = async (period) =&gt; ({organic,google,meta,bing})</code> to auto-fill the leads-by-channel section later — nothing else needs to change.';
+  seedRealData();   // populate with real GA4 + Ahrefs numbers on first open (only fills empty keys)
+  refreshAll();
+  // Live refresh (SEO via Ahrefs/GSC + leads via GA4) is manual — click "Refresh live data". Initial render never blocks on the network.
+}
+function boot(){
+  try{ init(); }
+  catch(e){
+    var b=document.createElement('div');
+    b.style.cssText='font-family:monospace;font-size:12px;background:#fbeeea;color:#b4452f;padding:14px;margin:14px;border:1px solid #b4452f;border-radius:8px;white-space:pre-wrap';
+    b.textContent='Dashboard error (please send this to Claude):\n'+(e&&e.message||e)+'\n\n'+(e&&e.stack||'');
+    if(document.body) document.body.insertBefore(b, document.body.firstChild);
+  }
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
+</script>
+</body>
+</html>

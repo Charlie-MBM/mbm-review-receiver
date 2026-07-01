@@ -6,3 +6,9 @@
 flask>=3.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+
+# GA4 Data API client for the daily-digest phone_click / booking_click pull
+# (send_daily_summary.py -> count_ga4_events). Optional at runtime: if the
+# import fails or GA4_PROPERTY_ID is unset the digest just drops those two
+# lines and keeps shipping Consults/Members/Pending.
+google-analytics-data>=0.18.0

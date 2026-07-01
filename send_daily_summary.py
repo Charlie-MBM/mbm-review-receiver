@@ -2,12 +2,21 @@
 """
 send_daily_summary.py - Daily ops digest for Mt. Baker Medical.
 ================================================================
-Sends Charlie + James a once-a-day, COUNTS-ONLY summary of:
+Sends Charlie + James a once-a-day, COUNTS-ONLY summary, in funnel order:
 
-  * New bookings   - appointments newly created in Hint (yesterday + month-to-date)
-  * New members    - memberships newly enrolled AND paid (yesterday + month-to-date)
-  * Pending enroll - memberships created but not yet billed/confirmed (Auto Confirm
-                     is OFF, so these are awaiting staff confirmation + payment)
+  * Phone clicks    - GA4 phone_click events (website tel: taps; top of funnel)
+  * Booking clicks  - GA4 booking_click events (website Book Now taps)
+  * Initial consults- free consults booked in Hint (Contact-attendee; any channel)
+  * New members     - memberships newly enrolled AND paid
+  * Pending enroll  - memberships created but not yet billed/confirmed (Auto Confirm
+                      is OFF, so these are awaiting staff confirmation + payment)
+  * Review reqs sent- Spruce review-request SMSes (--window last_7d only)
+  * (deferred) Reviews received - new Google reviews via GBP API, once approved
+
+Each line: "<label>: <period> (<MTD> MTD)". Review requests use "total" instead
+of MTD (cumulative all-time). Daily digest fires Mon-Sat 10am via Task Scheduler;
+weekly digest is intended to run Monday 10am via --window last_7d, replacing the
+daily cadence (Charlie reconfigures the schedule).
 
 Primary channel is SMS via Spruce (already configured + BAA-covered, same line the
 review poller uses). Email via Resend is an optional secondary channel.
@@ -17,16 +26,18 @@ WHY THIS IS SAFE (no PHI)
 The message is ONLY integer counts -- no names, no patient IDs, no contact info,
 nothing that identifies a person or that they used a health service. It is not
 PHI / not WA-MHMD consumer health data. Do NOT add patient-identifying detail to
-this digest.
+this digest. The GA4 pull asks only for aggregate eventCount keyed by eventName
++ dateRange; no user-level dimensions are requested.
 
-DATA SOURCES (Hint Partner API, practices Bearer key - same key the review poller uses)
----------------------------------------------------------------------------------------
+DATA SOURCES
+------------
+Hint Partner API (practices Bearer key, same key the review poller uses):
   GET /api/provider/appointments  (start_date/end_date window, paginated)
-      -> id, start, end, status, created_at, ...  ("new bookings")
-      Swept across current+upcoming windows and bucketed by created_at, because the
-      endpoint filters by APPOINTMENT date, not creation date. Live appointments
-      come back with title=null, so we cannot split consult vs member visit --
-      "new bookings" = all newly-created appointments.
+      -> id, start, end, status, created_at, attendees, ...
+      Free-consult counting is delegated to consult_count.tally() which filters
+      to appointments whose attendee is a Contact (no patient.id) -- Hint erases
+      the Contact attendee on enrollment, so the tally persists ids in
+      consult_count_state.json to avoid undercount-after-conversion.
   GET /api/provider/memberships   (created_at[gte] filter, paginated)
       -> id, created_at, status, enrollment_status, never_been_billed,
          last_bill_amount_in_cents, ...
@@ -34,12 +45,21 @@ DATA SOURCES (Hint Partner API, practices Bearer key - same key the review polle
       run = payment collected) AND status not cancelled.
       "Pending"    = created in window, not cancelled, never billed yet.
 
+GA4 Data API (property 513547844, service-account credentials):
+  RunReport: dimensions=[eventName, dateRange], metric=eventCount,
+             filter: eventName IN (phone_click, booking_click),
+             date_ranges: [yesterday/today, month-to-date].
+  If GA4 is not configured (no GA4_PROPERTY_ID or lib not installed) the two
+  click lines are silently skipped and the digest still ships with Consults/
+  Members/Pending. Transient GA4 errors degrade the same way.
+
 RUN
 ---
   py send_daily_summary.py --dry-run     # print the digest, send nothing
   py send_daily_summary.py --send        # force a real send (ignores DRY_RUN env)
   py send_daily_summary.py               # honors DRY_RUN env (.env)
   py send_daily_summary.py --window 24h  # daily number = rolling last 24h
+  py send_daily_summary.py --window last_7d  # weekly digest (Mon-Sun previous week)
   py send_daily_summary.py --selftest    # offline unit-check of the logic
 
 ENV (reuses mbm-review-receiver/.env)
@@ -54,10 +74,14 @@ ENV (reuses mbm-review-receiver/.env)
   RESEND_API_KEY           optional Resend key for the email channel
   FROM_EMAIL               default "Mt. Baker Medical <care@mtbakermedical.com>"
   SUMMARY_HORIZON_DAYS     forward appointment-sweep horizon (default 60)
+  GA4_PROPERTY_ID          GA4 property id, e.g. "513547844". Unset = skip clicks.
+  GOOGLE_APPLICATION_CREDENTIALS  path to GCP service-account JSON for GA4 read.
   DRY_RUN                  true|false
 """
 
 import argparse
+import pathlib
+import json
 import os
 import sys
 import consult_count
@@ -99,6 +123,9 @@ SUMMARY_EMAIL_TO = os.environ.get("SUMMARY_EMAIL_TO", "")
 HORIZON_DAYS = int(os.environ.get("SUMMARY_HORIZON_DAYS", "60"))
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() != "false"
 
+GA4_PROPERTY_ID = os.environ.get("GA4_PROPERTY_ID", "")
+# GOOGLE_APPLICATION_CREDENTIALS is read implicitly by google.analytics.data_v1beta.
+
 
 def log(msg):
     print(f"{datetime.now(timezone.utc).isoformat()} {msg}")
@@ -116,6 +143,15 @@ def day_bounds_pacific(now=None, window="yesterday"):
         return today0, now, month_start, f"Today ({today0.strftime('%a %b')} {today0.day})"
     if window == "24h":
         return now - timedelta(hours=24), now, month_start, "Last 24 hours"
+    if window == "last_7d":
+        # Rolling 7 days ending at midnight last night. When run Monday 10am
+        # this covers Mon 00:00 of prior week through Mon 00:00 of this week,
+        # i.e. the seven full days Mon-Sun that just finished.
+        end = today0
+        start = today0 - timedelta(days=7)
+        last = end - timedelta(days=1)
+        label = f"Week of {start.strftime('%b')} {start.day} - {last.strftime('%b')} {last.day}"
+        return start, end, month_start, label
     y0 = today0 - timedelta(days=1)
     return y0, today0, month_start, f"Yesterday ({y0.strftime('%a %b')} {y0.day})"
 
@@ -215,6 +251,131 @@ def fetch_memberships(since_dt):
 
 
 # ---------------------------------------------------------------------------
+# GA4 Data API (aggregate event counts only; no user-level dimensions)
+# ---------------------------------------------------------------------------
+def count_ga4_events(event_names, daily_start, daily_end, month_start):
+    """Pull daily + MTD event counts from GA4 for the given event names.
+
+    Returns {event_name: (daily_count, mtd_count)} for every requested event,
+    or {} if GA4 is not configured / the library is missing / the call fails.
+    The caller renders the lines only for events present in the returned dict,
+    so an outage degrades to the original 3-line digest with no breakage.
+
+    Privacy posture: dimensions are eventName + dateRange only; metric is
+    eventCount; filter is an eventName allowlist. No user, session, page, or
+    location dimensions are requested. The response shape contains nothing
+    that identifies a website visitor.
+    """
+    if not GA4_PROPERTY_ID:
+        return {}
+    try:
+        from google.analytics.data_v1beta import BetaAnalyticsDataClient
+        from google.analytics.data_v1beta.types import (
+            DateRange, Dimension, Metric, Filter, FilterExpression, RunReportRequest,
+        )
+    except ImportError:
+        log("warning: google-analytics-data not installed; GA4 click lines skipped.")
+        return {}
+
+    # GA4 date ranges are inclusive on both ends. daily_end / month-end are
+    # exclusive midnights in this script; step back 1us to get the last full
+    # day to include in the inclusive range.
+    d_last = (daily_end - timedelta(microseconds=1)).date()
+    m_last = d_last  # MTD shares the same upper bound as the daily window.
+    d_start = daily_start.date()
+    m_start = month_start.date()
+
+    try:
+        client = BetaAnalyticsDataClient()
+        req = RunReportRequest(
+            property=f"properties/{GA4_PROPERTY_ID}",
+            dimensions=[Dimension(name="eventName"), Dimension(name="dateRange")],
+            metrics=[Metric(name="eventCount")],
+            date_ranges=[
+                DateRange(start_date=d_start.isoformat(),
+                          end_date=d_last.isoformat(), name="daily"),
+                DateRange(start_date=m_start.isoformat(),
+                          end_date=m_last.isoformat(), name="mtd"),
+            ],
+            dimension_filter=FilterExpression(filter=Filter(
+                field_name="eventName",
+                in_list_filter=Filter.InListFilter(values=list(event_names)),
+            )),
+            limit=100,
+        )
+        resp = client.run_report(req)
+    except Exception as e:
+        log(f"warning: GA4 fetch failed; click lines skipped: {e}")
+        return {}
+
+    buckets = {name: [0, 0] for name in event_names}  # [daily, mtd]
+    for row in resp.rows:
+        event = row.dimension_values[0].value
+        range_name = row.dimension_values[1].value
+        try:
+            count = int(row.metric_values[0].value or 0)
+        except (TypeError, ValueError):
+            count = 0
+        if event not in buckets:
+            continue
+        if range_name == "daily":
+            buckets[event][0] = count
+        elif range_name == "mtd":
+            buckets[event][1] = count
+    return {k: (v[0], v[1]) for k, v in buckets.items()}
+
+
+
+# ---------------------------------------------------------------------------
+# Review-requests-sent tally (reads patient_state.json, emits counts only)
+# ---------------------------------------------------------------------------
+REVIEW_STATE_FILE = pathlib.Path(__file__).parent / "patient_state.json"
+
+
+def count_review_requests(week_start, week_end):
+    """Return (week_count, all_time_total) of review-request SMSes sent.
+
+    Source: patient_state.json (written by send_review_requests.py). Schema:
+        {"<patient_id>": {"count": <int>, "last_ask_ts": "<ISO 8601 UTC>"},
+         "_poller_meta": {...}}
+
+    all_time_total = sum of "count" across all patient entries.
+    week_count     = patients whose last_ask_ts falls in [week_start, week_end).
+                     The poller's 30-day cooldown per patient means each
+                     patient appears at most once in any 7-day window, so
+                     counting by last_ask_ts is correct (no double-counting).
+
+    Privacy: this function reads patient IDs internally but returns ONLY
+    aggregate integers. The IDs are never returned, printed, or logged.
+    Counts are not PHI.
+    """
+    try:
+        state = json.loads(REVIEW_STATE_FILE.read_text())
+    except FileNotFoundError:
+        log("info: patient_state.json missing; review-requests-sent = 0.")
+        return 0, 0
+    except Exception as e:
+        log(f"warning: could not read patient_state.json: {e}")
+        return 0, 0
+
+    week_count = 0
+    total = 0
+    for pid, p in state.items():
+        if pid.startswith("_"):  # skip _poller_meta etc.
+            continue
+        if not isinstance(p, dict):
+            continue
+        try:
+            total += int(p.get("count") or 0)
+        except (TypeError, ValueError):
+            pass
+        ts = parse_dt(p.get("last_ask_ts"))
+        if ts is not None and in_window(ts, week_start, week_end):
+            week_count += 1
+    return week_count, total
+
+
+# ---------------------------------------------------------------------------
 # Counting (pure - covered by --selftest)
 # ---------------------------------------------------------------------------
 DEAD_APPT = {"cancelled", "declined"}
@@ -268,27 +429,44 @@ def count_members(memberships, daily_start, daily_end, month_start):
 # ---------------------------------------------------------------------------
 # Message builders
 # ---------------------------------------------------------------------------
-def build_sms(label, bookings, members):
+def build_sms(prefix, label, calls, books, bookings, members, review_reqs=None):
+    """Build the SMS digest body. prefix is "MBM daily" or "MBM weekly".
+    calls/books are GA4 (period, mtd) tuples or None (skip the line).
+    review_reqs is (week, all_time_total) from count_review_requests() or
+    None (skip the line). When the digest moves to weekly cadence "MTD" still
+    means month-to-date for the existing lines."""
     b_day, b_mtd = bookings
-    return (
-        f"MBM daily - {label}\n"
-        f"Bookings: {b_day} ({b_mtd} MTD)\n"
-        f"Members: {members['paid_day']} ({members['paid_mtd']} MTD)\n"
-        f"Pending: {members['pending_day']} ({members['pending_mtd']} MTD)"
-    )
+    lines = [f"{prefix} - {label}"]
+    if calls is not None:
+        lines.append(f"Phone clicks: {calls[0]} ({calls[1]} MTD)")
+    if books is not None:
+        lines.append(f"Booking clicks: {books[0]} ({books[1]} MTD)")
+    lines.append(f"Initial consults: {b_day} ({b_mtd} MTD)")
+    lines.append(f"Members: {members['paid_day']} ({members['paid_mtd']} MTD)")
+    lines.append(f"Pending: {members['pending_day']} ({members['pending_mtd']} MTD)")
+    if review_reqs is not None:
+        lines.append(f"Review requests sent: {review_reqs[0]} ({review_reqs[1]} total)")
+    return "\n".join(lines)
 
 
-def build_email(label, month_label, bookings, members):
+def build_email(prefix, label, month_label, calls, books, bookings, members, review_reqs=None):
     b_day, b_mtd = bookings
     subject = (
-        f"MBM daily: {b_day} new booking{'s' if b_day != 1 else ''}, "
+        f"MBM daily: {b_day} new consult{'s' if b_day != 1 else ''}, "
         f"{members['paid_day']} new member{'s' if members['paid_day'] != 1 else ''}"
     )
-    rows = [
-        ("New bookings", b_day, b_mtd),
+    rows = []
+    if calls is not None:
+        rows.append(("Phone clicks (website)", calls[0], calls[1]))
+    if books is not None:
+        rows.append(("Booking clicks (website)", books[0], books[1]))
+    rows += [
+        ("Initial consults booked", b_day, b_mtd),
         ("New members (enrolled + paid)", members["paid_day"], members["paid_mtd"]),
         ("Pending enrollments (awaiting payment)", members["pending_day"], members["pending_mtd"]),
     ]
+    if review_reqs is not None:
+        rows.append(("Review requests sent (Spruce)", review_reqs[0], review_reqs[1]))
     text = ["Mt. Baker Medical - daily numbers", f"{label}  |  Month to date: {month_label}", ""]
     for name, d, m in rows:
         text.append(f"  {name}: {d}   (MTD {m})")
@@ -411,8 +589,49 @@ def selftest():
     mc = count_members(mems, d_start, d_end, m_start)
     assert mc == {"paid_day": 1, "paid_mtd": 2, "pending_day": 1, "pending_mtd": 1}, mc
 
-    sms = build_sms(label, (1, 2), mc)
-    assert "Bookings: 1 (2 MTD)" in sms and "Members: 1 (2 MTD)" in sms, sms
+    # Digest with GA4 unavailable (the safe fallback shape):
+    sms_no_ga4 = build_sms("MBM daily", label, None, None, (1, 2), mc)
+    assert "Phone clicks" not in sms_no_ga4, sms_no_ga4
+    assert "Booking clicks" not in sms_no_ga4, sms_no_ga4
+    assert "Initial consults: 1 (2 MTD)" in sms_no_ga4, sms_no_ga4
+    assert "Members: 1 (2 MTD)" in sms_no_ga4, sms_no_ga4
+    assert "Pending: 1 (1 MTD)" in sms_no_ga4, sms_no_ga4
+
+    # Digest with GA4 wired up (the target shape):
+    sms = build_sms("MBM daily", label, calls=(5, 23), books=(8, 41), bookings=(1, 2), members=mc)
+    assert "Phone clicks: 5 (23 MTD)" in sms, sms
+    assert "Booking clicks: 8 (41 MTD)" in sms, sms
+    assert "Initial consults: 1 (2 MTD)" in sms, sms
+    # Line order: header, phone, booking, consults, members, pending.
+    parts = sms.split("\n")
+    assert parts[0].startswith("MBM daily"), parts
+    assert parts[1].startswith("Phone clicks:"), parts
+    assert parts[2].startswith("Booking clicks:"), parts
+    assert parts[3].startswith("Initial consults:"), parts
+    assert parts[4].startswith("Members:"), parts
+    assert parts[5].startswith("Pending:"), parts
+
+    # Email subject reflects the rename ("consult" not "booking"):
+    subj, _, _ = build_email("MBM daily", label, "Jun", (5, 23), (8, 41), (1, 2), mc)
+
+    # Weekly variant: prefix changes, "Week of" label, review_reqs line included.
+    _, _, m_start_w, week_label = day_bounds_pacific(now, "last_7d")
+    assert week_label.startswith("Week of "), week_label
+    sms_w = build_sms("MBM weekly", week_label, (5, 23), (8, 41), (1, 2), mc, review_reqs=(8, 47))
+    assert sms_w.startswith("MBM weekly - Week of "), sms_w
+    assert "Review requests sent: 8 (47 total)" in sms_w, sms_w
+    assert "consult" in subj, subj
+    assert "booking" not in subj.lower(), subj
+
+    # GA4 helper returns {} when no property id is set (silent skip).
+    global GA4_PROPERTY_ID
+    saved = GA4_PROPERTY_ID
+    GA4_PROPERTY_ID = ""
+    try:
+        assert count_ga4_events(["phone_click"], d_start, d_end, m_start) == {}, "ga4 should no-op"
+    finally:
+        GA4_PROPERTY_ID = saved
+
     print("SELFTEST OK\n" + sms)
     return True
 
@@ -422,8 +641,8 @@ def main():
     ap = argparse.ArgumentParser(description="Daily Hint bookings/members summary (SMS + optional email).")
     ap.add_argument("--dry-run", action="store_true", help="Print the digest, send nothing.")
     ap.add_argument("--send", action="store_true", help="Force a real send (ignores DRY_RUN env).")
-    ap.add_argument("--window", choices=["yesterday", "today", "24h"], default="yesterday",
-                    help="What the daily number covers. Default: yesterday.")
+    ap.add_argument("--window", choices=["yesterday", "today", "24h", "last_7d"], default="yesterday",
+                    help="What the daily number covers. Default: yesterday. Use last_7d for the weekly digest.")
     ap.add_argument("--selftest", action="store_true", help="Run offline logic checks and exit.")
     args = ap.parse_args()
 
@@ -452,8 +671,26 @@ def main():
     bookings = consult_count.tally(appts, d_start, d_end, m_start)
     members = count_members(mems, d_start, d_end, m_start)
 
-    sms_text = build_sms(label, bookings, members)
-    subject, text_body, html_body = build_email(label, m_start.strftime("%b"), bookings, members)
+    # GA4 click counts (top of funnel). Returns {} if not configured -- digest
+    # falls back to Consults/Members/Pending only without erroring.
+    ga4 = count_ga4_events(["phone_click", "booking_click"], d_start, d_end, m_start)
+    calls = ga4.get("phone_click")
+    books = ga4.get("booking_click")
+    if not ga4:
+        log("GA4 click lines unavailable; digest will ship without Phone/Booking clicks.")
+    else:
+        log(f"GA4 pulled: phone_click={calls}, booking_click={books}")
+
+    prefix = "MBM weekly" if args.window == "last_7d" else "MBM daily"
+
+    # Review-request tally (count of Spruce sends). Aggregate only -- no IDs.
+    review_reqs = count_review_requests(d_start, d_end)
+    log(f"review requests: week={review_reqs[0]}, all-time total={review_reqs[1]}")
+
+    sms_text = build_sms(prefix, label, calls, books, bookings, members, review_reqs)
+    subject, text_body, html_body = build_email(
+        prefix, label, m_start.strftime("%b"), calls, books, bookings, members, review_reqs
+    )
 
     r_sms = send_sms(sms_text)
     r_email = send_email(subject, text_body, html_body)

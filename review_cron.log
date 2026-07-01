@@ -70,3 +70,45 @@
 2026-06-28 10:00:07,107  INFO      [poller] Delivery: email=failed sms=ok
 2026-06-28 10:00:07,137  INFO      [poller] Recorded: patient_id=pat-GZ3CanPF2nMf count=1/999
 2026-06-28 10:00:07,139  INFO      poller end: ok | sent=1 skipped=0 errors=0 | last_run_at advanced
+2026-06-29 10:00:02,582  INFO      poller start: since=2026-06-28T17:00:07.138064+00:00 dry_run=False
+2026-06-29 10:00:04,211  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-06-29 10:00:04,211  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-06-29 10:00:05,075  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-06-29 10:00:05,076  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-06-30 10:00:02,809  INFO      poller start: since=2026-06-29T17:00:05.075206+00:00 dry_run=False
+2026-06-30 10:00:04,776  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-06-30 10:00:04,778  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-06-30 10:00:05,690  INFO      poller: found 6 patient(s) with member visits to evaluate
+2026-06-30 10:00:06,526  INFO      [poller] Processing: patient_id=pat-2FTjkbPOvnLe email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-30 10:00:06,526  WARNING   RESEND_API_KEY not set — skipping email to rashelfitchett@gmail.com.
+2026-06-30 10:00:07,103  INFO      Review SMS sent to phone ending 0487
+2026-06-30 10:00:07,104  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-30 10:00:07,129  INFO      [poller] Recorded: patient_id=pat-2FTjkbPOvnLe count=1/999
+2026-06-30 10:00:07,702  INFO      [poller] Processing: patient_id=pat-8o1EwGsUMevR email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-30 10:00:07,702  WARNING   RESEND_API_KEY not set — skipping email to holly.schiffer1@gmail.com.
+2026-06-30 10:00:08,219  INFO      Review SMS sent to phone ending 1378
+2026-06-30 10:00:08,220  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-30 10:00:08,247  INFO      [poller] Recorded: patient_id=pat-8o1EwGsUMevR count=1/999
+2026-06-30 10:00:08,851  INFO      [poller] SKIP patient_id=pat-9CkcnrciIGhJ: spacing-not-met 6d since last ask (count=1/999)
+2026-06-30 10:00:09,482  INFO      [poller] SKIP patient_id=pat-G2Uyt6CMUVOB: spacing-not-met 20d since last ask (count=1/999)
+2026-06-30 10:00:10,233  INFO      [poller] Processing: patient_id=pat-wNCZtn5VdLKU email=yes phone=yes dry_run=False (ok count=0/999)
+2026-06-30 10:00:10,233  WARNING   RESEND_API_KEY not set — skipping email to leibspeg@gmail.com.
+2026-06-30 10:00:10,752  INFO      Review SMS sent to phone ending 4761
+2026-06-30 10:00:10,753  INFO      [poller] Delivery: email=failed sms=ok
+2026-06-30 10:00:10,782  INFO      [poller] Recorded: patient_id=pat-wNCZtn5VdLKU count=1/999
+2026-06-30 10:00:11,408  INFO      [poller] SKIP patient_id=pat-x6mlcomOtTBc: spacing-not-met 6d since last ask (count=1/999)
+2026-06-30 10:00:11,409  INFO      poller end: ok | sent=3 skipped=3 errors=0 | last_run_at advanced
+2026-07-01 10:00:02,786  INFO      poller start: since=2026-06-30T17:00:11.409984+00:00 dry_run=False
+2026-07-01 10:00:04,682  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-01 10:00:04,684  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-01 10:00:05,486  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-01 10:00:05,487  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced

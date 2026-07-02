@@ -64,7 +64,8 @@ REVIEW_STATE_FILE = SCRIPT_DIR / "patient_state.json"      # READ-ONLY here
 AUDIT_FILE = SCRIPT_DIR / "nurture_audit.log"              # append-only audit
 ARCHIVE_QUEUE_FILE = SCRIPT_DIR / "nurture_archive_queue.csv"  # weekly staff list
 SEQUENCE_DAYS = [0, 7, 21]
-CLEANUP_DAY = 30          # Day 21 + 9-day grace
+CLEANUP_DAY = 28          # legacy fixed day-count; retained for old snapshots/tests. Live cleanup now keys off bill_date.
+CLEANUP_LEAD_DAYS = 2     # cancel a stale, unpaid pending membership when its real bill_date is <= this many days away
 APPT_LOOKAHEAD_DAYS = 45  # "future appointment" guard window
 OFFICE_LINE = "(360) 498-7529"
 
@@ -587,6 +588,20 @@ def days_since(iso_dt: str) -> int:
     if d.tzinfo is None:
         d = d.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - d).days
+
+
+def days_until(date_str: str) -> int | None:
+    """Whole days from today (UTC) until date_str (a 'YYYY-MM-DD' date or ISO
+    datetime). Negative if the date is already past. None if empty/unparseable."""
+    if not date_str:
+        return None
+    try:
+        s = str(date_str)
+        d = (datetime.fromisoformat(s).date() if "T" in s
+             else datetime.strptime(s, "%Y-%m-%d").date())
+        return (d - datetime.now(timezone.utc).date()).days
+    except Exception:
+        return None
 
 
 def due_touch(enrolled_at: str, touches_sent: list) -> int | None:

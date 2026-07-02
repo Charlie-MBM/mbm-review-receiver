@@ -94,6 +94,40 @@ def conversion_scan(matched, our_pat_id, our_family):
     return our, other
 
 
+def attempt_cleanup(plan, m, state, mem_id, pat_id, our, other, contact, name_red, bill_days):
+    """Guarded cancel of a stale, unpaid pending membership as its bill date nears
+    (T5e). Cancels (DRY_RUN-gated) + queues the patient for staff archive ONLY if
+    all guards pass: no payment source, no active membership on any matched record,
+    no upcoming appointment, no inbound Spruce reply. Keyed off the membership's
+    real bill_date (via the caller) so it is robust to any start-date choice."""
+    if state.get(mem_id, {}).get("cleaned"):
+        plan.update(action="completed", reason="cleanup already done")
+        return plan
+    no_payment = not (our["card"] or other["card"])
+    no_active = not (our["active"] or other["active"])
+    fut = E.hint_has_future_appointment(pat_id)
+    no_future_appt = (fut is False)
+    inbound = E.spruce_thread_has_any_inbound(contact.get("id")) if contact else False
+    no_inbound = (inbound is False)
+    guards = {"no_payment": no_payment, "no_active_membership": no_active,
+              "no_future_appointment": no_future_appt, "no_inbound_reply": no_inbound}
+    if all(guards.values()):
+        E.hint_cancel_membership(mem_id, reason=f"pre-bill cleanup (bill in {bill_days}d, no conversion)")
+        E.archive_queue_add(pat_id, name_red, mem_id,
+                            f"pre-bill cleanup: non-converter, bill in {bill_days}d, all guards passed")
+        E.audit("prebill_cleanup", pat_id, mem_id, "pre-bill end-of-sequence cleanup",
+                {**guards, "bill_days": bill_days})
+        rec = state.setdefault(mem_id, {})
+        rec["cleaned"] = True
+        rec["status"] = "cleaned"
+        plan.update(action="cleanup",
+                    reason=f"bill in {bill_days}d: canceled stale pending membership + queued for staff archive")
+    else:
+        blocked = [k for k, v in guards.items() if not v]
+        plan.update(action="cleanup_blocked", reason=f"pre-bill cleanup blocked by: {', '.join(blocked)}")
+    return plan
+
+
 def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
     mem_id, pat_id = m["mem_id"], m["pat_id"]
     name_red = redact(m["patient_name"])
@@ -173,6 +207,15 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
         _mark(state, mem_id, m, status="pending_approval", reason="preexisting_back_scan")
         return plan
 
+    # ---- Pre-bill cleanup (T5e): cancel an unpaid pending membership as its real
+    # bill_date nears, independent of where we are in the text sequence. Keyed off
+    # bill_date (fallback start_date) so an atypical/short start date can't slip an
+    # invoice through before a fixed day-count would have fired. ----
+    bill_iso = fresh.get("bill_date") or fresh.get("start_date") or m.get("start_date")
+    bill_days = E.days_until(bill_iso)
+    if bill_days is not None and bill_days <= E.CLEANUP_LEAD_DAYS:
+        return attempt_cleanup(plan, m, state, mem_id, pat_id, our, other, contact, name_red, bill_days)
+
     # Day-0 timing: never text on the same calendar day as the consult/assignment.
     # Day 0 fires the morning after created_at (the poller runs ~9:30 daily).
     # Compared in the practice's local tz (carried on created_at) so there's no
@@ -231,33 +274,18 @@ def _handle_complete_or_wait(plan, m, state, mem_id, pat_id, matched, our, other
         log.warning(f"STAFF FLAG: {mem_id} ({name_red}) finished Day 21, still pending past "
                     f"start_date {m.get('start_date')}, no payment.")
 
-    # ---- Part C: Day-30 cleanup (guarded) ----
-    if E.days_since(enrolled_at) < E.CLEANUP_DAY:
-        plan.update(action="completed", reason=f"all touches sent; cleanup at Day {E.CLEANUP_DAY}")
-        return plan
+    # ---- End of sequence ----
+    # Cancellation is handled by the pre-bill check in evaluate() (keyed off the
+    # membership's real bill_date), not here. This branch only reports status.
     if state[mem_id].get("cleaned"):
-        plan.update(action="completed", reason="cleanup already done")
-        return plan
-
-    no_payment = not (our["card"] or other["card"])
-    no_active = not (our["active"] or other["active"])
-    fut = E.hint_has_future_appointment(pat_id)
-    no_future_appt = (fut is False)
-    inbound = E.spruce_thread_has_any_inbound(contact.get("id")) if contact else False
-    no_inbound = (inbound is False)
-    guards = {"no_payment": no_payment, "no_active_membership": no_active,
-              "no_future_appointment": no_future_appt, "no_inbound_reply": no_inbound}
-
-    if all(guards.values()):
-        E.hint_cancel_membership(mem_id, reason="Day-30 end-of-sequence cleanup (no conversion)")
-        E.archive_queue_add(pat_id, name_red, mem_id, "Day-30 cleanup: non-converter, all guards passed")
-        E.audit("day30_cleanup", pat_id, mem_id, "end-of-sequence cleanup", guards)
-        state[mem_id]["cleaned"] = True
-        state[mem_id]["status"] = "cleaned"
-        plan.update(action="cleanup", reason="Day-30: canceled stale pending membership + queued for staff archive")
+        plan.update(action="completed", reason="cleanup done (canceled + queued for staff archive)")
     else:
-        blocked = [k for k, v in guards.items() if not v]
-        plan.update(action="cleanup_blocked", reason=f"Day-30 cleanup blocked by: {', '.join(blocked)}")
+        bd = E.days_until(m.get("start_date"))
+        when = (f"in ~{bd - E.CLEANUP_LEAD_DAYS}d" if (bd is not None and bd > E.CLEANUP_LEAD_DAYS)
+                else "as bill date nears")
+        plan.update(action="completed",
+                    reason=f"all touches sent; auto-cancel {when} "
+                           f"(~{E.CLEANUP_LEAD_DAYS}d before bill date) if still unpaid")
     return plan
 
 

@@ -112,3 +112,46 @@
 2026-07-01 10:00:04,684  INFO      poller: click-tracker returned 0 hash(es) to suppress
 2026-07-01 10:00:05,486  INFO      poller: found 0 patient(s) with member visits to evaluate
 2026-07-01 10:00:05,487  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-07-02 10:00:02,858  INFO      poller start: since=2026-07-01T17:00:05.486529+00:00 dry_run=False
+2026-07-02 10:00:04,769  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-02 10:00:04,770  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-02 10:00:05,893  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-02 10:00:05,893  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-07-03 10:00:04,029  INFO      poller start: since=2026-07-02T17:00:05.893077+00:00 dry_run=False
+2026-07-03 10:00:06,046  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-03 10:00:06,049  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-03 10:00:07,041  INFO      poller: found 4 patient(s) with member visits to evaluate
+2026-07-03 10:00:07,793  INFO      [poller] SKIP patient_id=pat-2FTjkbPOvnLe: spacing-not-met 3d since last ask (count=1/999)
+2026-07-03 10:00:08,539  INFO      [poller] Processing: patient_id=pat-COit06c6DFQU email=yes phone=yes dry_run=False (ok count=0/999)
+2026-07-03 10:00:08,540  WARNING   RESEND_API_KEY not set — skipping email to sandstromcynthia@gmail.com.
+2026-07-03 10:00:09,331  INFO      Review SMS sent to phone ending 3489
+2026-07-03 10:00:09,332  INFO      [poller] Delivery: email=failed sms=ok
+2026-07-03 10:00:09,358  INFO      [poller] Recorded: patient_id=pat-COit06c6DFQU count=1/999
+2026-07-03 10:00:10,182  INFO      [poller] SKIP patient_id=pat-G2Uyt6CMUVOB: spacing-not-met 23d since last ask (count=1/999)
+2026-07-03 10:00:10,916  INFO      [poller] Processing: patient_id=pat-zp0k9DEaey3O email=yes phone=yes dry_run=False (ok count=0/999)
+2026-07-03 10:00:10,918  WARNING   RESEND_API_KEY not set — skipping email to beckk1@spu.edu.
+2026-07-03 10:00:11,557  INFO      Review SMS sent to phone ending 2302
+2026-07-03 10:00:11,557  INFO      [poller] Delivery: email=failed sms=ok
+2026-07-03 10:00:11,592  INFO      [poller] Recorded: patient_id=pat-zp0k9DEaey3O count=1/999
+2026-07-03 10:00:11,594  INFO      poller end: ok | sent=2 skipped=2 errors=0 | last_run_at advanced
+2026-07-04 10:00:03,252  INFO      poller start: since=2026-07-03T17:00:11.593415+00:00 dry_run=False
+2026-07-04 10:00:05,271  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-04 10:00:05,272  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-04 10:00:06,075  INFO      poller: found 3 patient(s) with member visits to evaluate
+2026-07-04 10:00:06,690  INFO      [poller] SKIP patient_id=pat-83miTYUbgeMf: spacing-not-met 11d since last ask (count=1/999)
+2026-07-04 10:00:07,326  INFO      [poller] SKIP patient_id=pat-I2N7XByl9Mlv: spacing-not-met 11d since last ask (count=1/999)
+2026-07-04 10:00:08,020  INFO      [poller] Processing: patient_id=pat-SplQYrFcNurn email=yes phone=yes dry_run=False (ok count=0/999)
+2026-07-04 10:00:08,020  WARNING   RESEND_API_KEY not set — skipping email to kelly.chinander@gmail.com.
+2026-07-04 10:00:08,626  INFO      Review SMS sent to phone ending 7536
+2026-07-04 10:00:08,626  INFO      [poller] Delivery: email=failed sms=ok
+2026-07-04 10:00:08,652  INFO      [poller] Recorded: patient_id=pat-SplQYrFcNurn count=1/999
+2026-07-04 10:00:08,653  INFO      poller end: ok | sent=1 skipped=2 errors=0 | last_run_at advanced

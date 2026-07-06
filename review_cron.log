@@ -155,3 +155,11 @@
 2026-07-04 10:00:08,626  INFO      [poller] Delivery: email=failed sms=ok
 2026-07-04 10:00:08,652  INFO      [poller] Recorded: patient_id=pat-SplQYrFcNurn count=1/999
 2026-07-04 10:00:08,653  INFO      poller end: ok | sent=1 skipped=2 errors=0 | last_run_at advanced
+2026-07-05 10:00:06,649  INFO      poller start: since=2026-07-04T17:00:08.653406+00:00 dry_run=False
+2026-07-05 10:00:08,300  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-05 10:00:08,300  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-05 10:00:09,029  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-05 10:00:09,031  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced

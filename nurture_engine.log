@@ -75,3 +75,5 @@
 2026-07-05 09:30:05,443  INFO      nurture poller: 2 pending; 49 patients scanned; go_live_at=None approved=0
 2026-07-06 09:30:03,167  INFO      nurture poller start (T5d): dry_run=False date=2026-07-06
 2026-07-06 09:30:05,620  INFO      nurture poller: 2 pending; 49 patients scanned; go_live_at=None approved=0
+2026-07-07 09:30:02,332  INFO      nurture poller start (T5d): dry_run=False date=2026-07-07
+2026-07-07 09:30:22,499  INFO      nurture poller: 2 pending; 50 patients scanned; go_live_at=None approved=0

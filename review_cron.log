@@ -163,3 +163,30 @@
 2026-07-05 10:00:08,300  INFO      poller: click-tracker returned 0 hash(es) to suppress
 2026-07-05 10:00:09,029  INFO      poller: found 0 patient(s) with member visits to evaluate
 2026-07-05 10:00:09,031  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-07-06 10:00:05,245  INFO      poller start: since=2026-07-05T17:00:09.031262+00:00 dry_run=False
+2026-07-06 10:00:07,148  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-06 10:00:07,148  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-06 10:00:07,929  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-06 10:00:07,932  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-07-07 10:00:03,206  INFO      poller start: since=2026-07-06T17:00:07.930774+00:00 dry_run=False
+2026-07-07 10:00:05,114  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-07 10:00:05,114  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-07 10:00:06,092  INFO      poller: found 7 patient(s) with member visits to evaluate
+2026-07-07 10:00:06,755  INFO      [poller] SKIP patient_id=pat-2FTjkbPOvnLe: spacing-not-met 6d since last ask (count=1/999)
+2026-07-07 10:00:07,388  INFO      [poller] SKIP patient_id=pat-9CkcnrciIGhJ: spacing-not-met 13d since last ask (count=1/999)
+2026-07-07 10:00:08,017  INFO      [poller] SKIP patient_id=pat-I2N7XByl9Mlv: spacing-not-met 14d since last ask (count=1/999)
+2026-07-07 10:00:08,697  INFO      [poller] SKIP patient_id=pat-RO0S542xt1rj: spacing-not-met 14d since last ask (count=1/999)
+2026-07-07 10:00:09,424  INFO      [poller] Processing: patient_id=pat-RWALIrTxZ1yR email=yes phone=yes dry_run=False (ok count=0/999)
+2026-07-07 10:00:09,424  WARNING   RESEND_API_KEY not set — skipping email to heather.korbmacher@proton.me.
+2026-07-07 10:00:10,011  INFO      Review SMS sent to phone ending 3722
+2026-07-07 10:00:10,011  INFO      [poller] Delivery: email=failed sms=ok
+2026-07-07 10:00:10,038  INFO      [poller] Recorded: patient_id=pat-RWALIrTxZ1yR count=1/999
+2026-07-07 10:00:10,797  INFO      [poller] SKIP patient_id=pat-wNCZtn5VdLKU: spacing-not-met 7d since last ask (count=1/999)
+2026-07-07 10:00:11,549  INFO      [poller] SKIP patient_id=pat-x6mlcomOtTBc: spacing-not-met 13d since last ask (count=1/999)
+2026-07-07 10:00:11,550  INFO      poller end: ok | sent=1 skipped=6 errors=0 | last_run_at advanced

@@ -190,3 +190,23 @@
 2026-07-07 10:00:10,797  INFO      [poller] SKIP patient_id=pat-wNCZtn5VdLKU: spacing-not-met 7d since last ask (count=1/999)
 2026-07-07 10:00:11,549  INFO      [poller] SKIP patient_id=pat-x6mlcomOtTBc: spacing-not-met 13d since last ask (count=1/999)
 2026-07-07 10:00:11,550  INFO      poller end: ok | sent=1 skipped=6 errors=0 | last_run_at advanced
+2026-07-08 10:00:03,263  INFO      poller start: since=2026-07-07T17:00:11.549181+00:00 dry_run=False
+2026-07-08 10:00:05,216  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-08 10:00:05,217  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-08 10:00:05,938  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-08 10:00:05,939  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-07-09 10:00:04,218  INFO      poller start: since=2026-07-08T17:00:05.938692+00:00 dry_run=False
+2026-07-09 10:00:04,897  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-09 10:00:04,898  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-09 10:00:05,932  INFO      poller: found 4 patient(s) with member visits to evaluate
+2026-07-09 10:00:06,617  INFO      [poller] SKIP patient_id=pat-28xvYLdRMBaQ: spacing-not-met 29d since last ask (count=1/999)
+2026-07-09 10:00:07,278  INFO      [poller] SKIP patient_id=pat-G2Uyt6CMUVOB: spacing-not-met 29d since last ask (count=1/999)
+2026-07-09 10:00:07,962  INFO      poller: SKIP patient_id=pat-KwLkxKIKTsQh — membership_status=inactive (review asks are active-member-only)
+2026-07-09 10:00:08,633  INFO      poller: SKIP patient_id=pat-cXuk4HSw3TI2 — membership_status=inactive (review asks are active-member-only)
+2026-07-09 10:00:08,635  INFO      poller end: ok | sent=0 skipped=4 errors=0 | last_run_at advanced

@@ -7,12 +7,18 @@ semantics) and each member's self-reported Lead Source via the Hint API, tallies
 AGGREGATE COUNTS ONLY (no names, no PHI), and writes a small JSON the MBM weekly
 dashboard refresh reads in place of the old browser scrape.
 
-NEW-MEMBER DEFINITION (2026-06): a membership counts as a real new member only if it
-has BOTH a membership AND a payment method on file (GET /patients/{id}/payment_methods,
-same signal the nurture engine uses). A membership with no payment method is "pending"
-and reported separately in `members_pending` - it is NOT counted in `members`. If the
-payment endpoint can't be reached for ANY member in a run, we fall back to counting all
-memberships (old behavior) and flag it in `warnings` rather than zeroing the dashboard.
+NEW-MEMBER DEFINITION (2026-07 update): a membership counts as a real new member only if
+(1) it was CREATED this month (created_at in the month = actually signed up this month --
+NOT start_date, which is Hint's billing anchor and also fires for renewals, reactivations,
+plan changes and future-dated starts, which inflated the count), AND (2) it has a payment
+method on file (GET /patients/{id}/payment_methods, same signal the nurture engine uses).
+A membership with no payment method is "pending" and reported separately in `members_pending`
+- it is NOT counted in `members`. For transparency the OLD start_date-anchored count is still
+exported as `members_anchored_by_start_date` so the renewals-counted-as-new gap is visible,
+and `new_member_basis` records which date field was used. If created_at isn't exposed by the
+API we fall back to start_date and flag it; if the payment endpoint can't be reached for ANY
+member in a run, we fall back to counting all memberships (old behavior) and flag it in
+`warnings` rather than zeroing the dashboard.
 
 GUARDRAILS (mirrors nurture_engine's philosophy):
   * READ-ONLY. Only HTTP GETs to Hint. No writes, no Spruce, no SMS, no DRY_RUN
@@ -70,6 +76,12 @@ DEFAULT_OUT = Path(os.environ.get(
 
 # The owner's own test account + obvious test records to exclude (by patient name).
 EXCLUDE_NAME_SUBSTRINGS = ["charles robert platt", "zztest", "zz-test", "test", "nurtureqa", "donotcontact"]
+
+# Membership PLAN types that are NOT real new members and must be excluded from the
+# member count (comp / non-acquisition memberships). Matched case-insensitively as a
+# substring of the Hint plan name. "friend" covers "Friends and Family" / "Friends & Family".
+# Charlie: confirm the exact plan name in Hint and adjust this list if it differs.
+EXCLUDE_PLAN_SUBSTRINGS = ["friends and family", "friends & family", "friend", "f&f"]
 
 # The 7 dashboard lead-source buckets (must match the dashboard + Hint dropdown).
 SOURCE_KEYS = ["google", "bing", "ai", "social", "provider_referral", "word_of_mouth", "other"]
@@ -183,6 +195,13 @@ def bucket_plan(name):
     return "concierge"  # ambiguous default
 
 
+def is_friends_family(plan_name):
+    """True if the plan is a comp / friends-and-family type that should NOT count as a
+    real new member. Matched as a case-insensitive substring of the plan name."""
+    n = (plan_name or "").lower()
+    return any(sub in n for sub in EXCLUDE_PLAN_SUBSTRINGS)
+
+
 def extract_lead_source(pt):
     """Return (raw_value, found_key) for the patient's Lead Source.
 
@@ -228,6 +247,22 @@ def map_source(raw):
     return "other"
 
 
+CREATED_KEYS = ("created_at", "created", "enrolled_at", "signed_up_at", "createdAt", "created_on")
+
+
+def created_at_of(m):
+    """Membership signup timestamp (when the membership record was created in Hint), as
+    opposed to start_date (the billing anchor, which also moves on renewals / reactivations
+    / plan changes). Returns the first present of CREATED_KEYS, or None if none are exposed."""
+    if not isinstance(m, dict):
+        return None
+    for k in CREATED_KEYS:
+        v = m.get(k)
+        if v:
+            return v
+    return None
+
+
 def in_month(start_date_str, y, mo):
     if not start_date_str:
         return False
@@ -270,8 +305,9 @@ def main():
     # A real new member = membership that started this month AND has a payment method
     # on file. Membership but no payment = "pending". Mirrors the nurture engine's
     # "assigned but hasn't paid" signal (GET /patients/{id}/payment_methods).
-    paid_members = {"concierge": 0, "so": 0, "total": 0}   # counted as new members
+    paid_members = {"concierge": 0, "so": 0, "total": 0}   # counted as new members (signed up this month)
     paid_source = {k: 0 for k in SOURCE_KEYS}
+    anchored_paid = {"concierge": 0, "so": 0, "total": 0}  # OLD basis: start_date this month, paid (comparison only)
     pending = {"concierge": 0, "so": 0, "total": 0}        # membership, NO payment on file
     payment_unknown = 0                                    # payment status couldn't be verified (API error)
     # Ungated tallies over every started membership — used only for the systemic-failure fallback.
@@ -279,6 +315,7 @@ def main():
     all_source = {k: 0 for k in SOURCE_KEYS}
     pending_future_dated = 0
     excluded_count = 0
+    friends_family_excluded = 0   # comp / friends-and-family memberships, NOT counted as new members
     ambiguous_plans = []
     lead_source_field = None
     lead_source_unmapped = {}   # raw value -> count, for anything that landed in "other"
@@ -290,27 +327,56 @@ def main():
         print(f"ERROR: could not list memberships: {e}", file=sys.stderr)
         sys.exit(1)
 
-    started = [m for m in all_mems if in_month(m.get("start_date"), y, mo)]
+    # --- Signup-date basis --------------------------------------------------
+    # A "new member this month" should mean someone who SIGNED UP this month, i.e. the
+    # membership's created_at is in the month -- NOT start_date, which is Hint's billing
+    # anchor and also fires for renewals / reactivations / plan changes / future-dated
+    # starts (that inflated the count). Prefer created_at; if Hint's membership objects
+    # don't expose it, fall back to start_date and flag it loudly.
+    has_created_field = any(created_at_of(m) is not None for m in all_mems)
+    signup_basis_field = "created_at" if has_created_field else "start_date"
 
-    for m in started:
+    def signup_in_month(m):
+        raw = created_at_of(m) if has_created_field else m.get("start_date")
+        return in_month(raw, y, mo)
+
+    if not has_created_field:
+        warnings.append("Hint membership objects did not expose a created_at/signup field this run - "
+                        "fell back to counting new members by start_date (may include renewals / "
+                        "reactivations). Check the membership object keys and update CREATED_KEYS if "
+                        "the field name differs.")
+
+    # Primary set = signed up this month; also keep start_date-anchored memberships for the
+    # side-by-side comparison so the gap (renewals counted as 'new') stays visible.
+    relevant = [m for m in all_mems if signup_in_month(m) or in_month(m.get("start_date"), y, mo)]
+
+    for m in relevant:
         pat_id, name = patient_name_of_membership(m)
         if is_excluded(name):
             excluded_count += 1
             continue
         plan = plan_name_of(m)
+        if is_friends_family(plan):
+            # Comp / friends-and-family membership: real signup, but not an acquisition
+            # new member. Exclude from members AND pending; report the count separately.
+            friends_family_excluded += 1
+            continue
         b = bucket_plan(plan)
         if b == "concierge" and plan and not any(t in plan.lower() for t in ("concierge", "membership", "direct primary", "dpc")):
             ambiguous_plans.append(plan)
+
+        signup_in = signup_in_month(m)
+        started_in = in_month(m.get("start_date"), y, mo)
 
         status = (m.get("status") or "").lower()
         try:
             future = datetime.strptime(str(m.get("start_date"))[:10], "%Y-%m-%d").date() > now.date()
         except Exception:
             future = False
-        if status == "pending" or future:
+        if signup_in and (status == "pending" or future):
             pending_future_dated += 1
 
-        # Lead source (read once; used for the paid split and the fallback all-source split).
+        # Lead source + payment status (read once; used by both bases).
         raw, key = (None, None)
         if pat_id:
             pt = get_patient(pat_id)
@@ -318,28 +384,33 @@ def main():
             if key and not lead_source_field:
                 lead_source_field = key
         bucket = map_source(raw)
-
-        # Ungated tally (every membership that started this month).
-        all_members[b] += 1
-        all_members["total"] += 1
-        all_source[bucket] += 1
-        if raw and bucket == "other":
-            lead_source_unmapped[raw] = lead_source_unmapped.get(raw, 0) + 1
-
-        # Payment gate: a real new member needs a payment method on file.
         has_pay = has_payment_source(pat_id) if pat_id else None
-        if has_pay is True:
-            paid_members[b] += 1
-            paid_members["total"] += 1
-            paid_source[bucket] += 1
-        elif has_pay is False:
-            pending[b] += 1
-            pending["total"] += 1
-        else:
-            payment_unknown += 1
+
+        # PRIMARY basis = actually signed up this month (created_at, or start_date fallback).
+        if signup_in:
+            all_members[b] += 1            # ungated tally (used only for the systemic-failure fallback)
+            all_members["total"] += 1
+            all_source[bucket] += 1
+            if raw and bucket == "other":
+                lead_source_unmapped[raw] = lead_source_unmapped.get(raw, 0) + 1
+            if has_pay is True:
+                paid_members[b] += 1
+                paid_members["total"] += 1
+                paid_source[bucket] += 1
+            elif has_pay is False:
+                pending[b] += 1
+                pending["total"] += 1
+            else:
+                payment_unknown += 1
+
+        # COMPARISON basis = membership anchored (start_date) this month, old behaviour, paid only.
+        if started_in and has_pay is True:
+            anchored_paid[b] += 1
+            anchored_paid["total"] += 1
 
         if args.probe:
-            probe_rows.append({"plan_bucket": b, "lead_source_raw": raw, "field": key,
+            probe_rows.append({"plan_bucket": b, "signup_in": signup_in, "started_in": started_in,
+                               "lead_source_raw": raw, "field": key,
                                "mapped": bucket, "has_payment": has_pay})
 
     # Choose the member basis. If payment status couldn't be verified for ANY member
@@ -362,57 +433,108 @@ def main():
             warnings.append(f"{payment_unknown} new membership(s) could not be payment-verified (API error) "
                             f"and are excluded from BOTH members and pending - verify manually in Hint.")
 
+    if friends_family_excluded:
+        warnings.append(f"{friends_family_excluded} friends-and-family / comp membership(s) matched "
+                        f"EXCLUDE_PLAN_SUBSTRINGS and were dropped from members + pending (not real "
+                        f"new members). Adjust EXCLUDE_PLAN_SUBSTRINGS if the plan name differs.")
+
+    if members["total"] != anchored_paid["total"]:
+        warnings.append(f"new-member count by SIGNUP date ({signup_basis_field}) = {members['total']}, "
+                        f"but by billing anchor (start_date) = {anchored_paid['total']}. The gap is "
+                        f"renewals / reactivations / plan-changes / future-dated starts that anchor this "
+                        f"month without being new signups. Dashboard uses the signup-date count.")
+
     if members["total"] and members_source["other"] == members["total"] and lead_source_field is None:
         warnings.append("No Lead Source field found on patient objects via the API - it may be UI-only. "
                         "Falling back: members counted, but lead-source split is all 'other'. "
                         "Check --probe output; if blank, keep the browser read for lead source only.")
 
     # Optional: real consults from completed appointments this month (bonus).
+    # 2026-07-10 fix: the old logic counted EVERY non-cancelled appointment as a
+    # "consult" (follow-ups, member visits, everything), which wildly overstated
+    # consult volume on the dashboard. Now:
+    #   feed["consults"]     = consult-type appointments ONLY. Per Charlie, the free
+    #                          consult is the practice's only 30-minute appointment
+    #                          type and the Hint API doesn't expose appointment type,
+    #                          so the rule is: duration == 30 min (from start/end),
+    #                          OR title/description contains "consult" as a fallback.
+    #   feed["appointments"] = the old practice-wide count (all types), same shape.
+    # A duration histogram (minutes -> count) is exported for sanity-checking.
+    # PHI note: aggregate counts only — titles and names are never exported.
     consults = None
+    appointments = None
     appts = list_appointments(month_start, month_end)
     if appts is not None:
-        # Robust, vocabulary-independent: a "completed consult" = an appointment whose
-        # start time is already in the past AND whose status isn't a cancellation. This
-        # avoids guessing Hint's exact "completed" status string. We also export
-        # scheduled_mtd (all non-cancelled this month, incl. upcoming) plus diagnostics.
-        status_counts = {}
-        occurred = 0
-        scheduled = 0
         CANCELLED = ("cancel", "declin", "no_show", "no-show", "noshow", "reschedul")
         START_KEYS = ("start_at", "starts_at", "start", "start_time", "scheduled_at", "date", "start_date")
+        END_KEYS = ("end_at", "ends_at", "end", "end_time", "end_date")
         now_dt = datetime.now(timezone.utc)
         start_field = None
+
+        def _parse_dt(raw):
+            try:
+                d = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                return d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d
+            except Exception:
+                return None
+
+        def _new_bucket():
+            return {"occurred": 0, "scheduled": 0, "status_counts": {}}
+
+        tot = _new_bucket()   # all appointments (old behaviour)
+        con = _new_bucket()   # consult-type only
+        duration_histogram = {}
+
         for a in appts:
             st = (a.get("status") or "unknown").lower()
-            status_counts[st] = status_counts.get(st, 0) + 1
             cancelled = any(t in st for t in CANCELLED)
-            if not cancelled:
-                scheduled += 1
             sraw = None
             for k in START_KEYS:
                 if a.get(k):
                     sraw = a.get(k)
                     start_field = start_field or k
                     break
-            started_appt = False
-            if sraw:
-                try:
-                    sd = datetime.fromisoformat(str(sraw).replace("Z", "+00:00"))
-                    if sd.tzinfo is None:
-                        sd = sd.replace(tzinfo=timezone.utc)
-                    started_appt = sd <= now_dt
-                except Exception:
-                    started_appt = False
-            if started_appt and not cancelled:
-                occurred += 1
-        consults = {
-            "completed_mtd": occurred,        # already happened & not cancelled = a real consult
-            "scheduled_mtd": scheduled,       # all non-cancelled this month (incl. upcoming)
-            "appointments_seen": len(appts),
-            "status_counts": status_counts,   # diagnostic: Hint's real status vocabulary
-            "start_field": start_field,       # diagnostic: which key held the start datetime
-            "appointment_keys": sorted(appts[0].keys()) if appts else [],  # diagnostic
-        }
+            eraw = None
+            for k in END_KEYS:
+                if a.get(k):
+                    eraw = a.get(k)
+                    break
+            sd = _parse_dt(sraw) if sraw else None
+            ed = _parse_dt(eraw) if eraw else None
+            started_appt = bool(sd and sd <= now_dt)
+            duration_min = None
+            if sd and ed:
+                duration_min = int(round((ed - sd).total_seconds() / 60))
+                dk = str(duration_min)
+                duration_histogram[dk] = duration_histogram.get(dk, 0) + 1
+            text_blob = " ".join(str(a.get(k) or "") for k in ("title", "description")).lower()
+            is_consult = (duration_min == 30) or ("consult" in text_blob)
+            for bucket, applies in ((tot, True), (con, is_consult)):
+                if not applies:
+                    continue
+                bucket["status_counts"][st] = bucket["status_counts"].get(st, 0) + 1
+                if not cancelled:
+                    bucket["scheduled"] += 1
+                    if started_appt:
+                        bucket["occurred"] += 1
+
+        def _block(b):
+            return {
+                "completed_mtd": b["occurred"],   # already happened & not cancelled
+                "scheduled_mtd": b["scheduled"],  # all non-cancelled this month (incl. upcoming)
+                "status_counts": b["status_counts"],
+                "start_field": start_field,
+                "appointment_keys": sorted(appts[0].keys()) if appts else [],
+            }
+
+        consults = _block(con)
+        consults["match_rule"] = "duration == 30 min (the practice's consult slot) OR title/description contains 'consult'"
+        appointments = _block(tot)
+        appointments["appointments_seen"] = len(appts)
+        appointments["duration_histogram"] = duration_histogram  # minutes -> count (sanity check)
+        if consults["scheduled_mtd"] == 0 and appointments["scheduled_mtd"] > 0:
+            warnings.append("Consult filter matched 0 appointments - Hint may use a different "
+                            "word than 'consult' in appointment titles. Check the vocabulary.")
     else:
         warnings.append("appointments endpoint unavailable - consults not exported this run.")
 
@@ -425,23 +547,30 @@ def main():
         "members_source": members_source,
         "members_pending": pending,                      # membership created but NO payment method on file
         "members_counted_basis": members_counted_basis,  # "paid" | "all_fallback"
+        "new_member_basis": signup_basis_field,          # "created_at" (real signups) | "start_date" (fallback)
+        "members_anchored_by_start_date": anchored_paid, # OLD basis: paid memberships whose start_date is this month (comparison)
         "payment_unknown": payment_unknown,              # payment status unverifiable (API error); excluded from both
         "pending_future_dated": pending_future_dated,    # separate diagnostic: status=='pending' or future-dated start
         "lead_source_field": lead_source_field,         # which patient key held it (or null)
         "lead_source_unmapped": lead_source_unmapped,    # raw values that fell to "other"
         "excluded_count": excluded_count,
+        "friends_family_excluded": friends_family_excluded,   # comp/F&F memberships dropped from the count
         "ambiguous_plans": sorted(set(ambiguous_plans)),
-        "consults": consults,
+        "consults": consults,          # consult-type appointments only (see match_rule)
+        "appointments": appointments,  # practice-wide appointment volume (old "consults")
         "warnings": warnings,
     }
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(feed, indent=2), encoding="utf-8")
     print(f"Wrote {out_path}")
-    print(json.dumps({k: feed[k] for k in ("period", "members", "members_pending",
+    print(json.dumps({k: feed[k] for k in ("period", "members", "new_member_basis",
+                                           "members_anchored_by_start_date", "members_pending",
                                            "members_counted_basis", "payment_unknown",
+                                           "friends_family_excluded",
                                            "members_source", "pending_future_dated",
-                                           "lead_source_field", "consults", "warnings")}, indent=2))
+                                           "lead_source_field", "consults", "appointments",
+                                           "warnings")}, indent=2))
 
     if args.probe:
         print("\n--- PROBE: lead-source field discovery (no names) ---")

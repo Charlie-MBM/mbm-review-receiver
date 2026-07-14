@@ -312,3 +312,54 @@ date=2026-07-09  dry_run=False  pending=1  go_live_at=None
 ** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
 =======================================================
 
+2026-07-10 09:30:01,723  INFO      nurture poller start (T5d): dry_run=False date=2026-07-10
+2026-07-10 09:30:04,454  INFO      nurture poller: 1 pending; 50 patients scanned; go_live_at=None approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-07-10  dry_run=False  pending=1  go_live_at=None
+- [needs_approval] Greg C. (mem-alHh4NEMbBDV) plan=Concierge - Medicare Beneficiary -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+
+2026-07-11 09:30:04,862  INFO      nurture poller start (T5d): dry_run=False date=2026-07-11
+2026-07-11 09:30:07,068  INFO      nurture poller: 1 pending; 50 patients scanned; go_live_at=None approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-07-11  dry_run=False  pending=1  go_live_at=None
+- [needs_approval] Greg C. (mem-alHh4NEMbBDV) plan=Concierge - Medicare Beneficiary -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+
+2026-07-12 09:30:01,657  INFO      nurture poller start (T5d): dry_run=False date=2026-07-12
+2026-07-12 09:30:04,027  INFO      nurture poller: 0 pending; 50 patients scanned; go_live_at=None approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-07-12  dry_run=False  pending=0  go_live_at=None
+No pending memberships. Nothing to do.
+=======================================================
+
+2026-07-13 09:30:02,512  INFO      nurture poller start (T5d): dry_run=False date=2026-07-13
+2026-07-13 09:30:05,280  INFO      nurture poller: 1 pending; 51 patients scanned; go_live_at=2026-07-13T15:08:06.609934+00:00 approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-07-13  dry_run=False  pending=1  go_live_at=2026-07-13T15:08:06.609934+00:00
+- [needs_approval] allyson w. (mem-6ZJB3wl0Rhvq) plan=Concierge 2026 -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+
+2026-07-14 09:30:01,580  INFO      nurture poller start (T5d): dry_run=False date=2026-07-14
+2026-07-14 09:30:04,689  INFO      nurture poller: 2 pending; 55 patients scanned; go_live_at=2026-07-13T15:08:06.609934+00:00 approved=0
+2026-07-14 09:30:11,381  INFO      canceled membership mem-R6kubnHgfC4B (end_date=2026-07-20)
+2026-07-14 09:30:11,382  INFO      AUDIT reconcile_cancel: {"ts": "2026-07-14T16:30:11.381112+00:00", "action": "reconcile_cancel", "patient_id": "pat-191oBijPhGoP", "membership_id": "mem-R6kubnHgfC4B", "reason": "duplicate link-conversion detected", "guards": {"other_record_signal": false, "our_separate_membership": true}, "dry_run": false}
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-07-14  dry_run=False  pending=2  go_live_at=2026-07-13T15:08:06.609934+00:00
+- [needs_approval] allyson w. (mem-6ZJB3wl0Rhvq) plan=Concierge 2026 -- pre-existing pending membership; awaiting Charlie approval (halt cond. 2)
+- [reconcile_cancel] Marian A. (mem-R6kubnHgfC4B) plan=SO - GLP-1 Semaglutide -- duplicate conversion -> canceled stale pending membership (once)
+
+** 1 pre-existing pending membership(s) AWAITING APPROVAL (not sent). **
+=======================================================
+

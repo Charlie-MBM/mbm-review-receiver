@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "go_live_at": null,
-    "last_run_at": "2026-07-09T16:30:08.313355+00:00",
+    "go_live_at": "2026-07-13T15:08:06.609934+00:00",
+    "last_run_at": "2026-07-14T16:30:11.382112+00:00",
     "version": 3
   },
   "mem-5E09FqbSumm8": {
@@ -11,6 +11,23 @@
     "reason": "reconciled_duplicate_conversion",
     "reconciled": true,
     "start_date": "2026-06-21",
+    "status": "suppressed"
+  },
+  "mem-6ZJB3wl0Rhvq": {
+    "created_at": "2026-07-12T20:09:23.868837-07:00",
+    "pat_id": "pat-jZs26sHhzesa",
+    "plan": "Concierge 2026",
+    "reason": "preexisting_back_scan",
+    "start_date": "2026-07-15",
+    "status": "pending_approval"
+  },
+  "mem-R6kubnHgfC4B": {
+    "created_at": "2026-07-13T11:58:44.728970-07:00",
+    "pat_id": "pat-191oBijPhGoP",
+    "plan": "SO - GLP-1 Semaglutide",
+    "reason": "reconciled_duplicate_conversion",
+    "reconciled": true,
+    "start_date": "2026-07-20",
     "status": "suppressed"
   },
   "mem-alHh4NEMbBDV": {

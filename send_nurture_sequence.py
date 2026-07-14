@@ -232,10 +232,11 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
 
     enrolled_at = _ensure_enrolled(state, mem_id, m, today)
     touches_sent = state[mem_id].get("touches_sent", [])
+    seq_days = E.sequence_days_for(m["plan_id"])
     plan["schedule"] = {f"day{d}": (datetime.fromisoformat(enrolled_at) + timedelta(days=d)).date().isoformat()
-                        for d in E.SEQUENCE_DAYS}
+                        for d in seq_days}
 
-    day = E.due_touch(enrolled_at, touches_sent)
+    day = E.due_touch(enrolled_at, touches_sent, m["plan_id"])
     if day is None:
         return _handle_complete_or_wait(plan, m, state, mem_id, pat_id, matched, our, other,
                                         contact, enrolled_at, touches_sent, name_red)
@@ -247,13 +248,13 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
 
     # ---- Send (with per-plan link on Day 0) ----
     url = E.signup_url_for(m["plan_id"])
-    body = E.render(day, first_name, url=url)
+    body = E.render(day, first_name, url=url, plan_id=m["plan_id"])
     ok = E.spruce_send_sms(phone_e164, body)
     if ok and not E.DRY_RUN:
         touches_sent = sorted(set(touches_sent + [day]))
         state[mem_id]["touches_sent"] = touches_sent
         state[mem_id]["last_touch_at"] = today.isoformat()
-        state[mem_id]["status"] = ("completed" if set(touches_sent) >= set(E.SEQUENCE_DAYS) else "active")
+        state[mem_id]["status"] = ("completed" if set(touches_sent) >= set(E.sequence_days_for(m["plan_id"])) else "active")
     plan.update(action=("would_send" if E.DRY_RUN else ("sent" if ok else "send_failed")),
                 day=day, reason=f"Day {day} touch{' (with link)' if (day == 0 and url) else ''}",
                 body_preview=body)
@@ -262,8 +263,10 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
 
 def _handle_complete_or_wait(plan, m, state, mem_id, pat_id, matched, our, other, contact,
                              enrolled_at, touches_sent, name_red):
-    if set(touches_sent) < set(E.SEQUENCE_DAYS):
-        nxt = next((d for d in E.SEQUENCE_DAYS if d not in touches_sent), None)
+    _seq = E.sequence_days_for(m["plan_id"])
+    _floor = max(touches_sent) if touches_sent else -1
+    nxt = next((d for d in _seq if d not in touches_sent and d > _floor), None)
+    if nxt is not None:
         plan.update(action="wait", reason=f"next touch Day {nxt} on {plan['schedule'].get(f'day{nxt}')}")
         return plan
     state[mem_id]["status"] = "completed"

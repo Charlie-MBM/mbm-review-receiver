@@ -122,6 +122,86 @@ NURTURE_TEXTS_LINKFREE = {
     ),
 }
 
+# --- Plan-family branching (2026-07) -----------------------------------------
+# Only Concierge individual + couple get the enriched 5-touch sequence with
+# price-accurate copy. Medicare + Service-Only stay on the agnostic 3-touch
+# (respects the "no Medicare language" rule + the D-006 service-agnostic gate).
+# Day 0 (link/link-free) and the verbatim Day 21 STOP are shared by all families.
+CONCIERGE_IND_PLANS = {"pln-xjukKCU9Xf6M"}        # Concierge 2026 (individual)
+CONCIERGE_COUPLE_PLANS = {"pln-MHIc5hNWtfhk"}     # Concierge 2026 - Couple
+SEQUENCE_DAYS_CONCIERGE = [0, 3, 7, 14, 21]
+NURTURE_EXCLUDE_PLANS = {"pln-BhgiC3jP0yzq"}  # Friends & Family $0 comp - never nurture or auto-cancel
+
+NURTURE_TEXTS_CONCIERGE_IND = {
+    3: (
+        "Hi {first_name}, James here. A fair question after our visit: is $300/mo "
+        "worth it? Honestly, it buys real time with your doctor, same-week access, "
+        "no copays, and no insurance to fight, with care built around keeping you "
+        f"well instead of a rushed visit months out. Whenever you're ready, just "
+        f"reply or call {OFFICE_LINE}."
+    ),
+    7: (
+        "Hi {first_name}, James checking in. If it helps to picture it: your first "
+        "visit is a full 60 to 90 minutes, your history, your goals, and thorough "
+        "labs, then a plan that's actually yours, with me a text away as things "
+        "come up. Glad to answer anything, just reply or call us when you're ready."
+    ),
+    14: (
+        "Hi {first_name}, one more thought. A lot of our members join as couples, "
+        "since the care works best when it's both of you, and it's $570/mo for the "
+        "two of you. If your partner would want in, I'm glad to fold them in. "
+        "Either way, just reply whenever you're ready."
+    ),
+}
+NURTURE_TEXTS_CONCIERGE_COUPLE = {
+    3: (
+        "Hi {first_name}, James here. A fair question after our visit: is $570/mo "
+        "for the two of you worth it? Honestly, it buys real time with your doctor "
+        "for both of you, same-week access, no copays, and no insurance to fight, "
+        f"with care built around keeping you well. Whenever you're ready, just "
+        f"reply or call {OFFICE_LINE}."
+    ),
+    7: (
+        "Hi {first_name}, James checking in. If it helps to picture it: your first "
+        "visits run a full 60 to 90 minutes each, your history, your goals, and "
+        "thorough labs for both of you, then a plan that's yours, with me a text "
+        "away as things come up. Glad to answer anything, just reply or call us "
+        "when you're ready."
+    ),
+    14: (
+        "Hi {first_name}, if it's mostly a matter of lining up two schedules, that "
+        "part's easy. We can enroll you both together and book your first visits "
+        f"back to back. Whenever you're ready, just reply or call {OFFICE_LINE}."
+    ),
+}
+
+
+def nurture_family(plan_id):
+    if plan_id in CONCIERGE_IND_PLANS:
+        return "concierge_ind"
+    if plan_id in CONCIERGE_COUPLE_PLANS:
+        return "concierge_couple"
+    return "agnostic"
+
+
+def sequence_days_for(plan_id):
+    if nurture_family(plan_id) in ("concierge_ind", "concierge_couple"):
+        return SEQUENCE_DAYS_CONCIERGE
+    return SEQUENCE_DAYS
+
+
+def texts_for(plan_id):
+    """Day->template map for this plan. Concierge families override days 3/7/14;
+    everyone else gets the agnostic 0/7/21 copy. Day 0 (linkfree) + Day 21 always
+    come from NURTURE_TEXTS_LINKFREE so the verbatim STOP line is never altered."""
+    fam = nurture_family(plan_id)
+    if fam == "concierge_ind":
+        return {**NURTURE_TEXTS_LINKFREE, **NURTURE_TEXTS_CONCIERGE_IND}
+    if fam == "concierge_couple":
+        return {**NURTURE_TEXTS_LINKFREE, **NURTURE_TEXTS_CONCIERGE_COUPLE}
+    return NURTURE_TEXTS_LINKFREE
+
+
 DENYLIST_NAME_SUBSTRINGS = [
     "zz-test", "zztest", "nurtureqa", "nurturecheck", "donotcontact", "do-not-contact",
 ]
@@ -190,10 +270,13 @@ def hint_list_pending_memberships() -> list:
             if m.get("status") != "pending":
                 continue
             pat_id, name = _patient_of_membership(m)
+            plan_id = (m.get("plan") or {}).get("id")
+            if plan_id in NURTURE_EXCLUDE_PLANS:
+                continue  # Friends & Family $0 comp - never nurture or auto-cancel
             out.append({
                 "mem_id": m.get("id"), "pat_id": pat_id, "patient_name": name,
                 "plan": (m.get("plan") or {}).get("name"),
-                "plan_id": (m.get("plan") or {}).get("id"),
+                "plan_id": plan_id,
                 "start_date": m.get("start_date"), "created_at": m.get("created_at"),
                 "status": m.get("status"),
             })
@@ -576,11 +659,11 @@ def signup_url_for(plan_id: str) -> str | None:
     return PLAN_SIGNUP_URLS.get(plan_id)
 
 
-def render(day: int, first_name: str, url: str | None = None) -> str:
+def render(day: int, first_name: str, url: str | None = None, plan_id: str | None = None) -> str:
     name = first_name.strip() if first_name else "there"
     if day == 0 and url:
         return DAY0_LINK.format(first_name=name, url=url)
-    return NURTURE_TEXTS_LINKFREE[day].format(first_name=name)
+    return texts_for(plan_id)[day].format(first_name=name)
 
 
 def days_since(iso_dt: str) -> int:
@@ -604,9 +687,11 @@ def days_until(date_str: str) -> int | None:
         return None
 
 
-def due_touch(enrolled_at: str, touches_sent: list) -> int | None:
+def due_touch(enrolled_at: str, touches_sent: list, plan_id: str | None = None) -> int | None:
     elapsed = days_since(enrolled_at)
-    due = [d for d in SEQUENCE_DAYS if elapsed >= d and d not in touches_sent]
+    days = sequence_days_for(plan_id)
+    floor = max(touches_sent) if touches_sent else -1   # forward-only: never back-touch
+    due = [d for d in days if elapsed >= d and d not in touches_sent and d > floor]
     return max(due) if due else None
 
 

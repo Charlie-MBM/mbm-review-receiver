@@ -87,6 +87,20 @@ import sys
 import consult_count
 from datetime import datetime, timedelta, timezone
 
+# Friends & Family / comp memberships are real signups but NOT acquisition new members.
+# Reuse export_dashboard_members' rule rather than restating it here -- these two counts
+# drifting apart is exactly what produced "14 new members" in the digest vs 3 in the
+# dashboard (the 11 F&F comps).
+try:
+    from export_dashboard_members import is_friends_family, plan_name_of
+except Exception:  # pragma: no cover - keep the digest shipping if the import breaks
+    def plan_name_of(m):
+        return ((m.get("plan") or {}).get("name")) or ""
+
+    def is_friends_family(plan_name):
+        n = (plan_name or "").lower()
+        return any(s in n for s in ("friends and family", "friends & family", "friend", "f&f"))
+
 try:
     from zoneinfo import ZoneInfo
     PACIFIC = ZoneInfo("America/Los_Angeles")
@@ -406,10 +420,17 @@ def _membership_is_paid(m):
 
 
 def count_members(memberships, daily_start, daily_end, month_start):
-    paid_day = paid_mtd = pend_day = pend_mtd = 0
+    paid_day = paid_mtd = pend_day = pend_mtd = ff_mtd = 0
     for m in memberships:
         status = (m.get("status") or m.get("enrollment_status") or "").lower()
         if status in DEAD_MEMBERSHIP:
+            continue
+        # Comp / Friends & Family: a real membership, but not an acquired new member.
+        # Without this the digest counted them and reported 14 MTD against the
+        # dashboard's 3 (11 F&F comps). Counted separately, never in paid/pending.
+        if is_friends_family(plan_name_of(m)):
+            if in_window(parse_dt(m.get("created_at")), month_start, daily_end):
+                ff_mtd += 1
             continue
         created = parse_dt(m.get("created_at"))
         if created is None:
@@ -423,7 +444,8 @@ def count_members(memberships, daily_start, daily_end, month_start):
             pend_mtd += 1 if in_mtd else 0
             pend_day += 1 if in_day else 0
     return {"paid_day": paid_day, "paid_mtd": paid_mtd,
-            "pending_day": pend_day, "pending_mtd": pend_mtd}
+            "pending_day": pend_day, "pending_mtd": pend_mtd,
+            "friends_family_mtd": ff_mtd}
 
 
 # ---------------------------------------------------------------------------
@@ -585,9 +607,18 @@ def selftest():
         {"id": "m3", "status": "active", "last_bill_amount_in_cents": 9900, "created_at": iso(datetime(2026, 6, 4, 9, tzinfo=PACIFIC))},
         {"id": "m4", "status": "cancelled", "never_been_billed": False, "created_at": iso(datetime(2026, 6, 13, 9, tzinfo=PACIFIC))},
         {"id": "m5", "status": "active", "never_been_billed": False, "created_at": iso(datetime(2026, 5, 28, 9, tzinfo=PACIFIC))},
+        # Comp / Friends & Family: paid-looking, created in-window, but NOT an acquisition.
+        # Must land in friends_family_mtd and never in paid_*. Regression guard for the
+        # "digest said 14 new members, dashboard said 3" bug (the 11 F&F comps).
+        {"id": "m6", "status": "active", "never_been_billed": False, "plan": {"name": "Friends & Family"},
+         "created_at": iso(datetime(2026, 6, 13, 14, tzinfo=PACIFIC))},
+        {"id": "m7", "status": "active", "never_been_billed": False, "plan": {"name": "Friends and Family - comp"},
+         "created_at": iso(datetime(2026, 6, 4, 10, tzinfo=PACIFIC))},
     ]
     mc = count_members(mems, d_start, d_end, m_start)
-    assert mc == {"paid_day": 1, "paid_mtd": 2, "pending_day": 1, "pending_mtd": 1}, mc
+    assert mc == {"paid_day": 1, "paid_mtd": 2, "pending_day": 1, "pending_mtd": 1,
+                  "friends_family_mtd": 2}, mc
+    assert mc["paid_mtd"] == 2, "F&F comps must never inflate the new-member count"
 
     # Digest with GA4 unavailable (the safe fallback shape):
     sms_no_ga4 = build_sms("MBM daily", label, None, None, (1, 2), mc)
@@ -640,6 +671,12 @@ def selftest():
 def main():
     ap = argparse.ArgumentParser(description="Daily Hint bookings/members summary (SMS + optional email).")
     ap.add_argument("--dry-run", action="store_true", help="Print the digest, send nothing.")
+    ap.add_argument("--no-send", action="store_true",
+                    help="Do every pull and advance the consult tally, but send nothing. This is "
+                         "the TALLY-KEEPER mode for the daily task now that the digest went weekly: "
+                         "consult_count's month-to-date tally only advances on runs, so if nothing "
+                         "runs daily the count silently under-reports. Same effect as --dry-run but "
+                         "named for intent, so nobody later 'cleans up' a stray dry-run task.")
     ap.add_argument("--send", action="store_true", help="Force a real send (ignores DRY_RUN env).")
     ap.add_argument("--window", choices=["yesterday", "today", "24h", "last_7d"], default="yesterday",
                     help="What the daily number covers. Default: yesterday. Use last_7d for the weekly digest.")
@@ -654,6 +691,10 @@ def main():
     if args.send:
         DRY_RUN = False
     if args.dry_run:
+        DRY_RUN = True
+    # --no-send wins over --send: the daily tally-keeper must never text, even if a wrapper
+    # or .env still forces sending.
+    if args.no_send:
         DRY_RUN = True
 
     if not HINT_API_KEY:

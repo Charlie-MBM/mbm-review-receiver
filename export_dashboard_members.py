@@ -20,6 +20,17 @@ API we fall back to start_date and flag it; if the payment endpoint can't be rea
 member in a run, we fall back to counting all memberships (old behavior) and flag it in
 `warnings` rather than zeroing the dashboard.
 
+CONSULT DEFINITION (2026-07 fix): a consult is a booking whose non-staff attendee is still a
+Contact (no patient id) = a real prospect -- the same rule consult_count.py/send_daily_summary
+already use in prod. The OLD rule (duration == 30 min OR 'consult' in the title) assumed the
+free consult was the practice's only 30-minute slot; it isn't (follow-ups and member visits
+share it), so July over-reported 14 when the true booked count was 7. Because Hint DELETES the
+Contact attendee once a prospect enrols, counting retroactively over a month window under-reports
+converted consults -- so the authoritative "booked this month" number is the never-decaying tally
+consult_count.py persists each daily run, surfaced here as consults.booked_mtd_running_tally
+(and flagged if that state file has gone stale). The old count ships as `consults_legacy_30min`
+purely so the gap stays visible.
+
 GUARDRAILS (mirrors nurture_engine's philosophy):
   * READ-ONLY. Only HTTP GETs to Hint. No writes, no Spruce, no SMS, no DRY_RUN
     needed. Does NOT import or touch the review/nurture senders or their state.
@@ -247,6 +258,42 @@ def map_source(raw):
     return "other"
 
 
+# Single source of truth for "is this booking a real prospect consult?" -- reuse the rule
+# consult_count.py / send_daily_summary.py already run in prod rather than re-deriving it.
+try:
+    from consult_count import is_consult_booking as _is_consult_booking
+except Exception:  # pragma: no cover - consult_count sits next to this file
+    def _is_consult_booking(a):
+        for att in (a.get("attendees") or []):
+            if (att.get("type") or "").lower() == "staff":
+                continue
+            return ((att.get("patient") or {}) or {}).get("id") is None
+        return False
+
+CONSULT_STATE_FILE = Path(__file__).parent / "consult_count_state.json"
+
+
+def read_consult_tally(period):
+    """The erasure-proof monthly consult tally maintained by consult_count.py on each daily
+    summary run. Returns None if missing or for a different month. Also reports how stale the
+    state file is, since the tally only advances when the daily poller actually runs."""
+    try:
+        st = json.loads(CONSULT_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if st.get("month") != period:
+        return None
+    written, stale_days = None, None
+    try:
+        mtime = datetime.fromtimestamp(CONSULT_STATE_FILE.stat().st_mtime, timezone.utc)
+        written = mtime.isoformat()
+        stale_days = (datetime.now(timezone.utc) - mtime).days
+    except Exception:
+        pass
+    return {"mtd_count": int(st.get("mtd_count") or 0),
+            "state_written": written, "stale_days": stale_days}
+
+
 CREATED_KEYS = ("created_at", "created", "enrolled_at", "signed_up_at", "createdAt", "created_on")
 
 
@@ -463,6 +510,8 @@ def main():
     # PHI note: aggregate counts only — titles and names are never exported.
     consults = None
     appointments = None
+    consults_legacy_30min = None
+    consults_running = None
     appts = list_appointments(month_start, month_end)
     if appts is not None:
         CANCELLED = ("cancel", "declin", "no_show", "no-show", "noshow", "reschedul")
@@ -481,8 +530,9 @@ def main():
         def _new_bucket():
             return {"occurred": 0, "scheduled": 0, "status_counts": {}}
 
-        tot = _new_bucket()   # all appointments (old behaviour)
-        con = _new_bucket()   # consult-type only
+        tot = _new_bucket()      # all appointments (practice-wide volume)
+        con = _new_bucket()      # real consults: non-staff attendee is still a Contact
+        legacy = _new_bucket()   # OLD 30-min heuristic — exported for comparison only
         duration_histogram = {}
 
         for a in appts:
@@ -508,8 +558,13 @@ def main():
                 dk = str(duration_min)
                 duration_histogram[dk] = duration_histogram.get(dk, 0) + 1
             text_blob = " ".join(str(a.get(k) or "") for k in ("title", "description")).lower()
-            is_consult = (duration_min == 30) or ("consult" in text_blob)
-            for bucket, applies in ((tot, True), (con, is_consult)):
+            # REAL consult signal: the non-staff attendee is still a Contact (no patient id),
+            # i.e. an actual prospect. Same rule consult_count.py / send_daily_summary use.
+            is_consult = _is_consult_booking(a)
+            # Legacy rule kept ONLY to export the gap: 30 min is NOT unique to consults
+            # (follow-ups and member visits share the slot), which is why July read 14.
+            legacy_is_consult = (duration_min == 30) or ("consult" in text_blob)
+            for bucket, applies in ((tot, True), (con, is_consult), (legacy, legacy_is_consult)):
                 if not applies:
                     continue
                 bucket["status_counts"][st] = bucket["status_counts"].get(st, 0) + 1
@@ -528,13 +583,45 @@ def main():
             }
 
         consults = _block(con)
-        consults["match_rule"] = "duration == 30 min (the practice's consult slot) OR title/description contains 'consult'"
+        consults["match_rule"] = ("non-staff attendee is still a Contact (no patient id) = a real "
+                                  "prospect consult; same rule as consult_count.is_consult_booking")
+        consults["basis"] = "contact_attendee_window"
         appointments = _block(tot)
         appointments["appointments_seen"] = len(appts)
         appointments["duration_histogram"] = duration_histogram  # minutes -> count (sanity check)
-        if consults["scheduled_mtd"] == 0 and appointments["scheduled_mtd"] > 0:
-            warnings.append("Consult filter matched 0 appointments - Hint may use a different "
-                            "word than 'consult' in appointment titles. Check the vocabulary.")
+
+        # OLD basis, exported so the over-count stays visible instead of silent.
+        consults_legacy_30min = _block(legacy)
+        consults_legacy_30min["match_rule"] = "LEGACY/WRONG: duration == 30 min OR 'consult' in title/description"
+
+        # Erasure-proof running tally: Hint DELETES the Contact attendee once a prospect
+        # enrols, so a converted consult retroactively looks like a member visit and the
+        # window count above UNDER-reports. consult_count.py captures consults while they're
+        # still Contacts on each daily run and persists a monthly tally that never decays --
+        # that's the authoritative "consults booked this month" number.
+        consults_running = read_consult_tally(period)
+        if consults_running is not None:
+            consults["booked_mtd_running_tally"] = consults_running["mtd_count"]
+            consults["tally_state_written"] = consults_running["state_written"]
+            consults["basis"] = "contact_attendee_running_tally"
+            if consults_running["stale_days"] is not None and consults_running["stale_days"] >= 2:
+                warnings.append(
+                    f"consult_count_state.json was last written {consults_running['state_written']} "
+                    f"(~{consults_running['stale_days']}d ago) - the daily summary poller may have "
+                    f"stopped. The running consult tally only advances when it runs, so "
+                    f"booked_mtd_running_tally ({consults_running['mtd_count']}) may be UNDER-counting.")
+        else:
+            warnings.append("No consult_count_state.json for this month - falling back to the "
+                            "in-window Contact-attendee count, which UNDER-reports consults that "
+                            "already converted to members (Hint erases the Contact attendee on enrol).")
+
+        if consults_legacy_30min["scheduled_mtd"] != consults["scheduled_mtd"]:
+            warnings.append(
+                f"consults by REAL signal (Contact attendee) = {consults['scheduled_mtd']} in-window"
+                + (f" / {consults_running['mtd_count']} booked-MTD running tally" if consults_running else "")
+                + f", but the OLD 30-min heuristic = {consults_legacy_30min['scheduled_mtd']}. "
+                f"30 min is not unique to consults (follow-ups/member visits share the slot), so the "
+                f"old rule over-counted. Dashboard now uses the Contact-attendee basis.")
     else:
         warnings.append("appointments endpoint unavailable - consults not exported this run.")
 
@@ -556,8 +643,9 @@ def main():
         "excluded_count": excluded_count,
         "friends_family_excluded": friends_family_excluded,   # comp/F&F memberships dropped from the count
         "ambiguous_plans": sorted(set(ambiguous_plans)),
-        "consults": consults,          # consult-type appointments only (see match_rule)
-        "appointments": appointments,  # practice-wide appointment volume (old "consults")
+        "consults": consults,          # REAL prospect consults (Contact attendee); see match_rule/basis
+        "consults_legacy_30min": consults_legacy_30min,  # OLD 30-min heuristic — comparison only, do NOT use
+        "appointments": appointments,  # practice-wide appointment volume (all types)
         "warnings": warnings,
     }
 
@@ -569,8 +657,8 @@ def main():
                                            "members_counted_basis", "payment_unknown",
                                            "friends_family_excluded",
                                            "members_source", "pending_future_dated",
-                                           "lead_source_field", "consults", "appointments",
-                                           "warnings")}, indent=2))
+                                           "lead_source_field", "consults", "consults_legacy_30min",
+                                           "appointments", "warnings")}, indent=2))
 
     if args.probe:
         print("\n--- PROBE: lead-source field discovery (no names) ---")

@@ -78,19 +78,23 @@ def list_pending():
     return rows
 
 
-def conversion_scan(matched, our_pat_id, our_family):
+def conversion_scan(matched, our_pat_id, our_family, our_mem_id=None):
     """Across matched patient records, separate conversion signals on OUR record
-    vs OTHER (duplicate) records."""
-    our = {"card": False, "active": False, "nonpend_fam": False}
-    other = {"card": False, "active": False, "nonpend_fam": False}
+    vs OTHER (duplicate) records. our_mem_id is the pending membership under
+    evaluation; it is excluded from the OWN-record scan so the membership can't
+    read as its own duplicate."""
+    our = {"card": False, "active": False, "nonpend_fam": False, "active_fam": False}
+    other = {"card": False, "active": False, "nonpend_fam": False, "active_fam": False}
     for pt in matched:
         pid = pt.get("id")
         card = E.hint_has_payment_source(pid) is True
-        active, nonpend_fam = E.record_membership_signals(pt, our_family)
+        exclude = our_mem_id if pid == our_pat_id else None
+        active, nonpend_fam, active_fam = E.record_membership_signals(pt, our_family, exclude)
         tgt = our if pid == our_pat_id else other
         tgt["card"] = tgt["card"] or card
         tgt["active"] = tgt["active"] or active
         tgt["nonpend_fam"] = tgt["nonpend_fam"] or nonpend_fam
+        tgt["active_fam"] = tgt["active_fam"] or active_fam
     return our, other
 
 
@@ -160,9 +164,14 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
 
     # ---- Part B: cross-record (duplicate) suppression ----
     matched = E.match_records(all_patients, emails, phones)
-    our, other = conversion_scan(matched, pat_id, our_family)
+    our, other = conversion_scan(matched, pat_id, our_family, mem_id)
     other_any = other["card"] or other["active"] or other["nonpend_fam"]
-    our_separate_membership = our["active"] or our["nonpend_fam"]  # active != our pending mem
+    # Own-record conversion = a genuinely ACTIVE same-family membership (other than
+    # this pending one). Do NOT fire on an unrelated active membership (e.g. an
+    # active Concierge base plan alongside a pending GLP-1) or on a cancelled/
+    # expired same-family membership -- both misread as duplicates and wrongly
+    # cancelled legit pending signups (Marian, mem-R6kubnHgfC4B, 2026-07-14).
+    our_separate_membership = our["active_fam"]
     conversion_detected = our["card"] or our_separate_membership or other_any
     contact = E.spruce_contact_for_patient(contacts, pat_id, phone_e164)
 

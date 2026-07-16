@@ -397,19 +397,37 @@ def match_records(all_patients: list, emails: set, phones: set) -> list:
     return out
 
 
-def record_membership_signals(pt: dict, our_family: str):
+def record_membership_signals(pt: dict, our_family: str, exclude_mem_id: str = None):
     """Inspect a patient record's embedded memberships for conversion signals.
-    Returns (has_active, has_nonpending_same_family)."""
+    Returns (has_active, has_nonpending_same_family, has_active_same_family).
+
+    - has_active / has_nonpending_same_family: BROAD signals, correct for a
+      matched OTHER (duplicate) record where the record's mere existence + any
+      live/settled membership is itself the duplicate-conversion signal.
+    - has_active_same_family: the ONLY reliable "already converted on our OWN
+      record" signal -> a genuinely ACTIVE membership in the same family, other
+      than the pending membership under evaluation. Deliberately excludes:
+        * unrelated-family active memberships (e.g. an active Concierge base
+          membership does NOT mean a pending GLP-1 signup is a duplicate), and
+        * cancelled / expired same-family memberships (a prior lapsed GLP-1 is
+          not a conversion).
+      exclude_mem_id drops the pending membership itself from the scan.
+    """
     has_active = False
     nonpending_same_family = False
+    active_same_family = False
     for m in (pt.get("memberships") or []):
+        if exclude_mem_id and m.get("id") == exclude_mem_id:
+            continue
         st = (m.get("status") or "").lower()
         fam = plan_family((m.get("plan") or {}).get("name"))
         if st == "active":
             has_active = True
+            if fam == our_family:
+                active_same_family = True
         if st and st != "pending" and fam == our_family:
             nonpending_same_family = True
-    return has_active, nonpending_same_family
+    return has_active, nonpending_same_family, active_same_family
 
 
 def hint_has_future_appointment(pat_id: str) -> bool | None:

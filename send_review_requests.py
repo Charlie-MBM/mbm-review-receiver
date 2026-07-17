@@ -50,6 +50,7 @@ from hint_webhook_receiver import (
     extract_phi_minimal,
     fetch_patient,
     log,
+    MIN_DAYS_BETWEEN_REQUESTS,
 )
 
 try:
@@ -61,6 +62,27 @@ except ImportError:
 
 POLLER_STATE_KEY = "_poller_meta"
 DEFAULT_LOOKBACK_DAYS = 1
+
+# ── Walk-In / IV review branch config (feature-flagged; default OFF) ──────────
+# Separate, explicit review path for the two Service-Only plans below. It is a
+# no-op unless WALKIN_REVIEW_ENABLED=true in .env. It bypasses the member-only
+# guard (is_active_member) ONLY for these two plans — the plan membership itself
+# is the eligibility/consent basis (a paid same-day Walk-In / IV visit is a real
+# patient encounter, unlike the free consults the member guard excludes). The
+# member loop and is_active_member() are left untouched.
+#
+# NOTE (Hint UI config, not code): Hint's "Membership Created" (#3) automated
+# welcome message must be scoped OFF for pln-jnMH3ruMbXhm and pln-qHzXwjyZ8xPP
+# so these patients don't get a Hint welcome on top of the review touches.
+WALKIN_REVIEW_ENABLED = os.environ.get("WALKIN_REVIEW_ENABLED", "false").lower() == "true"
+WALKIN_REVIEW_PLANS = {
+    "pln-jnMH3ruMbXhm",  # SO - Walk-In
+    "pln-qHzXwjyZ8xPP",  # SO - IV
+}
+# 3-touch, engagement-gated cadence. Day offsets are measured from the FIRST
+# walk-in touch (Touch 1 on the next-morning run, Touch 2 at +3d, Touch 3 at +7d).
+WALKIN_TOUCH_OFFSET_DAYS = [0, 3, 7]
+WALKIN_MAX_TOUCHES = 3
 
 
 def parse_args() -> argparse.Namespace:
@@ -297,6 +319,278 @@ def is_active_member(patient: dict) -> bool:
     return (patient.get("membership_status") or "").lower() == "active"
 
 
+def _walkin_patient_id(m: dict):
+    """Patient id for a membership object. Mirrors nurture_engine._patient_of_membership:
+    prefer the embedded membership_patients[0].patient.id, fall back to patient_id."""
+    mps = m.get("membership_patients") or []
+    if mps and isinstance(mps[0], dict):
+        pid = (mps[0].get("patient") or {}).get("id")
+        if pid:
+            return pid
+    return m.get("patient_id")
+
+
+def fetch_walkin_iv_memberships_since(since_iso: str) -> list:
+    """Return [{patient_id, plan_id, membership_id, created_at}] for memberships on
+    the Walk-In / IV Service-Only plans created since `since_iso`.
+
+    Uses GET /api/provider/memberships with created_at[gte] + limit/offset
+    pagination (same endpoint the nurture engine polls). Filters by plan id and
+    re-checks created_at client-side, defensively. Skips non-`pat-` ids
+    (phantom-id guard). De-dupes to one row per patient.
+    """
+    url = f"{HINT_BASE_URL}/api/provider/memberships"
+    headers = {"Authorization": f"Bearer {HINT_API_KEY}"}
+    try:
+        since_dt = datetime.fromisoformat(since_iso.replace("Z", "+00:00"))
+    except Exception:
+        since_dt = datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)
+    if since_dt.tzinfo is None:
+        since_dt = since_dt.replace(tzinfo=timezone.utc)
+
+    out, seen, offset = [], set(), 0
+    while True:
+        params = {"created_at[gte]": since_dt.isoformat(), "limit": 100, "offset": offset}
+        try:
+            resp = http.get(url, headers=headers, params=params, timeout=30)
+            resp.raise_for_status()
+            batch = resp.json()
+            batch = batch if isinstance(batch, list) else batch.get("data", [])
+        except Exception as e:
+            log.error(f"walkin-review: failed to fetch memberships offset={offset}: {e}")
+            break
+        for m in batch:
+            plan_id = (m.get("plan") or {}).get("id")
+            if plan_id not in WALKIN_REVIEW_PLANS:
+                continue
+            created = m.get("created_at")
+            if created:
+                try:
+                    if datetime.fromisoformat(created.replace("Z", "+00:00")) < since_dt:
+                        continue  # older than the cursor — not a new signup
+                except Exception:
+                    pass
+            pid = _walkin_patient_id(m)
+            if not pid or not pid.startswith("pat-") or pid in seen:
+                continue
+            seen.add(pid)
+            out.append({
+                "patient_id": pid, "plan_id": plan_id,
+                "membership_id": m.get("id"), "created_at": created,
+            })
+        if len(batch) < 100:
+            break
+        offset += 100
+    return out
+
+
+def _walkin_in_progress_patients(state: dict) -> dict:
+    """{patient_id: plan_id} for patients with an active (started, not finished,
+    not stopped) walk-in sequence. These are the Touch 2 / Touch 3 candidates:
+    their membership was created before the current cursor, so they no longer
+    appear in the created-since poll — the cadence is driven from state instead.
+    """
+    out = {}
+    for pid, entry in state.items():
+        if not isinstance(pid, str) or pid.startswith("_") or not isinstance(entry, dict):
+            continue
+        walkin = entry.get("walkin") or {}
+        if walkin.get("stopped"):
+            continue
+        touches = walkin.get("touches", 0)
+        if 0 < touches < WALKIN_MAX_TOUCHES:
+            out[pid] = walkin.get("plan_id")
+    return out
+
+
+def _walkin_touch_due(entry: dict, now: datetime) -> tuple:
+    """Given the shared patient_state entry, decide whether a walk-in touch is due
+    now. Returns (due: bool, touch_num: int, reason: str). Touch N is scheduled at
+    first_touch_ts + WALKIN_TOUCH_OFFSET_DAYS[N-1]."""
+    walkin = entry.get("walkin") or {}
+    touches = walkin.get("touches", 0)
+    if walkin.get("stopped"):
+        return False, touches, f"walkin-stopped ({walkin.get('stopped')})"
+    if touches >= WALKIN_MAX_TOUCHES:
+        return False, touches, f"walkin-complete touches={touches}/{WALKIN_MAX_TOUCHES}"
+    if touches == 0:
+        return True, 1, "walkin-touch-1 due (new membership)"
+    anchor = walkin.get("first_touch_ts")
+    try:
+        anchor_dt = datetime.fromisoformat(anchor.replace("Z", "+00:00"))
+    except Exception:
+        return True, touches + 1, "walkin-touch due (no anchor)"
+    due_dt = anchor_dt + timedelta(days=WALKIN_TOUCH_OFFSET_DAYS[touches])
+    if now >= due_dt:
+        return True, touches + 1, f"walkin-touch-{touches + 1} due"
+    return False, touches, f"walkin-not-yet (next touch ~{due_dt.date()})"
+
+
+def _record_walkin_touch(patient_id: str, plan_id: str, touch_num: int):
+    """Record a sent walk-in touch. Updates the SHARED count / last_ask_ts (so the
+    member flow's 30-day spacing dedupe sees it) AND an additive `walkin` sub-dict
+    that tracks the 3-touch cadence. Old readers tolerate the extra key."""
+    state = _read_patient_state()
+    entry = state.get(patient_id, {"count": 0, "last_ask_ts": None})
+    now_iso = datetime.now(timezone.utc).isoformat()
+    entry["count"] = entry.get("count", 0) + 1
+    entry["last_ask_ts"] = now_iso
+    walkin = entry.get("walkin") or {}
+    if not walkin.get("first_touch_ts"):
+        walkin["first_touch_ts"] = now_iso
+    walkin["touches"] = walkin.get("touches", 0) + 1
+    walkin["last_touch_ts"] = now_iso
+    walkin["plan_id"] = plan_id
+    entry["walkin"] = walkin
+    state[patient_id] = entry
+    _write_patient_state(state)
+
+
+def _dispatch_walkin_review(patient_id, first_name, email, phone, plan_id, touch_num, reason) -> bool:
+    """Send one walk-in / IV review touch, replicating _dispatch_to_bridge's EXACT
+    DRY_RUN guard: in dry-run, log the intent and write NO state. Returns True only
+    when a touch actually went out (counted off the send helpers' bool return, never
+    off a state diff — avoids the 2026-06-22 dry-run-burns-state regression)."""
+    log.info(
+        f"[walkin] Processing: patient_id={patient_id} plan={plan_id} "
+        f"touch={touch_num}/{WALKIN_MAX_TOUCHES} "
+        f"email={'yes' if email else 'no'} phone={'yes' if phone else 'no'} "
+        f"dry_run={receiver.DRY_RUN} ({reason})"
+    )
+    email_ok = receiver.send_review_email(first_name=first_name, email=email) if email else False
+    sms_ok = receiver.send_review_sms(first_name=first_name, phone=phone) if phone else False
+
+    email_status = "ok" if email_ok else ("skip" if not email else "failed")
+    sms_status = "ok" if sms_ok else ("skip" if not phone else "failed")
+    log.info(f"[walkin] Delivery: email={email_status} sms={sms_status}")
+
+    if email_ok or sms_ok:
+        if receiver.DRY_RUN:
+            # Dry-run must NOT mutate persistent state (send helpers return truthy
+            # in dry-run). Without this guard a preview would "burn" the touch. (2026-06-22)
+            log.info(
+                f"[walkin] [DRY_RUN] Would record patient_id={patient_id} "
+                f"touch={touch_num} (state unchanged)"
+            )
+        else:
+            _record_walkin_touch(patient_id, plan_id, touch_num)
+            new_touches = (_read_patient_state().get(patient_id, {}).get("walkin") or {}).get("touches")
+            log.info(
+                f"[walkin] Recorded: patient_id={patient_id} "
+                f"touch={new_touches}/{WALKIN_MAX_TOUCHES}"
+            )
+        return True
+    return False
+
+
+def run_walkin_review_branch(since_iso: str, clicked_hashes: set) -> tuple:
+    """Walk-In / IV review branch. Returns (sent, skipped, errors).
+
+    STOP conditions (per touch): a Google-CTA click (click-tracker hash, forever),
+    an inbound STOP (honored at the Spruce/carrier level — Spruce will not deliver
+    to an opted-out number; a future inbound handler can also set walkin.stopped),
+    or completion of all 3 touches. Shares patient_state.json with the member flow
+    so the two paths never double-ask the same patient.
+    """
+    # FEATURE FLAG — default OFF. When disabled the whole branch is a no-op.
+    if not WALKIN_REVIEW_ENABLED:
+        log.info("walkin-review: WALKIN_REVIEW_ENABLED=false — branch disabled (no-op)")
+        return 0, 0, 0
+
+    now = datetime.now(timezone.utc)
+
+    # Touch 1 candidates: new Walk-In / IV memberships created since the cursor.
+    new_mems = fetch_walkin_iv_memberships_since(since_iso)
+    plan_by_pid = {}
+    for m in new_mems:
+        plan_by_pid.setdefault(m["patient_id"], m["plan_id"])
+
+    # Touch 2 / 3 candidates: in-progress sequences already recorded in state.
+    state = _read_patient_state()
+    for pid, plan_id in _walkin_in_progress_patients(state).items():
+        plan_by_pid.setdefault(pid, plan_id)
+
+    log.info(
+        f"walkin-review: {len(new_mems)} new membership(s), "
+        f"{len(plan_by_pid)} patient(s) to evaluate"
+    )
+
+    sent = skipped = errors = 0
+    for pid in sorted(plan_by_pid):
+        try:
+            plan_id = plan_by_pid[pid]
+            patient = fetch_patient(pid)
+            if not patient:
+                log.warning(f"walkin-review: could not fetch patient {pid} — counting as error")
+                errors += 1
+                continue
+
+            # Consent gate (in-branch): electronic communication consent required.
+            if patient.get("electronic_communication_consent_accepted") is not True:
+                log.info(
+                    f"walkin-review: SKIP patient_id={pid} — "
+                    f"electronic_communication_consent_accepted != true"
+                )
+                skipped += 1
+                continue
+
+            phi = extract_phi_minimal(patient)
+            if not phi:
+                log.info(f"walkin-review: patient {pid} has no email or phone — skipping")
+                skipped += 1
+                continue
+            first_name, email, phone = phi
+
+            # Click-tracker suppression — already clicked the CTA => stop forever.
+            fname_hash = hash_fname(first_name)
+            if fname_hash and fname_hash in clicked_hashes:
+                log.info(
+                    f"walkin-review: SKIP patient_id={pid} fname={first_name} "
+                    f"— already clicked review CTA (forever)"
+                )
+                skipped += 1
+                continue
+
+            # Cadence gate: which touch, and is it due yet?
+            entry = _read_patient_state().get(pid, {})
+            due, touch_num, reason = _walkin_touch_due(entry, now)
+            if not due:
+                log.info(f"walkin-review: SKIP patient_id={pid}: {reason}")
+                skipped += 1
+                continue
+
+            # Shared dedupe with the member flow: never double-ask. For Touch 1,
+            # honor the member flow's 30-day spacing if it already asked this
+            # patient (a prior last_ask_ts with no walk-in touch yet came from the
+            # member/appointment path).
+            if touch_num == 1:
+                last_ask_ts = entry.get("last_ask_ts")
+                if last_ask_ts:
+                    try:
+                        last_dt = datetime.fromisoformat(last_ask_ts.replace("Z", "+00:00"))
+                        if (now - last_dt).days < MIN_DAYS_BETWEEN_REQUESTS:
+                            log.info(
+                                f"walkin-review: SKIP patient_id={pid} — member flow "
+                                f"already asked within {MIN_DAYS_BETWEEN_REQUESTS}d "
+                                f"(shared spacing)"
+                            )
+                            skipped += 1
+                            continue
+                    except Exception:
+                        pass
+
+            if _dispatch_walkin_review(pid, first_name, email, phone, plan_id, touch_num, reason):
+                sent += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            log.error(f"walkin-review: exception processing {pid}: {e}")
+            errors += 1
+
+    log.info(f"walkin-review: done | sent={sent} skipped={skipped} errors={errors}")
+    return sent, skipped, errors
+
+
 def main():
     args = parse_args()
     if args.dry_run:
@@ -409,6 +703,18 @@ def main():
         except Exception as e:
             log.error(f"poller: exception processing {pid}: {e}")
             errors += 1
+
+    # ── Walk-In / IV review branch (feature-flagged; default OFF) ─────────────
+    # Separate, explicit path for the two Service-Only plans. No-op unless
+    # WALKIN_REVIEW_ENABLED=true. Shares patient_state.json + the click-hash set
+    # with the member flow, and folds its errors into the shared counter so the
+    # cursor only advances when BOTH the member loop and this branch ran clean.
+    # Cadence updated to 3-touch, overriding WALKIN_REVIEW_WIRING_DESIGN.md's
+    # single-ask design.
+    w_sent, w_skipped, w_errors = run_walkin_review_branch(since_iso, clicked_hashes)
+    sent += w_sent
+    skipped += w_skipped
+    errors += w_errors
 
     # Only advance last_run_at on a clean run, so any failed events get retried
     # on the next poll cycle.

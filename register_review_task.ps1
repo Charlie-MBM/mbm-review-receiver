@@ -17,7 +17,7 @@ $runner = Join-Path $repo "run_review_poller.bat"
 
 $action   = New-ScheduledTaskAction -Execute $runner -WorkingDirectory $repo
 $trigger  = New-ScheduledTaskTrigger -Daily -At 10:00am
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
 
 Register-ScheduledTask -TaskName "MBM-Review-Poller" `
     -Action $action -Trigger $trigger -Settings $settings `

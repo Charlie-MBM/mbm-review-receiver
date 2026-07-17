@@ -37,3 +37,11 @@ venv/
 .venv/
 env/
 consult_count_state.json
+
+# GCP service-account private keys (GA4 read). The key should live OUTSIDE this repo --
+# this is a second line of defence against a stray `git add .` (which is how 2b87d0b
+# swept 18 unrelated files into an "analytics:" commit).
+*service-account*.json
+*service_account*.json
+*-gcp-credentials*.json
+mbm-ga4-reader*.json

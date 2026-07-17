@@ -374,6 +374,94 @@ def main():
         print(f"ERROR: could not list memberships: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # --- Active member totals (2026-07-16: the dashboard North Star = active Concierge
+    # members vs the 300 goal). Counts ALL currently-active memberships (not just this
+    # month's signups), bucketed concierge/so. Status-based — Hint's billing truth for
+    # existing members; no per-patient payment calls (too heavy across the whole book).
+    # Test accounts and comp/F&F plans are excluded from the headline but reported
+    # alongside. Defensive: a failure here must never break the rest of the feed.
+    active_members = None
+    try:
+        _act = {"concierge": 0, "so": 0, "total": 0}
+        _act_ff = 0
+        _status_histogram = {}
+        for _m in all_mems:
+            _st = (_m.get("status") or "unknown").lower()
+            _status_histogram[_st] = _status_histogram.get(_st, 0) + 1
+            if _st != "active":
+                continue
+            _pid, _nm = patient_name_of_membership(_m)
+            if is_excluded(_nm):
+                continue
+            _plan = plan_name_of(_m)
+            if is_friends_family(_plan):
+                _act_ff += 1
+                continue
+            _b = bucket_plan(_plan)
+            _act[_b] += 1
+            _act["total"] += 1
+        active_members = dict(_act)
+        active_members["friends_family_active_excluded"] = _act_ff
+        active_members["status_histogram"] = _status_histogram
+        active_members["basis"] = "membership status == 'active'; comps/F&F and test accounts excluded"
+        if _act["total"] == 0:
+            warnings.append("active_members counted 0 with status=='active' — Hint may use a different "
+                            "status value for live memberships; see active_members.status_histogram "
+                            "and adjust the filter.")
+    except Exception as _e:
+        warnings.append(f"active_members tally failed ({_e}) — dashboard North Star falls back to "
+                        f"manual entry until fixed.")
+
+    # --- Terminations this month (2026-07-16: feeds net member growth = adds − terms).
+    # Hint's membership objects don't have a documented "terminated_at"; we look for the
+    # first present of several end-date keys, and separately count end-like statuses whose
+    # end date is unknowable. Defensive: never breaks the feed; exports its own diagnostics.
+    terminations = None
+    try:
+        _END_KEYS = ("end_date", "ended_at", "cancelled_at", "canceled_at",
+                     "termination_date", "terminated_at", "cancellation_date")
+        _END_STATUSES = ("cancelled", "canceled", "terminated", "ended", "inactive", "expired")
+        _t = {"concierge": 0, "so": 0, "total": 0}
+        _t_ff = 0
+        _end_field = None
+        _end_status_no_date = 0
+        for _m in all_mems:
+            _endraw = None
+            for _k in _END_KEYS:
+                if _m.get(_k):
+                    _endraw = _m.get(_k)
+                    _end_field = _end_field or _k
+                    break
+            _st = (_m.get("status") or "").lower()
+            if _endraw is None:
+                if any(s in _st for s in _END_STATUSES):
+                    _end_status_no_date += 1
+                continue
+            if not in_month(_endraw, y, mo):
+                continue
+            _pid2, _nm2 = patient_name_of_membership(_m)
+            if is_excluded(_nm2):
+                continue
+            _plan2 = plan_name_of(_m)
+            if is_friends_family(_plan2):
+                _t_ff += 1
+                continue
+            _t[bucket_plan(_plan2)] += 1
+            _t["total"] += 1
+        terminations = dict(_t)
+        terminations["friends_family_excluded"] = _t_ff
+        terminations["end_field"] = _end_field
+        terminations["end_status_without_date"] = _end_status_no_date
+        terminations["basis"] = "membership end-date in month; comps/F&F and test accounts excluded"
+        if _end_field is None and _end_status_no_date > 0:
+            warnings.append(f"terminations: no end-date field found on membership objects, but "
+                            f"{_end_status_no_date} membership(s) carry an end-like status. "
+                            f"Termination counts will read 0 until the right field is identified — "
+                            f"check membership object keys and extend _END_KEYS.")
+    except Exception as _e:
+        warnings.append(f"terminations tally failed ({_e}) — net-growth on the dashboard will "
+                        f"show adds only until fixed.")
+
     # --- Signup-date basis --------------------------------------------------
     # A "new member this month" should mean someone who SIGNED UP this month, i.e. the
     # membership's created_at is in the month -- NOT start_date, which is Hint's billing
@@ -629,6 +717,8 @@ def main():
         "generated_at": now.isoformat(),
         "period": period,
         "source": "hint-api",
+        "active_members": active_members,                # WHOLE-BOOK active counts (North Star: concierge vs 300 goal)
+        "terminations_mtd": terminations,                # memberships ENDED this month (net growth = members − this)
         "members": members,                              # PAID only (unless members_counted_basis == "all_fallback")
         "members_split": {"concierge": members["concierge"], "so": members["so"]},
         "members_source": members_source,
@@ -652,7 +742,7 @@ def main():
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(feed, indent=2), encoding="utf-8")
     print(f"Wrote {out_path}")
-    print(json.dumps({k: feed[k] for k in ("period", "members", "new_member_basis",
+    print(json.dumps({k: feed[k] for k in ("period", "active_members", "terminations_mtd", "members", "new_member_basis",
                                            "members_anchored_by_start_date", "members_pending",
                                            "members_counted_basis", "payment_unknown",
                                            "friends_family_excluded",

@@ -29,12 +29,16 @@
     --forest:#144120; --sage:#4A8D66; --lightsage:#94C1AB;
     --ink:#1c2b22; --muted:#5e6f64; --line:#e3e7e1; --bg:#FBFAF7; --card:#ffffff;
     --good:#2f7d50; --bad:#b4452f; --warn:#9a6b1f; --stale:#8a8f8a;
+    /* series palette — validated (dataviz six checks, light surface) 2026-07-17 */
+    --s-green:#20713F; --s-purple:#7059B3; --s-gold:#9C6F10; --s-blue:#2C6FC4; --s-terra:#C2703F;
+    --shadow-1:0 1px 2px rgba(28,43,34,.05),0 6px 16px -10px rgba(28,43,34,.10);
+    --shadow-2:0 3px 6px rgba(28,43,34,.06),0 12px 28px -12px rgba(28,43,34,.16);
     --display:'Cormorant Garamond',Georgia,'Times New Roman',serif;
     --body:'Source Serif 4',Georgia,'Times New Roman',serif;
     --label:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);line-height:1.5;font-size:15px}
+  body{margin:0;background:linear-gradient(180deg,#F3F2EB 0,var(--bg) 300px);color:var(--ink);font-family:var(--body);line-height:1.5;font-size:15px}
   .wrap{max-width:1080px;margin:0 auto;padding:22px 22px 80px}
   header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;border-bottom:2px solid var(--forest);padding-bottom:14px;margin-bottom:8px;flex-wrap:wrap}
   .brand h1{font-family:var(--display);font-weight:600;color:var(--forest);margin:0;font-size:30px;letter-spacing:.2px;line-height:1.05}
@@ -47,37 +51,43 @@
   h2.sec .rule{flex:1;height:1px;background:var(--line)}
   .sec-note{font-family:var(--label);font-size:12px;color:var(--muted);margin:0 0 14px}
   .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px;position:relative}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 17px;position:relative;box-shadow:var(--shadow-1);transition:box-shadow .18s ease,transform .18s ease}
+  .card:hover{box-shadow:var(--shadow-2);transform:translateY(-1px)}
   .card .k{font-family:var(--label);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-  .card .v{font-family:var(--label);font-weight:600;font-size:27px;color:var(--forest);margin-top:6px;letter-spacing:-.5px}
+  .card .v{font-family:var(--label);font-weight:650;font-size:28px;color:var(--forest);margin-top:6px;letter-spacing:-.4px}
+  .card .v.hero{font-size:48px;line-height:1.02;letter-spacing:-1.5px;font-weight:700}
   .card .v small{font-size:14px;color:var(--muted);font-weight:500}
   .card.stale{background:repeating-linear-gradient(135deg,#fff,#fff 9px,#f3f3ef 9px,#f3f3ef 12px)}
   .asof{font-family:var(--label);font-size:10px;color:var(--stale);margin-top:7px}
   .smalltag{font-family:var(--label);font-size:10px;font-weight:600;color:var(--muted);background:#eef1ec;border-radius:5px;padding:1px 6px;display:inline-block}
-  .goalbar{height:9px;border-radius:5px;background:#eef1ec;margin-top:10px;overflow:hidden}
-  .goalbar span{display:block;height:100%;background:linear-gradient(90deg,var(--forest),var(--sage))}
+  .goalbar{height:10px;border-radius:6px;background:#E7EDE7;margin-top:12px;overflow:hidden;position:relative}
+  .goalbar span{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#1B5B34,#3E9464);transition:width .6s cubic-bezier(.2,.7,.3,1)}
   /* status strip */
-  .status{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:14px}
+  .status{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-top:14px;box-shadow:var(--shadow-1)}
   .chips{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{font-family:var(--label);font-size:11px;font-weight:600;border-radius:999px;padding:4px 11px;display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:default}
-  .chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
-  .chip.fresh i{background:var(--good)} .chip.aging i{background:#c9a227} .chip.stale i{background:var(--bad)} .chip.manual i{background:#7a8a7d}
-  .alert{font-family:var(--label);font-size:13px;border-radius:10px;padding:11px 14px;margin-top:10px;display:flex;gap:10px;align-items:flex-start;line-height:1.55}
-  .alert.red{background:#fbeeea;color:#7c2d1c;border:1px solid #e4b6aa}
-  .alert.amber{background:#fbf3e6;color:var(--warn);border:1px solid #e7d3aa}
-  .alert.green{background:#eef4ef;color:var(--forest);border:1px solid var(--lightsage)}
+  .chip{font-family:var(--label);font-size:11px;font-weight:600;border-radius:999px;padding:4px 12px 4px 10px;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:#fff;color:var(--muted);cursor:default;transition:border-color .15s}
+  .chip:hover{border-color:#c9d3cb}
+  .chip i{width:8px;height:8px;border-radius:50%;display:inline-block;box-shadow:0 0 0 3px rgba(0,0,0,.035)}
+  .chip.fresh i{background:var(--good);box-shadow:0 0 0 3px rgba(47,125,80,.14)}
+  .chip.aging i{background:#c9a227;box-shadow:0 0 0 3px rgba(201,162,39,.16)}
+  .chip.stale i{background:var(--bad);box-shadow:0 0 0 3px rgba(180,69,47,.15)}
+  .chip.manual i{background:#7a8a7d}
+  .alert{font-family:var(--label);font-size:13px;border-radius:12px;padding:11px 14px 11px 13px;margin-top:10px;display:flex;gap:10px;align-items:flex-start;line-height:1.55}
+  .alert.red{background:#fdf1ee;color:#7c2d1c;border:1px solid #eccabf;border-left:3px solid var(--bad)}
+  .alert.amber{background:#fcf5e8;color:var(--warn);border:1px solid #ecd9b2;border-left:3px solid #c9a227}
+  .alert.green{background:#f0f6f1;color:var(--forest);border:1px solid #cfe3d5;border-left:3px solid var(--good)}
   .alert b{font-weight:700}
   .banner{font-family:var(--label);font-size:13px;border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:center}
   .banner.info{background:#eef4ef;color:var(--forest);border:1px solid var(--lightsage)}
   .banner.warn{background:#fbf3e6;color:var(--warn);border:1px solid #e7d3aa}
-  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:14px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:14px;box-shadow:var(--shadow-1)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
   /* funnel */
   .funnel{display:flex;flex-direction:column;gap:0}
   .fstage{display:flex;align-items:center;gap:12px;padding:2px 0}
   .fbar-wrap{flex:1}
-  .fbar{height:34px;border-radius:8px;background:linear-gradient(90deg,var(--forest),var(--sage));display:flex;align-items:center;padding:0 12px;color:#fff;font-family:var(--label);font-size:13px;font-weight:600;min-width:54px}
+  .fbar{height:28px;border-radius:0 6px 6px 0;background:linear-gradient(90deg,#1B5B34,#2E7D4F);display:flex;align-items:center;padding:0 12px;color:#fff;font-family:var(--label);font-size:12.5px;font-weight:600;min-width:54px;box-shadow:inset 0 -1px 0 rgba(0,0,0,.08)}
   .flabel{font-family:var(--label);font-size:12px;color:var(--muted);width:170px;text-align:right}
   .fconv{font-family:var(--label);font-size:11px;color:var(--sage);text-align:center;padding:2px 0 2px 182px}
   .fbar-split{padding:0;background:none;position:relative;overflow:hidden}
@@ -158,6 +168,7 @@
   <!-- FUNNEL -->
   <h2 class="sec">Acquisition Funnel<span class="rule"></span><span class="pill" id="funnelRange"></span></h2>
   <p class="sec-note">Month-to-date, each stage from its most truthful source: <b>site visits &amp; booking/phone taps</b> from GA4 · <b>Hint handoffs</b> = outbound clicks that actually reached the mtbakermedical.hint.com booking flow (GA4 outbound-click event) · <b>booked consults</b> and <b>new members</b> from Hint (the EHR — source of truth). Rates show a 95% confidence range because the counts are small; treat the range, not the point, as the truth.</p>
+  <div class="small" id="reachLine" style="margin:0 0 8px;padding:8px 12px;background:#F1F4EF;border:1px solid var(--line);border-radius:10px;font-size:12px"></div>
   <div class="panel"><div class="funnel" id="funnel"></div></div>
   <div class="grid2" style="margin-top:14px">
     <div class="panel">
@@ -179,6 +190,10 @@
   <!-- PAID -->
   <h2 class="sec">Paid Channels<span class="rule"></span><span class="pill" id="paidRange"></span></h2>
   <p class="sec-note"><b>Google Ads is true month-to-date</b> (GAQL, API v21). "Ad-attributed taps" counts GA4-imported booking/phone actions from the <i>All conversions</i> column — immune to the primary/secondary goal misconfiguration that silently zeroed the Conversions column Jul 2–16. Meta &amp; Nextdoor are manual weekly pulls with their own as-of dates.</p>
+  <div class="panel" style="margin-top:0;margin-bottom:14px">
+    <div class="small" style="font-weight:600;font-size:13px;color:var(--forest);margin-bottom:4px">Channel economics — cost per person delivered to the booking flow <span class="smalltag">the money table</span></div>
+    <div id="chanEcon"></div>
+  </div>
   <div class="cards" id="paidCards"></div>
   <div class="grid2" style="margin-top:14px">
     <div class="panel"><div class="small" style="margin-bottom:6px">Google Ads campaigns — month-to-date</div><div id="campTable"></div></div>
@@ -202,7 +217,7 @@
   <div id="seoBody">
     <div class="cards" id="seoKpis" style="margin-bottom:14px"></div>
     <div class="grid2">
-      <div class="panel"><div class="small" style="margin-bottom:6px">GSC clicks &amp; impressions <span class="small" style="font-weight:400">— dashed = current month projected</span></div><div class="chartbox"><canvas id="chGsc"></canvas></div></div>
+      <div class="panel"><div class="small" style="margin-bottom:6px">GSC clicks <span class="small" style="font-weight:400">— dashed = current month projected</span></div><div class="chartbox" style="height:86px"><canvas id="chGscClicks"></canvas></div><div class="small" style="margin:10px 0 6px">GSC impressions</div><div class="chartbox" style="height:86px"><canvas id="chGscImpr"></canvas></div></div>
       <div class="panel"><div class="small" style="margin-bottom:6px">Average position (lower is better)</div><div class="chartbox"><canvas id="chPos"></canvas></div></div>
     </div>
     <div class="panel" style="margin-top:14px;background:#f7faf8"><div class="small" id="gscProjNote" style="line-height:1.85"></div></div>
@@ -268,7 +283,7 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-17c";
+const DATA_VERSION = "2026-07-17g";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
@@ -309,8 +324,8 @@ const SNAPSHOT = {
     /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
        after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
        Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
-    users: {tappers:34, handoff:30, as_of:"2026-07-17",
-            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count"}
+    users: {tappers:34, handoff:30, booking_channel:33, as_of:"2026-07-17",
+            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: 3 phone-only people this month)"}
   },
   daily: { // Jul 1..16 (16th partial) — feeds the chart + anomaly detectors
     dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16"],
@@ -372,6 +387,27 @@ const SNAPSHOT = {
 SNAPSHOT.gbp_perf = {calls:11, website_clicks:11, direction_requests:51,
   window:"Jul 1–15", as_of:"2026-07-16", source:"GBP Performance API",
   june_baseline:{calls:13, website_clicks:29, direction_requests:67}};
+/* GBP → site attribution: GA4 events where sessionMedium == "gbp" (the profile's
+   website link was already UTM-tagged ?utm_source=google&utm_medium=gbp — verified
+   2026-07-17). Counts only profile→website clicks; profile CALLS and DIRECTIONS never
+   touch the site (see gbp_perf), and some Maps-app taps strip UTMs, so this UNDERCOUNTS
+   GBP's real contribution. Refresh task re-pulls MTD alongside the funnel queries. */
+SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07-17"};
+/* Channel economics (verified 2026-07-17): taps = booking+phone events by session
+   channel; hint_people = UNIQUE users whose outbound click reached mtbakermedical.hint.com
+   (GA4 totalUsers by channel). Spend windows differ where noted — never silently blend.
+   BELOW Hint's door attribution is blind for every channel until Hint lead source is
+   recorded at signup; this table measures cost per person DELIVERED TO the booking flow. */
+/* chan_people = unique users who reached a BOOKING CHANNEL (Hint page OR phone tap),
+   per session channel. Not summable across rows (one person can cross channels). */
+SNAPSHOT.channel_econ = { as_of:"2026-07-17", rows:[
+  {ch:"Organic search", spend:0,      window:"—",                    taps:29, chan_people:12, note:"strongest feeder, $0 marginal"},
+  {ch:"Google Ads (paid search)", spend:600.82, window:"MTD",        taps:9,  chan_people:7,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16"},
+  {ch:"Meta (paid social)", spend:13.51, window:"Jun 14–Jul 13 trailing", taps:11, chan_people:6, note:"ad REJECTED ~Jul 9 — taps came from ~9 delivery days; window mismatched, treat $/person as approximate", warn:true},
+  {ch:"Direct", spend:0, window:"—",                                 taps:9,  chan_people:5,  note:"includes people returning after seeing MBM elsewhere"},
+  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:2,  chan_people:1,  note:"UTM-attributed; badly undercounts — 11 profile CALLS + 51 direction requests this month bypass the site entirely"},
+  {ch:"Nextdoor", spend:59.93, window:"since Jul 8",                 taps:0,  chan_people:0,  note:"no pixel and no UTM on ad links — its traffic hides in Direct/Unassigned; tag the ad URLs to see it"}
+]};
 const GBP_LOCATION_ID = "3763111265482720361"; // from business.google.com URL (#mpd=~<id>)
 
 const KW={"nad iv therapy bellingham":{"t":1,"r":"/services/nad-therapy/","p":3,"kd":0,"v":0,"d":3},"perimenopause treatment bellingham":{"t":1,"r":"/conditions/perimenopause/","p":10,"kd":12,"v":0,"d":0},"perimenopause doctor bellingham":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":11,"v":0},"dexa scan near me":{"t":1,"r":"/dexa-scan-bellingham/","p":6,"kd":3,"v":22000},"longevity medicine bellingham":{"t":1,"r":"/longevity-medicine/","p":1,"kd":25,"v":0,"d":0},"anti-aging doctor bellingham":{"t":1,"r":"/longevity-medicine/","p":4,"kd":19,"v":0,"d":3},"longevity doctor near me":{"t":1,"r":"/longevity-medicine/","p":2,"kd":6,"v":250,"d":2},"medical weight loss bellingham":{"t":1,"r":"/conditions/weight-management/","p":7,"kd":36,"v":80,"d":9},"functional medicine doctor near me":{"t":1,"r":"/functional-medicine/","p":13,"kd":35,"v":15000},"functional medicine":{"t":1,"r":"/functional-medicine/","p":7,"kd":53,"v":44000},"functional medicine bellingham":{"t":1,"r":"/bellingham-functional-medicine/","p":18,"kd":36,"v":60,"d":10},"iv therapy near me":{"t":2,"r":"/services/iv-therapy/","p":9,"kd":2,"v":48000,"d":13},"iv therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":3,"v":10},"iv vitamin therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":9,"kd":3,"v":0,"d":-3},"myers cocktail bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":4,"v":0},"ketamine therapy bellingham":{"t":2,"r":"/services/ketamine-therapy/","p":2,"kd":22,"v":70,"d":0},"ketamine therapy near me":{"t":2,"r":"/services/ketamine-therapy/","p":3,"kd":11,"v":3200,"d":-1},"trt bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":1,"kd":0,"v":0,"d":18},"testosterone replacement therapy bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":4,"kd":0,"v":0},"testosterone clinic bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":7,"kd":0,"v":0},"weight loss clinic near me":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":6,"kd":36,"v":18000,"d":8},"glp-1 bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":2,"kd":7,"v":0,"d":-1},"weight loss injections bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":6,"kd":37,"v":0},"hrt near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":11,"kd":0,"v":2100,"d":4},"hormone replacement therapy near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":16,"kd":0,"v":3000,"d":0},"menopause doctor bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":19,"v":0},"hrt clinic near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":23,"kd":0,"v":1700,"d":5},"bioidentical hormone replacement therapy bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":21,"kd":0,"v":0,"d":4},"o-shot bellingham":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":0,"v":0},"ed treatment bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":0,"v":0,"d":12},"p-shot bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":12,"v":0},"gainswave bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":6,"kd":0,"v":0},"mens health bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":14,"kd":4,"v":0,"d":15},"gender affirming care bellingham":{"t":2,"r":"/services/gender-affirming-care/","p":15,"kd":0,"v":0,"d":-2},"custom supplements bellingham":{"t":2,"r":"/services/custom-supplements-and-nutraceutical/","p":7,"kd":0,"v":0,"d":-6},"depression treatment bellingham":{"t":2,"r":"/conditions/depression/","p":21,"kd":1,"v":30,"d":-17},"anxiety treatment bellingham":{"t":2,"r":"/conditions/anxiety/","p":null,"kd":0,"v":20},"bellingham concierge medicine":{"t":3,"r":"/","p":2,"kd":53,"v":0,"d":0},"concierge primary care bellingham":{"t":3,"r":"/","p":1,"kd":1,"v":0,"d":1},"concierge doctor bellingham":{"t":3,"r":"/","p":3,"kd":24,"v":0,"d":0},"direct primary care bellingham":{"t":3,"r":"/","p":4,"kd":24,"v":10},"bellingham primary care":{"t":3,"r":"/","p":null,"kd":21,"v":20},"mt baker medical":{"t":3,"r":"/","p":1,"kd":1,"v":20,"d":0},"concierge primary care":{"t":3,"r":"/concierge-primary-care/","p":1,"kd":30,"v":700,"d":6},"dr james scribner bellingham":{"t":3,"r":"/providers/dr-scribner/","p":1,"kd":0,"v":0,"d":1}};
@@ -402,7 +438,8 @@ const GBP = {
 let kwState={filter:"all", sortKey:"pos", sortDir:1};
 const PLATFORMS = ["google","meta","nextdoor"];
 const PLAT_LABEL = {google:"Google Ads", meta:"Meta", nextdoor:"Nextdoor"};
-const CH_COLOR = {organic:"#144120", google:"#4A8D66", meta:"#94C1AB", nextdoor:"#7a5ea7"};
+/* platform trio validated on white card surface (gold/blue/green) */
+const CH_COLOR = {organic:"#20713F", google:"#9C6F10", meta:"#2C6FC4", nextdoor:"#20713F"};
 
 /* ---------- storage ---------- */
 const store = {
@@ -543,8 +580,8 @@ function renderStatus(){
 }
 
 /* ---------- NORTH STAR ---------- */
-function card(k,v,extra,staleCls,asof){
-  return '<div class="card'+(staleCls?' stale':'')+'"><div class="k">'+k+'</div><div class="v">'+v+'</div>'+(extra||"")+(asof?('<div class="asof">'+asof+'</div>'):'')+'</div>';
+function card(k,v,extra,staleCls,asof,hero){
+  return '<div class="card'+(staleCls?' stale':'')+'"><div class="k">'+k+'</div><div class="v'+(hero?' hero':'')+'">'+v+'</div>'+(extra||"")+(asof?('<div class="asof">'+asof+'</div>'):'')+'</div>';
 }
 function renderNorthStar(){
   const period=selectedPeriod();
@@ -574,7 +611,7 @@ function renderNorthStar(){
   const schEl=(ch&&(ch.scheduled_mtd!=null||ch.scheduled!=null))?(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled):null;
   const compEl=(ch&&(ch.completed_mtd!=null||ch.completed!=null))?(ch.completed_mtd!=null?ch.completed_mtd:ch.completed):null;
   document.getElementById("northstar").innerHTML =
-    card("Active Concierge members", actHtml, actExtra, false, actAsof) +
+    card("Active Concierge members", actHtml, actExtra, false, actAsof, true) +
     card("New members — "+periodShort(period), fmtN(newTot)+' <small>('+fmtN(ms.concierge)+'C / '+fmtN(ms.so)+'SO)</small>',
       ((mp&&mp.total)?'<div class="small" style="margin-top:6px">+ '+fmtN(mp.total)+' pending payment ('+fmtN(mp.concierge)+'C/'+fmtN(mp.so)+'SO)</div>':'')+
       '<div class="small" style="margin-top:4px">'+escapeHtml(SNAPSHOT.members.basis)+'</div>'+smallN(),
@@ -596,9 +633,10 @@ function srcSegs(split, colors){
   if(tot<=0) segs='<span style="flex:1;background:#d3dcd5"></span>';
   return segs;
 }
-function fbar(val, w, split, colors){
-  if(split && colors) return '<div class="fbar fbar-split" style="width:'+w+'%"><span class="fnum">'+fmtN(val)+'</span>'+srcSegs(split,colors)+'</div>';
-  return '<div class="fbar" style="width:'+w+'%">'+fmtN(val)+'</div>';
+function fbar(val, w, split, colors, sub){
+  const txt=fmtN(val)+(sub?' <span style="font-weight:400;opacity:.9;font-size:10.5px">'+sub+'</span>':'');
+  if(split && colors) return '<div class="fbar fbar-split" style="width:'+w+'%"><span class="fnum">'+txt+'</span>'+srcSegs(split,colors)+'</div>';
+  return '<div class="fbar" style="width:'+w+'%">'+txt+'</div>';
 }
 function renderFunnel(){
   const period=selectedPeriod(); const f=getFunnel(period);
@@ -607,17 +645,19 @@ function renderFunnel(){
   const memRaw=store.get("members_split:"+period, null);
   const ch=store.get("consults_hint:"+period, null);
   const mp=store.get("members_pending:"+period, null);
-  const SRCC=[["organic","#144120","Organic search"],["direct","#4A8D66","Direct"],["google","#c7a14b","Google Ads"],["meta","#3b6ea5","Meta"],["other","#b8c2bb","Other"]];
-  const MEMC=[["concierge","#144120","Concierge"],["so","#4A8D66","SO"]];
+  const SRCC=[["organic","#20713F","Organic search"],["direct","#7059B3","Direct"],["google","#9C6F10","Google Ads"],["meta","#2C6FC4","Meta"],["other","#C2703F","Other"]];
+  const MEMC=[["concierge","#20713F","Concierge"],["so","#7059B3","SO"]];
   const visits=+f.site_visits||0;
   const taps=(+f.inq_booking||0)+(+f.inq_phone||0);
   const handoffs=+f.handoffs||0;
   const consults=(ch&&(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled))||(+f.consults||0);
   const memTot=memRaw?((+memRaw.concierge||0)+(+memRaw.so||0)):(+f.new_members||0);
+  // unique-people counts (GA4 totalUsers) — shown ON the bars so events vs people is never ambiguous
+  const uF=store.get("funnel_users:"+period,null)||(period===SNAPSHOT.period?SNAPSHOT.funnel_mtd.users:null);
   const stages=[
-    {label:"Site visits", val:visits, split:(src&&src.visits)||null, colors:SRCC},
-    {label:"Booking + phone taps", val:taps, split:(src&&src.inquiries)||null, colors:SRCC},
-    {label:"Reached Hint booking", val:handoffs, note:"outbound click to mtbakermedical.hint.com"},
+    {label:"Site visits", val:visits, split:(src&&src.visits)||null, colors:SRCC, sub:"sessions"},
+    {label:"Booking + phone taps", val:taps, split:(src&&src.inquiries)||null, colors:SRCC, sub:"taps"+(uF&&uF.tappers?(" · "+fmtN(uF.tappers)+" people"):"")},
+    {label:"Reached booking channel", val:handoffs+(+f.inq_phone||0), sub:fmtN(handoffs)+" Hint clicks + "+fmtN(+f.inq_phone||0)+" calls"+(uF&&uF.booking_channel?(" · "+fmtN(uF.booking_channel)+" people"):"")},
     {label:"Consults booked (Hint)", val:consults, isConsult:true},
     {label:"New paid members", val:memTot, split:(memRaw&&memTot>0)?memRaw:null, colors:MEMC, isMembers:true}
   ];
@@ -626,16 +666,24 @@ function renderFunnel(){
   for(let i=0;i<stages.length;i++){
     const s=stages[i]; const w=Math.max(6,(s.val/max)*100);
     let bar;
-    if(s.val>0||i<2) bar=fbar(s.val,w,s.split,s.colors);
+    if(s.val>0||i<2) bar=fbar(s.val,w,s.split,s.colors,s.sub);
     else bar='<div class="fbar fbar-empty" style="width:'+w+'%">0 <span class="fsub">'+(s.isMembers?'awaiting Hint':'none yet')+'</span></div>';
     html+='<div class="fstage"><div class="flabel">'+s.label+'</div><div class="fbar-wrap">'+bar+'</div></div>';
     if(i<stages.length-1){
       const next=stages[i+1];
       let note="";
       if(i===0) note=rateHTML(stages[1].val, s.val, "of visits tap book/call");
-      else if(i===1) note=rateHTML(next.val, s.val, "of taps reach the Hint booking page");
-      else if(i===2) note=rateHTML(next.val, s.val, "— consults include phone/walk-in bookings, not a strict subset");
-      else if(i===3) note=rateHTML(next.val, s.val, "— members can close from prior-month consults")+((mp&&mp.total)?(' <span class="rate">+ '+mp.total+' pending payment</span>'):'');
+      else if(i===1){
+        const bc=(uF&&uF.booking_channel)?+uF.booking_channel:null;
+        if(uF&&uF.tappers>0&&bc) note=rateHTML(Math.min(bc,+uF.tappers), +uF.tappers, "of the "+fmtN(uF.tappers)+" PEOPLE who tapped reached a booking channel (phone taps qualify by definition; the web-side loss is the Hint-page leak, panel below). Event-level drop ("+taps+"→"+fmtN(handoffs+(+f.inq_phone||0))+") is mostly repeat taps");
+        else note=rateHTML(next.val, s.val, "of taps reach a booking channel (events — repeat taps inflate this drop)");
+      }
+      else if(i===2){
+        const bc=(uF&&uF.booking_channel)?+uF.booking_channel:null;
+        if(bc) note=rateHTML(next.val, bc, "of the "+fmtN(bc)+" people who reached a booking channel booked a consult (walk-ins can add on top)");
+        else note=rateHTML(next.val, s.val, "— consults include phone/walk-in bookings, not a strict subset");
+      }
+      else if(i===3) note=rateHTML(next.val, (uF&&uF.handoff>0)?consults:s.val, "— members can close from prior-month consults")+((mp&&mp.total)?(' <span class="rate">+ '+mp.total+' pending payment</span>'):'');
       html+='<div class="fconv">'+note+'</div>';
     }
   }
@@ -645,6 +693,16 @@ function renderFunnel(){
     '<b>Consults &amp; members</b> come from the Hint EHR via the laptop poller: consults = '+escapeHtml((ch&&ch.rule)||SNAPSHOT.consults.rule)+'; members counted on '+escapeHtml(SNAPSHOT.members.basis)+'.<br>'+
     '<span style="font-style:italic">No impressions band here on purpose — search impressions are reach, not funnel, and they dwarf every real stage into invisibility. Bar counts are EVENTS (taps/clicks); the leak panel converts to unique people.</span></div>';
   document.getElementById("funnel").innerHTML=html;
+
+  // reach line — deliberately a LINE, not a funnel bar: impressions are reach, carry an
+  // estimated organic component, and would dwarf the real stages into invisibility
+  const rl=document.getElementById("reachLine");
+  if(rl){
+    const proj=projectMonth(SNAPSHOT.gsc.current);
+    const paidImpr=SNAPSHOT.gads.mtd.impressions||0;
+    const reach=(proj?proj.impressions:0)+paidImpr;
+    rl.innerHTML='<b>Search reach this month: ~'+fmtN(reach)+' impressions</b> <span style="color:var(--muted)">('+fmtN(paidImpr)+' paid actual + ~'+fmtN(proj?proj.impressions:0)+' organic projected). Reach, not funnel — it sits up here so it can\'t dwarf the stages that matter below.</span>';
+  }
 
   // leak box — counts PEOPLE where unique-user data exists; taps are events (~1.9/person)
   const uLive=store.get("funnel_users:"+period,null);
@@ -664,16 +722,17 @@ function renderFunnel(){
   }
   document.getElementById("leakBox").innerHTML=leakHtml;
 
-  // daily chart
+  // daily chart — emphasis pattern: the metric that matters (reached Hint) in the
+  // series green; taps de-emphasized in neutral gray
   barsAndLine("chDaily", SNAPSHOT.daily.dates,
-    [{label:"Taps", data:SNAPSHOT.daily.taps, backgroundColor:"rgba(74,141,102,.45)"},
-     {label:"Reached Hint", data:SNAPSHOT.daily.handoffs, backgroundColor:"rgba(20,65,32,.8)"}]);
+    [{label:"Taps", data:SNAPSHOT.daily.taps, backgroundColor:"#CBD4CC"},
+     {label:"Reached Hint", data:SNAPSHOT.daily.handoffs, backgroundColor:"#20713F"}]);
 }
 function renderMemberSource(){
   const el=document.getElementById("memSourceBar"); const legEl=document.getElementById("memSourceLegend"); if(!el) return;
   const period=selectedPeriod();
   const ms=store.get("members_source:"+period, null);
-  const order=[["google","Google","#144120"],["bing","Bing","#4A8D66"],["ai","AI","#7a5ea7"],["social","Social media","#3b6ea5"],["provider_referral","Provider/ER referral","#c7a14b"],["word_of_mouth","Word of mouth","#94C1AB"],["other","Other / not recorded","#b8c2bb"]];
+  const order=[["google","Google","#20713F"],["bing","Bing","#2C6FC4"],["ai","AI","#7059B3"],["social","Social media","#4A8DB5"],["provider_referral","Provider/ER referral","#9C6F10"],["word_of_mouth","Word of mouth","#61A879"],["other","Other / not recorded","#C2703F"]];
   const tot=ms?order.reduce((a,c)=>a+(+ms[c[0]]||0),0):0;
   if(!ms||tot<=0){ el.innerHTML='<div class="fbar fbar-empty" style="width:100%">awaiting Hint lead-source data</div>'; if(legEl) legEl.innerHTML=''; return; }
   let bar=''; order.forEach(c=>{ const v=+ms[c[0]]||0; if(v>0) bar+='<span style="flex:'+v+';background:'+c[2]+'" title="'+c[1]+': '+v+'"></span>'; });
@@ -708,6 +767,23 @@ function renderPaid(){
     nd.cls==="stale", "manual weekly · "+fmtAge(nd.ageH));
   document.getElementById("paidCards").innerHTML=cards;
 
+  // channel economics table
+  const ceEl=document.getElementById("chanEcon");
+  if(ceEl && SNAPSHOT.channel_econ){
+    let ce='<table><thead><tr><th>Channel</th><th class="num">Spend</th><th>Window</th><th class="num">Taps</th><th class="num">People → booking channel</th><th class="num">$ / person</th><th>Read with care</th></tr></thead><tbody>';
+    SNAPSHOT.channel_econ.rows.forEach(r=>{
+      const cpp=(r.spend>0 && r.chan_people>0)?(r.spend/r.chan_people):null;
+      ce+='<tr><td><b>'+escapeHtml(r.ch)+'</b></td>'+
+        '<td class="num">'+(r.spend>0?fmtUSD(r.spend):'<span style="color:var(--good);font-weight:600">$0</span>')+'</td>'+
+        '<td class="small">'+escapeHtml(r.window)+'</td>'+
+        '<td class="num">'+fmtN(r.taps)+'</td>'+
+        '<td class="num"><b>'+fmtN(r.chan_people)+'</b></td>'+
+        '<td class="num">'+(cpp!=null?('<b style="color:'+(cpp>50?'var(--bad)':'var(--forest)')+'">'+(r.warn?'~':'')+fmtUSD(cpp)+'</b>'):(r.spend>0?'<span class="pos-none">—</span>':'<span style="color:var(--good)">free</span>'))+'</td>'+
+        '<td class="small">'+escapeHtml(r.note)+'</td></tr>';
+    });
+    ce+='</tbody></table><div class="small" style="margin-top:8px;line-height:1.7"><b>Booking channel</b> = the person reached the Hint booking page OR tapped call — phone-first bookers count. Rows aren\'t summable (a person can cross channels). <b>What this table cannot say:</b> which channel produces MEMBERS — below the booking channel every row is blind until Lead Source is recorded at signup, and it weighs nothing for intent quality (search intent historically closes better than social). Windows differ where marked; never compare Meta\'s trailing spend to MTD as if equal. GBP\'s 11 profile calls live outside GA4 and can\'t be deduped into these counts. As of '+escapeHtml(SNAPSHOT.channel_econ.as_of)+'.</div>';
+    ceEl.innerHTML=ce;
+  }
   // campaign table (MTD)
   let ct='<table><thead><tr><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">CPC</th><th class="num">Conv*</th></tr></thead><tbody>';
   SNAPSHOT.gads.campaigns_mtd.forEach(c=>{
@@ -789,6 +865,9 @@ function renderGBP(){
     '<b>The bet:</b> '+escapeHtml(ce.thesis)+'<br>'+
     '<b>Baseline locked '+ce.baseline_locked+'</b> (pre-change). MBM is organic <b>#1</b> for concierge and TRT yet <b>absent from 4 of 5 packs</b> — that gap is what the category switch tests; it is not a content problem.<br>'+
     '<span style="font-style:italic">Pack position is a manual SERP read (no API) and personalises by proximity — treat ±1 as noise, and treat a single-point read as directional. Confounds on the readout: review velocity (hold the review-request cadence steady through '+ce.readout_on+') and any Google core update in the window.</span><br>'+
+    (SNAPSHOT.gbp_attrib
+      ? '<b>GBP → bookings funnel (UTM-attributed, MTD):</b> '+fmtN(SNAPSHOT.gbp_attrib.sessions)+' site sessions ('+fmtN(SNAPSHOT.gbp_attrib.users)+' people) · '+fmtN(SNAPSHOT.gbp_attrib.taps)+' booking/phone taps · '+fmtN(SNAPSHOT.gbp_attrib.handoffs)+' reached Hint booking <span class="small">(as of '+escapeHtml(SNAPSHOT.gbp_attrib.as_of||'')+' · undercounts: profile calls/directions never touch the site, and Maps-app taps can strip UTMs)</span><br>'
+      : '<b>GBP → bookings:</b> <span style="font-style:italic">awaiting UTM-attributed data.</span><br>')+
     (SNAPSHOT.gbp_perf
       ? '<b>GBP engagement baseline (pre-category-change, Performance API):</b> June = '+fmtN(SNAPSHOT.gbp_perf.june_baseline.calls)+' calls / '+fmtN(SNAPSHOT.gbp_perf.june_baseline.website_clicks)+' website clicks / '+fmtN(SNAPSHOT.gbp_perf.june_baseline.direction_requests)+' directions; Jul 1–15 = '+fmtN(SNAPSHOT.gbp_perf.calls)+' / '+fmtN(SNAPSHOT.gbp_perf.website_clicks)+' / '+fmtN(SNAPSHOT.gbp_perf.direction_requests)+'. <span style="font-style:italic">Jul 14 logged an anomalous 22 direction requests — check for a cause before crediting the category change at the readout. These are all-source profile actions (organic + maps + ads), broader than the Ads local-actions tile.</span>'
       : '<b style="color:var(--warn)">GBP Performance API not wired:</b> <span style="font-style:italic">'+escapeHtml(GBP.perf_blocker)+'</span>');
@@ -817,16 +896,21 @@ function renderSEO(){
     const n=labels.length;
     const spur=(lastActual,val)=>{ const a=new Array(n).fill(null); a[n-2]=lastActual; a[n-1]=val; return a; };
     const lastC=hist[hist.length-1].clicks, lastI=hist[hist.length-1].impressions, lastP=hist[hist.length-1].position;
-    lineChart("chGsc",labels,[
-      {label:"Clicks",data:cClicks,borderColor:"#144120",backgroundColor:"rgba(20,65,32,.07)",fill:true,yAxisID:"y"},
-      {label:"Impressions",data:cImpr,borderColor:"#94C1AB",backgroundColor:"rgba(148,193,171,.10)",fill:true,yAxisID:"y1"},
-      {label:"Clicks (proj.)",data:spur(lastC,proj.clicks),borderColor:"#144120",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false,yAxisID:"y"},
-      {label:"Impressions (proj.)",data:spur(lastI,proj.impressions),borderColor:"#94C1AB",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false,yAxisID:"y1"}
-    ],{scales:{x:{grid:{display:false},ticks:{font:{family:"Inter",size:10}}},y:{position:"left",beginAtZero:true,grid:{color:"#eef1ec"}},y1:{position:"right",beginAtZero:true,grid:{display:false}}}});
+    /* clicks & impressions are two measures of different scale → two small multiples
+       on ONE axis each (never a dual-axis chart) */
+    const NOLEG={plugins:{legend:{display:false}}};
+    lineChart("chGscClicks",labels,[
+      {label:"Clicks",data:cClicks,borderColor:"#20713F",backgroundColor:"rgba(32,113,63,.09)",fill:true},
+      {label:"Clicks (proj.)",data:spur(lastC,proj.clicks),borderColor:"#20713F",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
+    ],NOLEG);
+    lineChart("chGscImpr",labels,[
+      {label:"Impressions",data:cImpr,borderColor:"#61A879",backgroundColor:"rgba(97,168,121,.10)",fill:true},
+      {label:"Impressions (proj.)",data:spur(lastI,proj.impressions),borderColor:"#61A879",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
+    ],NOLEG);
     lineChart("chPos",labels,[
-      {label:"Avg position",data:cPos,borderColor:"#4A8D66",backgroundColor:"rgba(74,141,102,.10)",fill:true},
-      {label:"Avg position (MTD)",data:spur(lastP,proj.position),borderColor:"#4A8D66",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
-    ],{noZero:true,scales:{y:{reverse:true,grid:{color:"#eef1ec"},ticks:{font:{family:"Inter",size:10}}},x:{grid:{display:false},ticks:{font:{family:"Inter",size:10}}}}});
+      {label:"Avg position",data:cPos,borderColor:"#20713F",backgroundColor:"rgba(32,113,63,.08)",fill:true},
+      {label:"Avg position (MTD)",data:spur(lastP,proj.position),borderColor:"#20713F",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
+    ],{noZero:true,plugins:{legend:{display:false}},scales:{y:{reverse:true,grid:GRID,ticks:TICKS,border:{display:false}},x:{grid:{display:false},ticks:TICKS,border:{color:"#E3E7E1"}}}});
     renderProjNote(proj, hist[hist.length-1]);
   }
   renderKeywords();
@@ -925,29 +1009,42 @@ window.kwSort=function(k){ if(kwState.sortKey===k) kwState.sortDir*=-1; else { k
 /* ---------- charts ---------- */
 let CHARTS={};
 function destroyChart(id){ if(CHARTS[id]){CHARTS[id].destroy(); delete CHARTS[id];} }
+/* shared chart chrome: styled tooltip, hairline solid grid, recessive axes */
+const TOOLTIP={backgroundColor:"#1c2b22",titleFont:{family:"Inter",size:11,weight:"600"},
+  bodyFont:{family:"Inter",size:11},padding:10,cornerRadius:8,displayColors:true,
+  boxWidth:8,boxHeight:8,boxPadding:3,caretSize:5};
+const GRID={color:"#EEF1EC",drawTicks:false};
+const TICKS={font:{family:"Inter",size:10},color:"#7d8b81",padding:6};
 function lineChart(id, labels, datasets, opts){
   const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return;
   destroyChart(id);
+  datasets.forEach(d=>{ if(d.pointBorderColor==null){d.pointBorderColor="#fff";d.pointBorderWidth=2;} if(d.pointHoverRadius==null)d.pointHoverRadius=5; });
   CHARTS[id]=new Chart(el.getContext("2d"),{type:"line",data:{labels,datasets},options:Object.assign({
     responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:"index"},
-    plugins:{legend:{display:datasets.length>1,labels:{font:{family:"Inter",size:11},boxWidth:10}}},
-    scales:{x:{ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{display:false}},
-            y:{ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{color:"#eef1ec"},beginAtZero:!opts||!opts.noZero}},
-    elements:{point:{radius:2},line:{tension:.3,borderWidth:2}}
+    plugins:{legend:{display:datasets.length>1,labels:{font:{family:"Inter",size:11},boxWidth:8,boxHeight:8,usePointStyle:true,pointStyle:"circle"}},tooltip:TOOLTIP},
+    scales:{x:{ticks:TICKS,grid:{display:false},border:{color:"#E3E7E1"}},
+            y:{ticks:TICKS,grid:GRID,border:{display:false},beginAtZero:!opts||!opts.noZero}},
+    elements:{point:{radius:2.5},line:{tension:.35,borderWidth:2,borderCapStyle:"round",borderJoinStyle:"round"}}
   },opts||{})});
 }
 function barChartStacked(id, labels, datasets){
   const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return; destroyChart(id);
+  datasets.forEach(d=>{ d.borderColor="#fff"; d.borderWidth=1; d.maxBarThickness=22; d.borderRadius=2; });
   CHARTS[id]=new Chart(el.getContext("2d"),{type:"bar",data:{labels,datasets},options:{
-    responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:"Inter",size:11},boxWidth:10}}},
-    scales:{x:{stacked:true,ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{display:false}},y:{stacked:true,beginAtZero:true,ticks:{font:{family:"Inter",size:10},color:"#5e6f64"},grid:{color:"#eef1ec"}}}
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{font:{family:"Inter",size:11},boxWidth:8,boxHeight:8,usePointStyle:true,pointStyle:"rectRounded"}},tooltip:TOOLTIP},
+    scales:{x:{stacked:true,ticks:TICKS,grid:{display:false},border:{color:"#E3E7E1"}},
+            y:{stacked:true,beginAtZero:true,ticks:TICKS,grid:GRID,border:{display:false}}}
   }});
 }
 function barsAndLine(id, labels, datasets){
   const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return; destroyChart(id);
+  datasets.forEach(d=>{ d.maxBarThickness=14; d.borderRadius={topLeft:3,topRight:3}; d.borderSkipped="bottom"; });
   CHARTS[id]=new Chart(el.getContext("2d"),{type:"bar",data:{labels,datasets},options:{
-    responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:"Inter",size:10},boxWidth:9}}},
-    scales:{x:{ticks:{font:{family:"Inter",size:9},color:"#5e6f64"},grid:{display:false}},y:{beginAtZero:true,ticks:{font:{family:"Inter",size:10},color:"#5e6f64",precision:0},grid:{color:"#eef1ec"}}}
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{font:{family:"Inter",size:10},boxWidth:8,boxHeight:8,usePointStyle:true,pointStyle:"rectRounded"}},tooltip:TOOLTIP},
+    scales:{x:{ticks:{font:{family:"Inter",size:9},color:"#7d8b81"},grid:{display:false},border:{color:"#E3E7E1"}},
+            y:{beginAtZero:true,ticks:Object.assign({},TICKS,{precision:0}),grid:GRID,border:{display:false}}}
   }});
 }
 

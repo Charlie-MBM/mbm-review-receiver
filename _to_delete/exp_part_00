@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""
+export_dashboard_members.py - READ-ONLY Hint -> dashboard feed.
+
+Pulls this-month's NEW memberships (Hint "Starting this month", membership-owner
+semantics) and each member's self-reported Lead Source via the Hint API, tallies
+AGGREGATE COUNTS ONLY (no names, no PHI), and writes a small JSON the MBM weekly
+dashboard refresh reads in place of the old browser scrape.
+
+NEW-MEMBER DEFINITION (2026-07 update): a membership counts as a real new member only if
+(1) it was CREATED this month (created_at in the month = actually signed up this month --
+NOT start_date, which is Hint's billing anchor and also fires for renewals, reactivations,
+plan changes and future-dated starts, which inflated the count), AND (2) it has a payment
+method on file (GET /patients/{id}/payment_methods, same signal the nurture engine uses).
+A membership with no payment method is "pending" and reported separately in `members_pending`
+- it is NOT counted in `members`. For transparency the OLD start_date-anchored count is still
+exported as `members_anchored_by_start_date` so the renewals-counted-as-new gap is visible,
+and `new_member_basis` records which date field was used. If created_at isn't exposed by the
+API we fall back to start_date and flag it; if the payment endpoint can't be reached for ANY
+member in a run, we fall back to counting all memberships (old behavior) and flag it in
+`warnings` rather than zeroing the dashboard.
+
+CONSULT DEFINITION (2026-07 fix): a consult is a booking whose non-staff attendee is still a
+Contact (no patient id) = a real prospect -- the same rule consult_count.py/send_daily_summary
+already use in prod. The OLD rule (duration == 30 min OR 'consult' in the title) assumed the
+free consult was the practice's only 30-minute slot; it isn't (follow-ups and member visits
+share it), so July over-reported 14 when the true booked count was 7. Because Hint DELETES the
+Contact attendee once a prospect enrols, counting retroactively over a month window under-reports
+converted consults -- so the authoritative "booked this month" number is the never-decaying tally
+consult_count.py persists each daily run, surfaced here as consults.booked_mtd_running_tally
+(and flagged if that state file has gone stale). The old count ships as `consults_legacy_30min`
+purely so the gap stays visible.
+
+GUARDRAILS (mirrors nurture_engine's philosophy):
+  * READ-ONLY. Only HTTP GETs to Hint. No writes, no Spruce, no SMS, no DRY_RUN
+    needed. Does NOT import or touch the review/nurture senders or their state.
+  * Output JSON contains ONLY aggregate counts + diagnostics. Never a patient name.
+  * Reuses the existing .env (HINT_API_KEY) - the key never leaves this laptop.
+
+USAGE:
+  py export_dashboard_members.py                 # write feed JSON for the current month
+  py export_dashboard_members.py --month 2026-06 # a specific month
+  py export_dashboard_members.py --probe         # ALSO print which patient field holds
+                                                 # Lead Source + the raw values seen
+                                                 # (run this once to confirm the API
+                                                 #  exposes lead source)
+  py export_dashboard_members.py --out PATH      # override output path
+
+The weekly dashboard task reads the file at FEED_OUT (default: the dashboard
+artifact's own folder, so the cloud task can read it as a sibling of index.html).
+"""
+
+import os
+import sys
+import json
+import argparse
+from datetime import datetime, timezone, date
+from pathlib import Path
+
+try:
+    import requests as http
+except ImportError:
+    import subprocess
+    subprocess.run(["pip", "install", "requests", "--break-system-packages", "-q"])
+    import requests as http
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+except ImportError:
+    pass
+
+# --- Config (reuses the review/nurture poller's .env) ------------------------
+HINT_ENV = os.environ.get("HINT_ENV", "production")
+HINT_API_KEY = os.environ.get("HINT_API_KEY", "")
+HINT_BASE_URL = (
+    "https://api.hint.com" if HINT_ENV == "production"
+    else "https://api.sandbox.hint.com"
+)
+
+# Default output: sibling of the dashboard artifact (the weekly task already reads
+# this folder via list_artifacts, so a file dropped here is trivially readable).
+DEFAULT_OUT = Path(os.environ.get(
+    "FEED_OUT",
+    r"C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboard\members_feed.json",
+))
+
+# The owner's own test account + obvious test records to exclude (by patient name).
+EXCLUDE_NAME_SUBSTRINGS = ["charles robert platt", "zztest", "zz-test", "test", "nurtureqa", "donotcontact"]
+
+# Membership PLAN types that are NOT real new members and must be excluded from the
+# member count (comp / non-acquisition memberships). Matched case-insensitively as a
+# substring of the Hint plan name. "friend" covers "Friends and Family" / "Friends & Family".
+# Charlie: confirm the exact plan name in Hint and adjust this list if it differs.
+EXCLUDE_PLAN_SUBSTRINGS = ["friends and family", "friends & family", "friend", "f&f"]
+
+# The 7 dashboard lead-source buckets (must match the dashboard + Hint dropdown).
+SOURCE_KEYS = ["google", "google_lsa", "bing", "ai", "social", "provider_referral", "word_of_mouth", "other"]
+
+# LSA kill/keep test window (dashboard "LSA test" tile; DASHBOARD_METRICS.md §1).
+# Patients attributed = members/SO with Hint Lead Source mapping to google_lsa,
+# signed up ON OR AFTER this date. Cumulative across months — not MTD.
+LSA_TEST_SINCE = "2026-07-17"
+
+
+def _headers():
+    return {"Authorization": f"Bearer {HINT_API_KEY}"}
+
+
+def _get(path, params=None):
+    r = http.get(f"{HINT_BASE_URL}{path}", headers=_headers(), params=params or {}, timeout=40)
+    r.raise_for_status()
+    return r
+
+
+def _as_list(payload):
+    return payload if isinstance(payload, list) else (payload.get("data", []) if isinstance(payload, dict) else [])
+
+
+# --- Hint reads --------------------------------------------------------------
+def list_memberships():
+    """All memberships, paginated. Membership-owner semantics (one object per
+    membership), so family memberships aren't double-counted."""
+    out, offset = [], 0
+    while True:
+        r = _get("/api/provider/memberships", {"limit": 100, "offset": offset})
+        batch = _as_list(r.json())
+        out += batch
+        total = r.headers.get("x-total-count")
+        if len(batch) < 100 or (total and len(out) >= int(total)):
+            break
+        offset += 100
+        if offset > 5000:  # safety
+            break
+    return out
+
+
+def get_patient(pat_id):
+    try:
+        r = _get(f"/api/provider/patients/{pat_id}")
+        return r.json() if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def get_payment_methods(pat_id):
+    """Return list (possibly empty) of payment methods on file, or None on error/unavailable.
+    Mirrors nurture_engine.hint_payment_methods (proven in prod since 2026-06)."""
+    if not pat_id:
+        return None
+    try:
+        r = http.get(f"{HINT_BASE_URL}/api/provider/patients/{pat_id}/payment_methods",
+                     headers=_headers(), timeout=20)
+        if r.status_code != 200:
+            return None
+        d = r.json()
+        return d if isinstance(d, list) else d.get("data", d)
+    except Exception:
+        return None
+
+
+def has_payment_source(pat_id):
+    """True = >=1 payment method on file; False = none on file; None = couldn't verify."""
+    pm = get_payment_methods(pat_id)
+    if pm is None:
+        return None
+    return len(pm) > 0
+
+
+def list_appointments(start_iso, end_iso):
+    out, offset = [], 0
+    while True:
+        try:
+            r = _get("/api/provider/appointments",
+                     {"start_date": start_iso, "end_date": end_iso, "limit": 100, "offset": offset})
+        except Exception:
+            return None
+        batch = _as_list(r.json())
+        out += batch
+        if len(batch) < 100:
+            break
+        offset += 100
+        if offset > 5000:
+            break
+    return out
+
+
+# --- Field extraction --------------------------------------------------------
+def patient_name_of_membership(m):
+    mps = m.get("membership_patients") or []
+    if mps and isinstance(mps[0], dict):
+        pt = mps[0].get("patient") or {}
+        return pt.get("id"), (pt.get("name") or "")
+    return m.get("patient_id"), ""
+
+
+def plan_name_of(m):
+    return ((m.get("plan") or {}).get("name")) or ""
+
+
+def bucket_plan(name):
+    """concierge vs so (standing-order / weight-loss / hormone), matching the
+    dashboard. Ambiguous -> concierge (and flagged by caller)."""
+    n = (name or "").lower()
+    if "concierge" in n or "membership" in n or "direct primary" in n or n.strip() == "dpc" or "dpc " in n:
+        return "concierge"
+    if (n.startswith("so") or "glp" in n or "semaglutide" in n or "tirzepatide" in n
+            or "trt" in n or "testosterone" in n or "hrt" in n or "hormone" in n
+            or "fitness glp" in n or "standing order" in n):
+        return "so"
+    return "concierge"  # ambiguous default
+
+
+def is_friends_family(plan_name):
+    """True if the plan is a comp / friends-and-family type that should NOT count as a
+    real new member. Matched as a case-insensitive substring of the plan name."""
+    n = (plan_name or "").lower()
+    return any(sub in n for sub in EXCLUDE_PLAN_SUBSTRINGS)
+
+
+def extract_lead_source(pt):
+    """Return (raw_value, found_key) for the patient's Lead Source.
+
+    Confirmed 2026-06-11 via --probe: Hint exposes it as the top-level string
+    field `lead_source`. We read that strictly (string, or an object with
+    name/value) and only a couple of exact alternates — NO loose/substring
+    scanning, which previously false-matched `preferred_language` when
+    lead_source was empty. Empty/missing -> (None, None) -> bucketed 'other'.
+    """
+    if not isinstance(pt, dict):
+        return None, None
+    v = pt.get("lead_source")
+    if isinstance(v, str) and v.strip():
+        return v.strip(), "lead_source"
+    if isinstance(v, dict):
+        nm = v.get("name") or v.get("value") or v.get("label")
+        if nm and str(nm).strip():
+            return str(nm).strip(), "lead_source"
+    for k in ("leadSource", "referral_source"):
+        vv = pt.get(k)
+        if isinstance(vv, str) and vv.strip():
+            return vv.strip(), k
+    return None, None
+
+
+def map_source(raw):
+    """Map a raw Hint Lead Source value to one of the 7 dashboard buckets."""
+    if not raw:
+        return "other"
+    r = raw.strip().lower()
+    # LSA must be checked BEFORE the google catch-all: "Google Local Services"
+    # contains "google" and would otherwise vanish into the generic bucket,
+    # making the LSA test tile's patients_attributed permanently zero.
+    if "local service" in r or "lsa" in r.replace("/", " ").replace("-", " ").replace("(", " ").replace(")", " ").split():
+        return "google_lsa"
+    if "bing" in r:
+        return "bing"
+    if "google" in r or "search" in r or "online" in r:
+        return "google"
+    if r == "ai" or "chatgpt" in r or "perplexity" in r or "artificial intel" in r or r.startswith("ai ") or r.endswith(" ai"):
+        return "ai"
+    if "social" in r or "facebook" in r or "instagram" in r or "meta" in r or "tiktok" in r or "youtube" in r:
+        return "social"
+    if "provider" in r or "referr" in r or "emergency" in r or " er" in f" {r}" or "doctor" in r or "physician" in r or "hospital" in r or "clinic" in r:
+        return "provider_referral"
+    if "word of mouth" in r or "friend" in r or "family" in r or "patient" in r or "spouse" in r:
+        return "word_of_mouth"
+    return "other"
+
+
+# Single source of truth for "is this booking a real prospect consult?" -- reuse the rule
+# consult_count.py / send_daily_summary.py already run in prod rather than re-deriving it.
+try:
+    from consult_count import is_consult_booking as _is_consult_booking
+except Exception:  # pragma: no cover - consult_count sits next to this file
+    def _is_consult_booking(a):
+        for att in (a.get("attendees") or []):
+            if (att.get("type") or "").lower() == "staff":
+                continue
+            return ((att.get("patient") or {}) or {}).get("id") is None
+        return False
+
+CONSULT_STATE_FILE = Path(__file__).parent / "consult_count_state.json"
+
+
+def read_consult_tally(period):
+    """The erasure-proof monthly consult tally maintained by consult_count.py on each daily
+    summary run. Returns None if missing or for a different month. Also reports how stale the
+    state file is, since the tally only advances when the daily poller actually runs."""
+    try:
+        st = json.loads(CONSULT_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if st.get("month") != period:
+        return None
+    written, stale_days = None, None
+    try:
+        mtime = datetime.fromtimestamp(CONSULT_STATE_FILE.stat().st_mtime, timezone.utc)
+        written = mtime.isoformat()
+        stale_days = (datetime.now(timezone.utc) - mtime).days
+    except Exception:
+        pass
+    return {"mtd_count": int(st.get("mtd_count") or 0),
+            "state_written": written, "stale_days": stale_days}
+
+
+CREATED_KEYS = ("created_at", "created", "enrolled_at", "signed_up_at", "createdAt", "created_on")
+
+
+def created_at_of(m):
+    """Membership signup timestamp (when the membership record was created in Hint), as
+    opposed to start_date (the billing anchor, which also moves on renewals / reactivations
+    / plan changes). Returns the first present of CREATED_KEYS, or None if none are exposed."""
+    if not isinstance(m, dict):
+        return None
+    for k in CREATED_KEYS:
+        v = m.get(k)
+        if v:
+            return v
+    return None
+
+
+def in_month(start_date_str, y, mo):
+    if not start_date_str:
+        return False
+    s = str(start_date_str)
+    try:
+        d = (datetime.fromisoformat(s).date() if "T" in s else datetime.strptime(s[:10], "%Y-%m-%d").date())
+        return d.year == y and d.month == mo
+    except Exception:
+        return False
+
+
+def is_excluded(name):
+    n = (name or "").lower()
+    return any(sub in n for sub in EXCLUDE_NAME_SUBSTRINGS)
+
+
+# --- Main --------------------------------------------------------------------
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--month", help="YYYY-MM (default: current month, UTC)")
+    ap.add_argument("--out", help="output JSON path")
+    ap.add_argument("--probe", action="store_true", help="print lead-source field + raw values seen")
+    args = ap.parse_args()
+
+    if not HINT_API_KEY:
+        print("ERROR: HINT_API_KEY not set (check .env)", file=sys.stderr)
+        sys.exit(2)
+
+    now = datetime.now(timezone.utc)
+    if args.month:
+        y, mo = int(args.month[:4]), int(args.month[5:7])
+    else:
+        y, mo = now.year, now.month
+    period = f"{y:04d}-{mo:02d}"
+    month_start = date(y, mo, 1).isoformat()
+    month_end = (date(y + (mo == 12), (mo % 12) + 1, 1)).isoformat()  # first of next month (exclusive-ish)
+    out_path = Path(args.out) if args.out else DEFAULT_OUT
+
+    warnings = []
+    # A real new member = membership that started this month AND has a payment method
+    # on file. Membership but no payment = "pending". Mirrors the nurture engine's
+    # "assigned but hasn't paid" signal (GET /patients/{id}/payment_methods).
+    paid_members = {"concierge": 0, "so": 0, "total": 0}   # counted as new members (signed up this month)
+    paid_source = {k: 0 for k in SOURCE_KEYS}
+    anchored_paid = {"concierge": 0, "so": 0, "total": 0}  # OLD basis: start_date this month, paid (comparison only)
+    pending = {"concierge": 0, "so": 0, "total": 0}        # membership, NO payment on file
+    payment_unknown = 0                                    # payment status couldn't be verified (API error)
+    # Ungated tallies over every started membership — used only for the systemic-failure fallback.
+  

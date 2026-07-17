@@ -1,0 +1,304 @@
+  all_members = {"concierge": 0, "so": 0, "total": 0}
+    all_source = {k: 0 for k in SOURCE_KEYS}
+    pending_future_dated = 0
+    excluded_count = 0
+    friends_family_excluded = 0   # comp / friends-and-family memberships, NOT counted as new members
+    ambiguous_plans = []
+    lead_source_field = None
+    lead_source_unmapped = {}   # raw value -> count, for anything that landed in "other"
+    probe_rows = []
+
+    try:
+        all_mems = list_memberships()
+    except Exception as e:
+        print(f"ERROR: could not list memberships: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    # --- Active member totals (2026-07-16: the dashboard North Star = active Concierge
+    # members vs the 300 goal). Counts ALL currently-active memberships (not just this
+    # month's signups), bucketed concierge/so. Status-based — Hint's billing truth for
+    # existing members; no per-patient payment calls (too heavy across the whole book).
+    # Test accounts and comp/F&F plans are excluded from the headline but reported
+    # alongside. Defensive: a failure here must never break the rest of the feed.
+    active_members = None
+    try:
+        _act = {"concierge": 0, "so": 0, "total": 0}
+        _act_ff = 0
+        _status_histogram = {}
+        for _m in all_mems:
+            _st = (_m.get("status") or "unknown").lower()
+            _status_histogram[_st] = _status_histogram.get(_st, 0) + 1
+            if _st != "active":
+                continue
+            _pid, _nm = patient_name_of_membership(_m)
+            if is_excluded(_nm):
+                continue
+            _plan = plan_name_of(_m)
+            if is_friends_family(_plan):
+                _act_ff += 1
+                continue
+            _b = bucket_plan(_plan)
+            _act[_b] += 1
+            _act["total"] += 1
+        active_members = dict(_act)
+        active_members["friends_family_active_excluded"] = _act_ff
+        active_members["status_histogram"] = _status_histogram
+        active_members["basis"] = "membership status == 'active'; comps/F&F and test accounts excluded"
+        if _act["total"] == 0:
+            warnings.append("active_members counted 0 with status=='active' — Hint may use a different "
+                            "status value for live memberships; see active_members.status_histogram "
+                            "and adjust the filter.")
+    except Exception as _e:
+        warnings.append(f"active_members tally failed ({_e}) — dashboard North Star falls back to "
+                        f"manual entry until fixed.")
+
+    # --- Terminations this month (feeds net member growth = adds − terms).
+    # A TERMINATION means a PAYING member left. The nurture pipeline CANCELS stale unpaid
+    # pending memberships (day-30 cleanup / duplicate reconcile — see nurture_engine.py,
+    # CANCEL_REASON_CLEANUP + CANCEL_REASON_RECONCILE); those cancels carry end dates but
+    # are NOT churn (the person was never a paying member) and MUST be excluded (2026-07-17,
+    # Charlie's catch: mem-R6kubnHgfC4B reconcile-canceled 7/14 with end_date 7/20 would
+    # otherwise have counted as a July termination). Two gates:
+    #   1. cancellation_reason id in NURTURE_CANCEL_REASON_IDS -> nurture cleanup, excluded.
+    #   2. otherwise, the patient must have a payment method on file (same signal as the
+    #      new-member paid gate) -> no payment = never-paid pending, excluded; unverifiable
+    #      = counted separately as payment_unverified, never silently included.
+    # Defensive: never breaks the feed; exports its own diagnostics.
+    NURTURE_CANCEL_REASON_IDS = {"cnr-nQZGCIlgkXEl",   # "Contract expired" = day-30 cleanup
+                                 "cnr-XDiXnv3xSgom"}   # "Switched plans"   = duplicate reconcile
+    terminations = None
+    try:
+        _END_KEYS = ("end_date", "ended_at", "cancelled_at", "canceled_at",
+                     "termination_date", "terminated_at", "cancellation_date")
+        _END_STATUSES = ("cancelled", "canceled", "terminated", "ended", "inactive", "expired")
+        def _cancel_reason_id(m):
+            cr = m.get("cancellation_reason")
+            if isinstance(cr, dict):
+                return cr.get("id")
+            if isinstance(cr, str):
+                return cr
+            return None
+        _t = {"concierge": 0, "so": 0, "total": 0}
+        _t_ff = 0
+        _nurture_excluded = 0
+        _never_paid_excluded = 0
+        _pay_unverified = 0
+        _end_field = None
+        _end_status_no_date = 0
+        for _m in all_mems:
+            _endraw = None
+            for _k in _END_KEYS:
+                if _m.get(_k):
+                    _endraw = _m.get(_k)
+                    _end_field = _end_field or _k
+                    break
+            _st = (_m.get("status") or "").lower()
+            if _endraw is None:
+                if any(s in _st for s in _END_STATUSES):
+                    _end_status_no_date += 1
+                continue
+            if not in_month(_endraw, y, mo):
+                continue
+            _pid2, _nm2 = patient_name_of_membership(_m)
+            if is_excluded(_nm2):
+                continue
+            _plan2 = plan_name_of(_m)
+            if is_friends_family(_plan2):
+                _t_ff += 1
+                continue
+            # Gate 1: nurture/reconcile cancels are pipeline hygiene, not churn.
+            if _cancel_reason_id(_m) in NURTURE_CANCEL_REASON_IDS:
+                _nurture_excluded += 1
+                continue
+            # Gate 2: only ever-paying members count as terminations.
+            _pay2 = has_payment_source(_pid2) if _pid2 else None
+            if _pay2 is False:
+                _never_paid_excluded += 1
+                continue
+            if _pay2 is None:
+                _pay_unverified += 1
+                continue
+            _t[bucket_plan(_plan2)] += 1
+            _t["total"] += 1
+        terminations = dict(_t)
+        terminations["friends_family_excluded"] = _t_ff
+        terminations["nurture_cleanup_excluded"] = _nurture_excluded
+        terminations["never_paid_excluded"] = _never_paid_excluded
+        terminations["payment_unverified"] = _pay_unverified
+        terminations["end_field"] = _end_field
+        terminations["end_status_without_date"] = _end_status_no_date
+        terminations["basis"] = ("membership end-date in month, PAYING members only; nurture/"
+                                 "reconcile cancels, never-paid pendings, comps/F&F and test "
+                                 "accounts excluded")
+        if _pay_unverified > 0:
+            warnings.append(f"terminations: {_pay_unverified} ended membership(s) could not be "
+                            f"payment-verified and are excluded from the count — verify manually "
+                            f"in Hint whether they were paying members.")
+        if _end_field is None and _end_status_no_date > 0:
+            warnings.append(f"terminations: no end-date field found on membership objects, but "
+                            f"{_end_status_no_date} membership(s) carry an end-like status. "
+                            f"Termination counts will read 0 until the right field is identified — "
+                            f"check membership object keys and extend _END_KEYS.")
+    except Exception as _e:
+        warnings.append(f"terminations tally failed ({_e}) — net-growth on the dashboard will "
+                        f"show adds only until fixed.")
+
+    # --- Signup-date basis --------------------------------------------------
+    # A "new member this month" should mean someone who SIGNED UP this month, i.e. the
+    # membership's created_at is in the month -- NOT start_date, which is Hint's billing
+    # anchor and also fires for renewals / reactivations / plan changes / future-dated
+    # starts (that inflated the count). Prefer created_at; if Hint's membership objects
+    # don't expose it, fall back to start_date and flag it loudly.
+    has_created_field = any(created_at_of(m) is not None for m in all_mems)
+    signup_basis_field = "created_at" if has_created_field else "start_date"
+
+    def signup_in_month(m):
+        raw = created_at_of(m) if has_created_field else m.get("start_date")
+        return in_month(raw, y, mo)
+
+    if not has_created_field:
+        warnings.append("Hint membership objects did not expose a created_at/signup field this run - "
+                        "fell back to counting new members by start_date (may include renewals / "
+                        "reactivations). Check the membership object keys and update CREATED_KEYS if "
+                        "the field name differs.")
+
+    # Primary set = signed up this month; also keep start_date-anchored memberships for the
+    # side-by-side comparison so the gap (renewals counted as 'new') stays visible.
+    relevant = [m for m in all_mems if signup_in_month(m) or in_month(m.get("start_date"), y, mo)]
+
+    for m in relevant:
+        pat_id, name = patient_name_of_membership(m)
+        if is_excluded(name):
+            excluded_count += 1
+            continue
+        plan = plan_name_of(m)
+        if is_friends_family(plan):
+            # Comp / friends-and-family membership: real signup, but not an acquisition
+            # new member. Exclude from members AND pending; report the count separately.
+            friends_family_excluded += 1
+            continue
+        b = bucket_plan(plan)
+        if b == "concierge" and plan and not any(t in plan.lower() for t in ("concierge", "membership", "direct primary", "dpc")):
+            ambiguous_plans.append(plan)
+
+        signup_in = signup_in_month(m)
+        started_in = in_month(m.get("start_date"), y, mo)
+
+        status = (m.get("status") or "").lower()
+        try:
+            future = datetime.strptime(str(m.get("start_date"))[:10], "%Y-%m-%d").date() > now.date()
+        except Exception:
+            future = False
+        if signup_in and (status == "pending" or future):
+            pending_future_dated += 1
+
+        # Lead source + payment status (read once; used by both bases).
+        raw, key = (None, None)
+        if pat_id:
+            pt = get_patient(pat_id)
+            raw, key = extract_lead_source(pt)
+            if key and not lead_source_field:
+                lead_source_field = key
+        bucket = map_source(raw)
+        has_pay = has_payment_source(pat_id) if pat_id else None
+
+        # PRIMARY basis = actually signed up this month (created_at, or start_date fallback).
+        if signup_in:
+            all_members[b] += 1            # ungated tally (used only for the systemic-failure fallback)
+            all_members["total"] += 1
+            all_source[bucket] += 1
+            if raw and bucket == "other":
+                lead_source_unmapped[raw] = lead_source_unmapped.get(raw, 0) + 1
+            if has_pay is True:
+                paid_members[b] += 1
+                paid_members["total"] += 1
+                paid_source[bucket] += 1
+            elif has_pay is False:
+                pending[b] += 1
+                pending["total"] += 1
+            else:
+                payment_unknown += 1
+
+        # COMPARISON basis = membership anchored (start_date) this month, old behaviour, paid only.
+        if started_in and has_pay is True:
+            anchored_paid[b] += 1
+            anchored_paid["total"] += 1
+
+        if args.probe:
+            probe_rows.append({"plan_bucket": b, "signup_in": signup_in, "started_in": started_in,
+                               "lead_source_raw": raw, "field": key,
+                               "mapped": bucket, "has_payment": has_pay})
+
+    # --- LSA test tile: patients attributed to Google Local Services ------------
+    # Cumulative since LSA_TEST_SINCE (crosses month boundaries — deliberately NOT
+    # scoped to `relevant`). Attributed = signup on/after the test start whose Hint
+    # Lead Source maps to google_lsa. Paid and pending are counted separately: the
+    # kill/keep rule evaluates on PAID patients only (pending can still be nurture-
+    # cancelled at day 30). PHI: aggregate counts only, no names exported.
+    lsa_test = {"since": LSA_TEST_SINCE, "patients_attributed": 0,
+                "attributed_pending": 0, "attributed_unverified_payment": 0,
+                "signups_checked": 0}
+    try:
+        for m in all_mems:
+            _raw_dt = created_at_of(m) if has_created_field else m.get("start_date")
+            if not _raw_dt or str(_raw_dt)[:10] < LSA_TEST_SINCE:
+                continue
+            _pid3, _nm3 = patient_name_of_membership(m)
+            if is_excluded(_nm3) or is_friends_family(plan_name_of(m)):
+                continue
+            lsa_test["signups_checked"] += 1
+            if not _pid3:
+                continue
+            _raw_src, _ = extract_lead_source(get_patient(_pid3) or {})
+            if map_source(_raw_src) != "google_lsa":
+                continue
+            _pay3 = has_payment_source(_pid3)
+            if _pay3 is True:
+                lsa_test["patients_attributed"] += 1
+            elif _pay3 is False:
+                lsa_test["attributed_pending"] += 1
+            else:
+                lsa_test["attributed_unverified_payment"] += 1
+        if lsa_test["attributed_unverified_payment"]:
+            warnings.append(f"lsa_test: {lsa_test['attributed_unverified_payment']} LSA-attributed "
+                            f"signup(s) could not be payment-verified — excluded from "
+                            f"patients_attributed; verify manually in Hint.")
+    except Exception as _e:
+        lsa_test = None
+        warnings.append(f"lsa_test tally failed ({_e}) — dashboard LSA test tile keeps last-good "
+                        f"attributed count (zero ≠ null: do not bake a fresh 0).")
+
+    # Choose the member basis. If payment status couldn't be verified for ANY member
+    # (systemic endpoint/scope failure), don't zero out the dashboard — fall back to the
+    # old "count all memberships" behavior and flag it loudly.
+    nonexcluded = all_members["total"]
+    if nonexcluded > 0 and payment_unknown == nonexcluded:
+        members = all_members
+        members_source = all_source
+        pending = {"concierge": 0, "so": 0, "total": 0}
+        members_counted_basis = "all_fallback"
+        warnings.append("payment_methods endpoint returned no data for ANY new membership this run - "
+                        "could not verify payment on file. Counted ALL new memberships as members "
+                        "(old behavior); pending split unavailable. Check API key scope / endpoint.")
+    else:
+        members = paid_members
+        members_source = paid_source
+        members_counted_basis = "paid"
+        if payment_unknown > 0:
+            warnings.append(f"{payment_unknown} new membership(s) could not be payment-verified (API error) "
+                            f"and are excluded from BOTH members and pending - verify manually in Hint.")
+
+    if friends_family_excluded:
+        warnings.append(f"{friends_family_excluded} friends-and-family / comp membership(s) matched "
+                        f"EXCLUDE_PLAN_SUBSTRINGS and were dropped from members + pending (not real "
+                        f"new members). Adjust EXCLUDE_PLAN_SUBSTRINGS if the plan name differs.")
+
+    if members["total"] != anchored_paid["total"]:
+        warnings.append(f"new-member count by SIGNUP date ({signup_basis_field}) = {members['total']}, "
+                        f"but by billing anchor (start_date) = {anchored_paid['total']}. The gap is "
+                        f"renewals / reactivations / plan-changes / future-dated starts that anchor this "
+                        f"month without being new signups. Dashboard uses the signup-date count.")
+
+    if members["total"] and members_source["other"] == members["total"] and lead_source_field is None:
+        warnings.append("No Lead Source field found on patient objects via the API - it may be UI-only. "
+                        "Falling back: members counted, but lead-source split is all 'other

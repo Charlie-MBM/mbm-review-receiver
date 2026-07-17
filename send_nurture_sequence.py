@@ -34,6 +34,7 @@ from datetime import datetime, timezone, timedelta
 
 import nurture_engine as E
 from nurture_engine import log
+import gcal_bookings  # ADDITIVE: mbm-book calendar reader for ads attribution (gated)
 
 APPROVED_FILE = E.SCRIPT_DIR / "nurture_approved.json"
 # Ratified (Charlie, 2026-06-10): Dan I. already said yes verbally, payment manual.
@@ -132,6 +133,161 @@ def attempt_cleanup(plan, m, state, mem_id, pat_id, our, other, contact, name_re
     return plan
 
 
+# --- Ads attribution + offline signup measurement -----------------------------
+# ADDITIVE. Invoked (from evaluate) when E.ADS_ATTRIB_ENABLED OR E.GA4_MP_ENABLED.
+# Two independent gates, two independent dedup sets:
+#   * ADS_ATTRIB_ENABLED -> queue a pending gclid conversion (main session uploads it)
+#   * GA4_MP_ENABLED      -> fire ONE GA4 MP call (signup_complete + membership_signup_complete)
+# This poller NEVER uploads to Google Ads and NEVER changes Ads config; the ads queue
+# is read/uploaded by the main Cowork session via Zapier.
+def _load_ads_queue() -> list:
+    try:
+        if E.ADS_CONVERSION_QUEUE_FILE.exists():
+            data = json.loads(E.ADS_CONVERSION_QUEUE_FILE.read_text())
+            return data if isinstance(data, list) else []
+    except Exception as e:
+        log.warning(f"ads-attrib: could not read queue file: {e}")
+    return []
+
+
+def _fire_signup_ga4(ga_cid, pat_id):
+    """Item 6: one GA4 Measurement Protocol call carrying BOTH signup_complete and
+    membership_signup_complete. client_id = the booking's ga_cid if present, else a
+    deterministic identity-free fallback derived from the (opaque) hint_patient_id.
+    Params are identity-free. DRY_RUN logs the intended call and sends nothing.
+    Failures are logged and swallowed (never blocks nurture). Returns True if a real
+    send was attempted+accepted, else False."""
+    import hashlib
+    client_id = ga_cid or ("mbm.offline." + hashlib.sha256((pat_id or "").encode("utf-8")).hexdigest()[:16])
+    payload = {
+        "client_id": client_id,
+        "events": [
+            {"name": "signup_complete", "params": {"source": "mbm_book_offline"}},
+            {"name": "membership_signup_complete", "params": {"source": "mbm_book_offline"}},
+        ],
+    }
+    label = "ga_cid" if ga_cid else "fallback"
+    if E.DRY_RUN:
+        log.info(f"[DRY_RUN] GA4 MP: would POST signup_complete + membership_signup_complete "
+                 f"(client_id={label}) - nothing sent")
+        return False
+    if not (E.GA4_MEASUREMENT_ID and E.GA4_API_SECRET):
+        log.warning("GA4 MP enabled but GA4_MEASUREMENT_ID / GA4_API_SECRET not set - skipping")
+        return False
+    try:
+        url = (f"https://www.google-analytics.com/mp/collect"
+               f"?measurement_id={E.GA4_MEASUREMENT_ID}&api_secret={E.GA4_API_SECRET}")
+        r = E.http.post(url, json=payload, timeout=15)
+        if r.status_code in (200, 204):
+            log.info(f"GA4 MP: fired signup_complete + membership_signup_complete (client_id={label})")
+            return True
+        log.warning(f"GA4 MP: unexpected HTTP {r.status_code} - {r.text[:120]}")
+        return False
+    except Exception as e:
+        log.warning(f"GA4 MP send failed (non-blocking): {e}")
+        return False
+
+
+def record_ads_conversion(state, pat_id, today):
+    """A prospect nurtured by this poller just became a MEMBER (same hook for both
+    features). Matches their phone (E.164) to an mbm-book Google Calendar booking from
+    the last 90 days, then:
+      (a) ADS_ATTRIB_ENABLED: if the booking carried a Google click id, append a PENDING
+          entry to ads_conversion_queue.json for the MAIN Cowork session to upload to
+          Google Ads via Zapier. Dedup: one entry per hint_patient_id ever. No name/
+          phone/email in the queue. THIS POLLER NEVER UPLOADS / never changes Ads config.
+      (b) GA4_MP_ENABLED: fire ONE GA4 MP call (signup_complete + membership_signup_complete)
+          with the booking's ga_cid (or a deterministic fallback) - fires even with no
+          click id and even when NO booking matched.
+
+    Independent gates + independent dedup sets. All writes/sends DRY_RUN-gated. A hard
+    calendar read failure marks nothing done (retries next run)."""
+    if not pat_id:
+        return
+    ns = state.setdefault("ads_attrib", {})
+    ads_done = set(ns.get("done_patient_ids", []))
+    ga4_done = set(ns.get("ga4_done_patient_ids", []))
+
+    need_ads = bool(E.ADS_ATTRIB_ENABLED) and pat_id not in ads_done
+    if need_ads and any(e.get("hint_patient_id") == pat_id for e in _load_ads_queue()):
+        ads_done.add(pat_id)          # queue file is the source of truth for ads dedup
+        need_ads = False
+    need_ga4 = bool(E.GA4_MP_ENABLED) and pat_id not in ga4_done
+    if not (need_ads or need_ga4):
+        ns["done_patient_ids"] = sorted(ads_done)
+        ns["ga4_done_patient_ids"] = sorted(ga4_done)
+        return
+
+    # --- Match an mbm-book booking (needed for gclid AND ga_cid) when configured ---
+    booking = None
+    if E.GCAL_CALENDAR_ID and E.GOOGLE_SA_KEY_FILE:
+        pt = E.hint_get_patient(pat_id) or {}
+        _, phone = E.first_name_and_phone(pt)
+        phone_e164 = E.normalize_phone_e164(phone)
+        if phone_e164:
+            now = datetime.now(timezone.utc)
+            events = gcal_bookings.fetch_mbm_book_events(
+                now, E.GCAL_CALENDAR_ID, E.GOOGLE_SA_KEY_FILE, E.ADS_ATTRIB_LOOKBACK_DAYS)
+            if events is None:
+                log.warning("ads-attrib: calendar read failed - will retry next run (nothing marked done)")
+                return  # do NOT fire GA4 or mark done; retry both together next run
+            booking = gcal_bookings.find_booking_for_phone(events, phone_e164)
+        else:
+            log.info(f"ads-attrib: no phone on {E._tail(pat_id)} - no booking match "
+                     f"(GA4 will use fallback client_id)")
+    else:
+        log.warning("ads-attrib: GCAL_CALENDAR_ID / GOOGLE_SA_KEY_FILE not set - "
+                    "no booking match (GA4, if enabled, uses fallback client_id)")
+
+    # --- (b) GA4 offline signup measurement (fires with/without click id or booking) ---
+    if need_ga4:
+        ga_cid = gcal_bookings.extract_ga_cid(booking) if booking else None
+        try:
+            fired = _fire_signup_ga4(ga_cid, pat_id)
+        except Exception as e:
+            fired = False
+            log.warning(f"ads-attrib: GA4 signup MP raised (non-blocking): {e}")
+        if fired:  # only mark done on a real send; DRY_RUN state isn't persisted anyway
+            ga4_done.add(pat_id)
+
+    # --- (a) Ads gclid queue (only when a booking carried a click id) ---
+    if need_ads:
+        click = gcal_bookings.extract_click_id(booking) if booking else None
+        if not click:
+            log.info(f"ads-attrib: conversion {E._tail(pat_id)} - no mbm-book click-id booking "
+                     f"in last {E.ADS_ATTRIB_LOOKBACK_DAYS}d; marking done")
+            if not E.DRY_RUN:
+                ads_done.add(pat_id)
+        else:
+            entry = {
+                "click_id_type": click["click_id_type"],
+                "click_id": click["click_id"],
+                "gcal_event_id": click["gcal_event_id"],
+                "booked_at": click["booked_at"],
+                "activated_at": today.isoformat(),
+                "hint_patient_id": pat_id,
+                "status": "pending",
+                "queued_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if E.DRY_RUN:
+                log.info(f"[DRY_RUN] ads-attrib: would queue conversion "
+                         f"(type={entry['click_id_type']} event={entry['gcal_event_id']}) - nothing written")
+            else:
+                queue = _load_ads_queue()
+                queue.append(entry)
+                try:
+                    E.ADS_CONVERSION_QUEUE_FILE.write_text(json.dumps(queue, indent=2))
+                    ads_done.add(pat_id)
+                    log.info(f"ads-attrib: queued PENDING conversion (type={entry['click_id_type']} "
+                             f"event={entry['gcal_event_id']}). Upload happens in the main session via "
+                             f"Zapier - this poller does NOT touch Google Ads.")
+                except Exception as e:
+                    log.error(f"ads-attrib: queue write failed: {e}")
+
+    ns["done_patient_ids"] = sorted(ads_done)
+    ns["ga4_done_patient_ids"] = sorted(ga4_done)
+
+
 def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
     mem_id, pat_id = m["mem_id"], m["pat_id"]
     name_red = redact(m["patient_name"])
@@ -152,6 +308,13 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
         _mark(state, mem_id, m, status="stopped", reason="canceled_or_deleted")
         return plan
     if (fresh.get("status") or "") not in ("pending", ""):
+        # ATTRIBUTION / SIGNUP-MP HOOK (gated): membership flipped out of pending. If it
+        # went ACTIVE, this prospect became a member -> attribute + fire offline signup.
+        if (E.ADS_ATTRIB_ENABLED or E.GA4_MP_ENABLED) and (fresh.get("status") or "").lower() == "active":
+            try:
+                record_ads_conversion(state, pat_id, today)
+            except Exception as e:
+                log.warning(f"ads-attrib hook (status active) failed for {mem_id}: {e}")
         plan.update(action="exit", reason=f"membership status={fresh.get('status')} (active/converted)")
         _mark(state, mem_id, m, status="suppressed", reason=f"status_{fresh.get('status')}")
         return plan
@@ -176,6 +339,15 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
     contact = E.spruce_contact_for_patient(contacts, pat_id, phone_e164)
 
     if conversion_detected:
+        # ATTRIBUTION / SIGNUP-MP HOOK (gated): nurture stops here because the prospect
+        # became a member (card on file / active membership). Attribute + fire offline
+        # signup BEFORE the existing reconcile/exit logic (which is unchanged below).
+        # No effect on the plan / control flow.
+        if E.ADS_ATTRIB_ENABLED or E.GA4_MP_ENABLED:
+            try:
+                record_ads_conversion(state, pat_id, today)
+            except Exception as e:
+                log.warning(f"ads-attrib hook (conversion) failed for {mem_id}: {e}")
         # Cancel our stale pending mem only if the conversion is a SEPARATE
         # membership (duplicate record, or a separate active mem on our record).
         # A card on OUR record with only our pending mem = conversion completing

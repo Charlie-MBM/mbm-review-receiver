@@ -130,7 +130,11 @@ NURTURE_TEXTS_LINKFREE = {
 CONCIERGE_IND_PLANS = {"pln-xjukKCU9Xf6M"}        # Concierge 2026 (individual)
 CONCIERGE_COUPLE_PLANS = {"pln-MHIc5hNWtfhk"}     # Concierge 2026 - Couple
 SEQUENCE_DAYS_CONCIERGE = [0, 3, 7, 14, 21]
-NURTURE_EXCLUDE_PLANS = {"pln-BhgiC3jP0yzq"}  # Friends & Family $0 comp - never nurture or auto-cancel
+NURTURE_EXCLUDE_PLANS = {
+    "pln-BhgiC3jP0yzq",  # Friends & Family $0 comp - never nurture or auto-cancel
+    "pln-jnMH3ruMbXhm",  # SO - Walk-In - handled by the review poller's walk-in branch; never nurture
+    "pln-qHzXwjyZ8xPP",  # SO - IV      - handled by the review poller's walk-in branch; never nurture
+}
 
 NURTURE_TEXTS_CONCIERGE_IND = {
     3: (

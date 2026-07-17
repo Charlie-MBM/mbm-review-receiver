@@ -31,7 +31,8 @@
 | Stage | Definition | Source |
 |---|---|---|
 | Site visits | `session_start` eventCount, split by sessionDefaultChannelGroup | GA4 Data API `runReport` |
-| Booking + phone taps | `booking_click` + `phone_click` eventCount | GA4 |
+| Booking + phone taps | `booking_click` + `phone_click` **eventCount — EVENTS, not people.** People average ~1.9 taps each (verified 2026-07-17: 64 taps = 34 totalUsers). Never label taps as "people". | GA4 |
+| Unique tappers / reachers | `totalUsers` deduped across booking+phone (one no-dimension query with inList filter), and `totalUsers` on `click`→hint.com. The leak panel uses THESE for rates — tap-based rates overstate the early leak ~2×. Caveat: totalUsers = unique browsers/devices; cross-device double-counts. Refresh alongside event counts. | GA4 |
 | Reached Hint booking | `click` events with `linkDomain == mtbakermedical.hint.com` (outbound handoff — the closest thing to a booking-flow entry GA4 can see) | GA4 |
 | Consults booked | running tally (above) | Hint |
 | New paid members | paid new members (above) | Hint |

@@ -18,7 +18,7 @@ $runner = Join-Path $repo "run_poller_watchdog.bat"
 
 $action   = New-ScheduledTaskAction -Execute $runner -WorkingDirectory $repo
 $trigger  = New-ScheduledTaskTrigger -Daily -At 6:00pm
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
 
 Register-ScheduledTask -TaskName "MBM-Poller-Watchdog" `
     -Action $action -Trigger $trigger -Settings $settings `

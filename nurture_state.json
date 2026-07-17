@@ -1,7 +1,7 @@
 {
   "_meta": {
     "go_live_at": "2026-07-13T15:08:06.609934+00:00",
-    "last_run_at": "2026-07-14T16:30:11.382112+00:00",
+    "last_run_at": "2026-07-16T16:30:05.647025+00:00",
     "version": 3
   },
   "mem-5E09FqbSumm8": {
@@ -20,6 +20,14 @@
     "reason": "preexisting_back_scan",
     "start_date": "2026-07-15",
     "status": "pending_approval"
+  },
+  "mem-KXYcdzicKRW9": {
+    "created_at": "2026-07-14T16:55:48.506969-07:00",
+    "pat_id": "pat-Hm1dXCqDjovT",
+    "plan": "SO - GLP-1 Tirzepatide",
+    "reason": "cross_record_conversion",
+    "start_date": "2026-07-20",
+    "status": "suppressed"
   },
   "mem-R6kubnHgfC4B": {
     "created_at": "2026-07-13T11:58:44.728970-07:00",

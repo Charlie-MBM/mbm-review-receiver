@@ -255,3 +255,21 @@
 2026-07-14 10:00:05,861  INFO      [poller] SKIP patient_id=pat-9CkcnrciIGhJ: spacing-not-met 20d since last ask (count=1/999)
 2026-07-14 10:00:06,793  INFO      [poller] SKIP patient_id=pat-x6mlcomOtTBc: spacing-not-met 19d since last ask (count=1/999)
 2026-07-14 10:00:06,794  INFO      poller end: ok | sent=0 skipped=2 errors=0 | last_run_at advanced
+2026-07-16 07:46:17,293  INFO      poller start: since=2026-07-14T17:00:06.794643+00:00 dry_run=False
+2026-07-16 07:46:18,492  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-16 07:46:18,493  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-16 07:46:19,514  INFO      poller: found 2 patient(s) with member visits to evaluate
+2026-07-16 07:46:20,384  INFO      [poller] SKIP patient_id=pat-2FTjkbPOvnLe: spacing-not-met 15d since last ask (count=1/999)
+2026-07-16 07:46:21,099  INFO      [poller] SKIP patient_id=pat-83miTYUbgeMf: spacing-not-met 23d since last ask (count=1/999)
+2026-07-16 07:46:21,100  INFO      poller end: ok | sent=0 skipped=2 errors=0 | last_run_at advanced
+2026-07-16 10:00:05,019  INFO      poller start: since=2026-07-16T14:46:21.099601+00:00 dry_run=False
+2026-07-16 10:00:05,747  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-16 10:00:05,749  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-16 10:00:06,583  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-16 10:00:06,585  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced

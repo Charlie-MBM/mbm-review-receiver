@@ -19,7 +19,7 @@ $runner = Join-Path $repo "run_nurture_poller.bat"
 
 $action   = New-ScheduledTaskAction -Execute $runner -WorkingDirectory $repo
 $trigger  = New-ScheduledTaskTrigger -Daily -At 9:30am
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
 
 Register-ScheduledTask -TaskName "MBM-Nurture-Poller" `
     -Action $action -Trigger $trigger -Settings $settings `

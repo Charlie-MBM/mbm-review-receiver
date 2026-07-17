@@ -98,3 +98,7 @@
 2026-07-14 09:30:04,689  INFO      nurture poller: 2 pending; 55 patients scanned; go_live_at=2026-07-13T15:08:06.609934+00:00 approved=0
 2026-07-14 09:30:11,381  INFO      canceled membership mem-R6kubnHgfC4B (end_date=2026-07-20)
 2026-07-14 09:30:11,382  INFO      AUDIT reconcile_cancel: {"ts": "2026-07-14T16:30:11.381112+00:00", "action": "reconcile_cancel", "patient_id": "pat-191oBijPhGoP", "membership_id": "mem-R6kubnHgfC4B", "reason": "duplicate link-conversion detected", "guards": {"other_record_signal": false, "our_separate_membership": true}, "dry_run": false}
+2026-07-16 07:46:21,439  INFO      nurture poller start (T5d): dry_run=False date=2026-07-16
+2026-07-16 07:46:24,181  INFO      nurture poller: 1 pending; 57 patients scanned; go_live_at=2026-07-13T15:08:06.609934+00:00 approved=0
+2026-07-16 09:30:00,585  INFO      nurture poller start (T5d): dry_run=False date=2026-07-16
+2026-07-16 09:30:03,585  INFO      nurture poller: 1 pending; 57 patients scanned; go_live_at=2026-07-13T15:08:06.609934+00:00 approved=0

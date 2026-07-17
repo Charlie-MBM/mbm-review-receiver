@@ -1,0 +1,94 @@
+Wrote C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboard\members_feed.json
+{
+  "period": "2026-07",
+  "members": {
+    "concierge": 1,
+    "so": 2,
+    "total": 3
+  },
+  "new_member_basis": "created_at",
+  "members_anchored_by_start_date": {
+    "concierge": 2,
+    "so": 2,
+    "total": 4
+  },
+  "members_pending": {
+    "concierge": 1,
+    "so": 1,
+    "total": 2
+  },
+  "members_counted_basis": "paid",
+  "payment_unknown": 0,
+  "friends_family_excluded": 11,
+  "members_source": {
+    "google": 0,
+    "bing": 0,
+    "ai": 0,
+    "social": 0,
+    "provider_referral": 0,
+    "word_of_mouth": 0,
+    "other": 3
+  },
+  "pending_future_dated": 2,
+  "lead_source_field": null,
+  "consults": {
+    "completed_mtd": 10,
+    "scheduled_mtd": 14,
+    "status_counts": {
+      "confirmed": 14
+    },
+    "start_field": "start",
+    "appointment_keys": [
+      "attendees",
+      "created_at",
+      "description",
+      "end",
+      "host",
+      "id",
+      "location",
+      "recurring_appointment_id",
+      "start",
+      "status",
+      "title",
+      "updated_at",
+      "workflow_status"
+    ],
+    "match_rule": "duration == 30 min (the practice's consult slot) OR title/description contains 'consult'"
+  },
+  "appointments": {
+    "completed_mtd": 30,
+    "scheduled_mtd": 43,
+    "status_counts": {
+      "confirmed": 43,
+      "cancelled": 7
+    },
+    "start_field": "start",
+    "appointment_keys": [
+      "attendees",
+      "created_at",
+      "description",
+      "end",
+      "host",
+      "id",
+      "location",
+      "recurring_appointment_id",
+      "start",
+      "status",
+      "title",
+      "updated_at",
+      "workflow_status"
+    ],
+    "appointments_seen": 50,
+    "duration_histogram": {
+      "30": 14,
+      "5": 17,
+      "90": 16,
+      "60": 3
+    }
+  },
+  "warnings": [
+    "11 friends-and-family / comp membership(s) matched EXCLUDE_PLAN_SUBSTRINGS and were dropped from members + pending (not real new members). Adjust EXCLUDE_PLAN_SUBSTRINGS if the plan name differs.",
+    "new-member count by SIGNUP date (created_at) = 3, but by billing anchor (start_date) = 4. The gap is renewals / reactivations / plan-changes / future-dated starts that anchor this month without being new signups. Dashboard uses the signup-date count.",
+    "No Lead Source field found on patient objects via the API - it may be UI-only. Falling back: members counted, but lead-source split is all 'other'. Check --probe output; if blank, keep the browser read for lead source only."
+  ]
+}

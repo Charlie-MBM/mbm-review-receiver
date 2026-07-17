@@ -268,7 +268,7 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-17a";
+const DATA_VERSION = "2026-07-17c";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
@@ -305,7 +305,12 @@ const SNAPSHOT = {
   funnel_mtd: {
     visits:712, taps_booking:57, taps_phone:6, handoffs:36,
     visits_src:{organic:208, direct:319, google:79, meta:80, other:26},
-    taps_src:{organic:29, direct:9, google:9, meta:11, other:5}
+    taps_src:{organic:29, direct:9, google:9, meta:11, other:5},
+    /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
+       after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
+       Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
+    users: {tappers:34, handoff:30, as_of:"2026-07-17",
+            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count"}
   },
   daily: { // Jul 1..16 (16th partial) — feeds the chart + anomaly detectors
     dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16"],
@@ -369,7 +374,7 @@ SNAPSHOT.gbp_perf = {calls:11, website_clicks:11, direction_requests:51,
   june_baseline:{calls:13, website_clicks:29, direction_requests:67}};
 const GBP_LOCATION_ID = "3763111265482720361"; // from business.google.com URL (#mpd=~<id>)
 
-const KW={"nad iv therapy bellingham":{"t":1,"r":"/services/nad-therapy/","p":3,"kd":0,"v":0,"d":3},"perimenopause symptoms":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":60,"v":146000},"perimenopause treatment bellingham":{"t":1,"r":"/conditions/perimenopause/","p":10,"kd":12,"v":0,"d":0},"perimenopause doctor bellingham":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":11,"v":0},"dexa scan near me":{"t":1,"r":"/dexa-scan-bellingham/","p":6,"kd":3,"v":22000},"dexa scan":{"t":1,"r":"/dexa-scan-bellingham/","p":null,"kd":61,"v":109000},"longevity medicine bellingham":{"t":1,"r":"/longevity-medicine/","p":1,"kd":25,"v":0,"d":0},"anti-aging doctor bellingham":{"t":1,"r":"/longevity-medicine/","p":4,"kd":19,"v":0,"d":3},"longevity doctor near me":{"t":1,"r":"/longevity-medicine/","p":2,"kd":6,"v":250,"d":2},"medical weight loss bellingham":{"t":1,"r":"/conditions/weight-management/","p":7,"kd":36,"v":80,"d":9},"functional medicine doctor near me":{"t":1,"r":"/functional-medicine/","p":13,"kd":35,"v":15000},"functional medicine":{"t":1,"r":"/functional-medicine/","p":7,"kd":53,"v":44000},"functional medicine bellingham":{"t":1,"r":"/bellingham-functional-medicine/","p":18,"kd":36,"v":60,"d":10},"iv therapy near me":{"t":2,"r":"/services/iv-therapy/","p":9,"kd":2,"v":48000,"d":13},"iv therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":3,"v":10},"iv vitamin therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":9,"kd":3,"v":0,"d":-3},"myers cocktail bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":4,"v":0},"ketamine therapy bellingham":{"t":2,"r":"/services/ketamine-therapy/","p":2,"kd":22,"v":70,"d":0},"ketamine therapy near me":{"t":2,"r":"/services/ketamine-therapy/","p":3,"kd":11,"v":3200,"d":-1},"trt bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":1,"kd":0,"v":0,"d":18},"testosterone replacement therapy bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":4,"kd":0,"v":0},"testosterone clinic bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":7,"kd":0,"v":0},"weight loss clinic near me":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":6,"kd":36,"v":18000,"d":8},"glp-1 bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":2,"kd":7,"v":0,"d":-1},"weight loss injections bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":6,"kd":37,"v":0},"semaglutide":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":null,"kd":84,"v":556000},"tirzepatide":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":null,"kd":53,"v":438000},"hrt near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":11,"kd":0,"v":2100,"d":4},"hormone replacement therapy near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":16,"kd":0,"v":3000,"d":0},"menopause doctor bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":19,"v":0},"hrt clinic near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":23,"kd":0,"v":1700,"d":5},"bioidentical hormone replacement therapy bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":21,"kd":0,"v":0,"d":4},"hrt":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":74,"v":145000},"o-shot bellingham":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":0,"v":0},"ed treatment bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":0,"v":0,"d":12},"p-shot bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":12,"v":0},"gainswave bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":6,"kd":0,"v":0},"mens health bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":14,"kd":4,"v":0,"d":15},"gender affirming care bellingham":{"t":2,"r":"/services/gender-affirming-care/","p":15,"kd":0,"v":0,"d":-2},"custom supplements bellingham":{"t":2,"r":"/services/custom-supplements-and-nutraceutical/","p":7,"kd":0,"v":0,"d":-6},"depression treatment bellingham":{"t":2,"r":"/conditions/depression/","p":21,"kd":1,"v":30,"d":-17},"anxiety treatment bellingham":{"t":2,"r":"/conditions/anxiety/","p":null,"kd":0,"v":20},"bellingham concierge medicine":{"t":3,"r":"/","p":2,"kd":53,"v":0,"d":0},"concierge primary care bellingham":{"t":3,"r":"/","p":1,"kd":1,"v":0,"d":1},"concierge doctor bellingham":{"t":3,"r":"/","p":3,"kd":24,"v":0,"d":0},"direct primary care bellingham":{"t":3,"r":"/","p":4,"kd":24,"v":10},"bellingham primary care":{"t":3,"r":"/","p":null,"kd":21,"v":20},"mt baker medical":{"t":3,"r":"/","p":1,"kd":1,"v":20,"d":0},"concierge primary care":{"t":3,"r":"/concierge-primary-care/","p":1,"kd":30,"v":700,"d":6},"dr james scribner bellingham":{"t":3,"r":"/providers/dr-scribner/","p":1,"kd":0,"v":0,"d":1}};
+const KW={"nad iv therapy bellingham":{"t":1,"r":"/services/nad-therapy/","p":3,"kd":0,"v":0,"d":3},"perimenopause treatment bellingham":{"t":1,"r":"/conditions/perimenopause/","p":10,"kd":12,"v":0,"d":0},"perimenopause doctor bellingham":{"t":1,"r":"/conditions/perimenopause/","p":null,"kd":11,"v":0},"dexa scan near me":{"t":1,"r":"/dexa-scan-bellingham/","p":6,"kd":3,"v":22000},"longevity medicine bellingham":{"t":1,"r":"/longevity-medicine/","p":1,"kd":25,"v":0,"d":0},"anti-aging doctor bellingham":{"t":1,"r":"/longevity-medicine/","p":4,"kd":19,"v":0,"d":3},"longevity doctor near me":{"t":1,"r":"/longevity-medicine/","p":2,"kd":6,"v":250,"d":2},"medical weight loss bellingham":{"t":1,"r":"/conditions/weight-management/","p":7,"kd":36,"v":80,"d":9},"functional medicine doctor near me":{"t":1,"r":"/functional-medicine/","p":13,"kd":35,"v":15000},"functional medicine":{"t":1,"r":"/functional-medicine/","p":7,"kd":53,"v":44000},"functional medicine bellingham":{"t":1,"r":"/bellingham-functional-medicine/","p":18,"kd":36,"v":60,"d":10},"iv therapy near me":{"t":2,"r":"/services/iv-therapy/","p":9,"kd":2,"v":48000,"d":13},"iv therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":3,"v":10},"iv vitamin therapy bellingham":{"t":2,"r":"/services/iv-therapy/","p":9,"kd":3,"v":0,"d":-3},"myers cocktail bellingham":{"t":2,"r":"/services/iv-therapy/","p":null,"kd":4,"v":0},"ketamine therapy bellingham":{"t":2,"r":"/services/ketamine-therapy/","p":2,"kd":22,"v":70,"d":0},"ketamine therapy near me":{"t":2,"r":"/services/ketamine-therapy/","p":3,"kd":11,"v":3200,"d":-1},"trt bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":1,"kd":0,"v":0,"d":18},"testosterone replacement therapy bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":4,"kd":0,"v":0},"testosterone clinic bellingham":{"t":2,"r":"/services/testosterone-replacement-therapy/","p":7,"kd":0,"v":0},"weight loss clinic near me":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":6,"kd":36,"v":18000,"d":8},"glp-1 bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":2,"kd":7,"v":0,"d":-1},"weight loss injections bellingham":{"t":2,"r":"/services/glp-1-weight-loss-therapy/","p":6,"kd":37,"v":0},"hrt near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":11,"kd":0,"v":2100,"d":4},"hormone replacement therapy near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":16,"kd":0,"v":3000,"d":0},"menopause doctor bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":null,"kd":19,"v":0},"hrt clinic near me":{"t":2,"r":"/services/hormone-replacement-therapy/","p":23,"kd":0,"v":1700,"d":5},"bioidentical hormone replacement therapy bellingham":{"t":2,"r":"/services/hormone-replacement-therapy/","p":21,"kd":0,"v":0,"d":4},"o-shot bellingham":{"t":2,"r":"/services/womens-sexual-health/","p":null,"kd":0,"v":0},"ed treatment bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":0,"v":0,"d":12},"p-shot bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":3,"kd":12,"v":0},"gainswave bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":6,"kd":0,"v":0},"mens health bellingham":{"t":2,"r":"/services/mens-sexual-health/","p":14,"kd":4,"v":0,"d":15},"gender affirming care bellingham":{"t":2,"r":"/services/gender-affirming-care/","p":15,"kd":0,"v":0,"d":-2},"custom supplements bellingham":{"t":2,"r":"/services/custom-supplements-and-nutraceutical/","p":7,"kd":0,"v":0,"d":-6},"depression treatment bellingham":{"t":2,"r":"/conditions/depression/","p":21,"kd":1,"v":30,"d":-17},"anxiety treatment bellingham":{"t":2,"r":"/conditions/anxiety/","p":null,"kd":0,"v":20},"bellingham concierge medicine":{"t":3,"r":"/","p":2,"kd":53,"v":0,"d":0},"concierge primary care bellingham":{"t":3,"r":"/","p":1,"kd":1,"v":0,"d":1},"concierge doctor bellingham":{"t":3,"r":"/","p":3,"kd":24,"v":0,"d":0},"direct primary care bellingham":{"t":3,"r":"/","p":4,"kd":24,"v":10},"bellingham primary care":{"t":3,"r":"/","p":null,"kd":21,"v":20},"mt baker medical":{"t":3,"r":"/","p":1,"kd":1,"v":20,"d":0},"concierge primary care":{"t":3,"r":"/concierge-primary-care/","p":1,"kd":30,"v":700,"d":6},"dr james scribner bellingham":{"t":3,"r":"/providers/dr-scribner/","p":1,"kd":0,"v":0,"d":1}};
 const GSCI={"ketamine therapy bellingham":271,"treatment resistant depression":94,"ketamine clinic":80,"mt baker medical":63,"semaglutide bellingham":58,"weight loss clinic":47,"depression treatment bellingham":37,"medical weight loss bellingham":35,"iv therapy bellingham":26,"renasculpt":20,"trt clinic":12,"iv vitamin therapy bellingham":10,"ketamine therapy near me":4};
 const GSCI_WINDOW="6mo (through 2026-06-09)";
 
@@ -638,15 +643,26 @@ function renderFunnel(){
   html+='<div class="small" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);line-height:1.9">'+
     '<b>Traffic source</b> (visits &amp; taps): '+srcLegend+'<br>'+
     '<b>Consults &amp; members</b> come from the Hint EHR via the laptop poller: consults = '+escapeHtml((ch&&ch.rule)||SNAPSHOT.consults.rule)+'; members counted on '+escapeHtml(SNAPSHOT.members.basis)+'.<br>'+
-    '<span style="font-style:italic">No impressions band here on purpose — search impressions are reach, not funnel, and they dwarf every real stage into invisibility.</span></div>';
+    '<span style="font-style:italic">No impressions band here on purpose — search impressions are reach, not funnel, and they dwarf every real stage into invisibility. Bar counts are EVENTS (taps/clicks); the leak panel converts to unique people.</span></div>';
   document.getElementById("funnel").innerHTML=html;
 
-  // leak box
-  const w1=wilson(handoffs,taps), w2=wilson(consults,handoffs);
-  document.getElementById("leakBox").innerHTML=
-    'Of <b>'+taps+'</b> people who tapped Book/Call this month, only <b>'+handoffs+'</b> ('+(w1?Math.round(w1.p):0)+'%) actually reached the Hint booking page — the rest bounced between the tap and the handoff.'+
-    ' From those '+handoffs+' handoffs, Hint booked <b>'+consults+'</b> consults ('+(w2?Math.round(w2.p):"—")+'%, though some consults arrive by phone/walk-in).'+
-    '<br><b>Why this is permanent:</b> the booking flow completes on mtbakermedical.hint.com where GA4 goes blind — this box is the only place the loss is visible. Every point of improvement here is worth more than any ad-spend tweak: at current volume, +10 handoff-percentage-points ≈ +1–2 consults/month at $0 extra spend.';
+  // leak box — counts PEOPLE where unique-user data exists; taps are events (~1.9/person)
+  const uLive=store.get("funnel_users:"+period,null);
+  const u=uLive||(period===SNAPSHOT.period?SNAPSHOT.funnel_mtd.users:null);
+  let leakHtml;
+  if(u && +u.tappers>0){
+    const w1u=wilson(Math.min(+u.handoff,+u.tappers),+u.tappers), w2u=wilson(consults,+u.handoff);
+    const perPerson=taps>0?Math.round((taps/u.tappers)*10)/10:null;
+    leakHtml='<b>'+fmtN(u.tappers)+'</b> unique people tapped Book/Call this month ('+fmtN(taps)+' taps'+(perPerson?(' — ~'+perPerson+' per person'):'')+'). <b>'+fmtN(u.handoff)+'</b> of them ('+(w1u?Math.round(w1u.p):0)+'%) reached the Hint booking page — counted in people, the tap→handoff step holds up well.'+
+      ' <b>The real leak is inside the booking flow:</b> of '+fmtN(u.handoff)+' people who reached Hint, <b>'+fmtN(consults)+'</b> consults were booked ('+(w2u?(Math.round(w2u.p)+'%, range '+Math.round(w2u.lo)+'–'+Math.round(w2u.hi)+'%'):'—')+'; some consults arrive by phone/walk-in).'+
+      '<br><b>Why this is permanent:</b> the drop happens on mtbakermedical.hint.com where GA4 goes blind — this box is the only place it\'s visible. Hint support has been asked (2026-07-16) whether the hosted signup allows analytics; until then the booking page itself is the highest-leverage $0 fix: +10 points of book-rate ≈ +3 consults/month.'+
+      '<div class="small" style="margin-top:6px;color:var(--stale)">People = GA4 totalUsers (unique browsers/devices; cross-device visitors can double-count) as of '+escapeHtml(u.as_of||'')+'. Taps = events, not people.</div>';
+  } else {
+    const w1=wilson(handoffs,taps), w2=wilson(consults,handoffs);
+    leakHtml='Of <b>'+fmtN(taps)+'</b> Book/Call taps this month (<b>taps are events, not unique people</b> — people average ~1.9 taps each), <b>'+fmtN(handoffs)+'</b> ('+(w1?Math.round(w1.p):0)+'%) reached the Hint booking page. From those handoffs, Hint booked <b>'+fmtN(consults)+'</b> consults ('+(w2?Math.round(w2.p):"—")+'%).'+
+      '<br><span class="small" style="color:var(--stale)">Unique-person counts not available for this period — tap-based rates overstate the early leak because people tap more than once.</span>';
+  }
+  document.getElementById("leakBox").innerHTML=leakHtml;
 
   // daily chart
   barsAndLine("chDaily", SNAPSHOT.daily.dates,
@@ -983,19 +999,31 @@ async function refreshGA4(){
   });
   // handoffs: outbound clicks to the Hint booking domain, MTD
   const body2={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
-    dimensions:[{name:"linkDomain"}], metrics:[{name:"eventCount"}],
+    dimensions:[{name:"linkDomain"}], metrics:[{name:"eventCount"},{name:"totalUsers"}],
     dimensionFilter:{filter:{fieldName:"eventName",stringFilter:{value:"click"}}}, limit:50 };
   const res2=await window.cowork.callMcpTool(ZAPIER,{ selected_api:"GoogleAnalytics4CLIAPI", action:"_zap_raw_request",
-    instructions:"GA4 runReport: MTD outbound clicks by link domain.",
+    instructions:"GA4 runReport: MTD outbound clicks by link domain with unique users.",
     params:{ url:"https://analyticsdata.googleapis.com/v1beta/"+GA4.property+":runReport", method:"POST", fail_on_errors:"true", body:JSON.stringify(body2) },
-    output:"linkDomain, eventCount rows"});
+    output:"linkDomain, eventCount, totalUsers rows"});
   const d2=unwrap(res2); const rows2=(d2&&(d2.results||d2.rows))||[];
   if(!rows2.length) throw new Error("GA4 linkDomain query returned 0 rows — raw: "+snip(d2!=null?d2:res2));
-  let handoffs=0;
-  rows2.forEach(r=>{ const ld=String(r.link_domain||r.linkDomain||""); if(ld==="mtbakermedical.hint.com") handoffs+=parseInt(r.event_count||r.eventCount||0,10)||0; });
+  let handoffs=0, handoffUsers=0;
+  rows2.forEach(r=>{ const ld=String(r.link_domain||r.linkDomain||""); if(ld==="mtbakermedical.hint.com"){ handoffs+=parseInt(r.event_count||r.eventCount||0,10)||0; handoffUsers+=parseInt(r.total_users||r.totalUsers||0,10)||0; } });
+  // deduped unique tappers (booking+phone, one row, no dimension = users who did both count once)
+  const body3={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
+    metrics:[{name:"totalUsers"}],
+    dimensionFilter:{filter:{fieldName:"eventName",inListFilter:{values:["booking_click","phone_click"]}}}, limit:5 };
+  const res3=await window.cowork.callMcpTool(ZAPIER,{ selected_api:"GoogleAnalytics4CLIAPI", action:"_zap_raw_request",
+    instructions:"GA4 runReport: MTD deduplicated unique users across booking_click + phone_click.",
+    params:{ url:"https://analyticsdata.googleapis.com/v1beta/"+GA4.property+":runReport", method:"POST", fail_on_errors:"true", body:JSON.stringify(body3) },
+    output:"single totalUsers value"});
+  const d3=unwrap(res3); const row3=(d3&&(d3.results||d3.rows))||[];
+  const tappers=(function(){ const r=Array.isArray(row3)?row3[0]:row3; return r?(parseInt(r.total_users||r.totalUsers||0,10)||0):((d3&&+d3.totalUsers)||0); })();
   const per=curPeriod();
   store.set("funnel:"+per, Object.assign(getFunnel(per), {site_visits:f.visits, inq_booking:f.book, inq_phone:f.phone, handoffs:handoffs}));
   store.set("funnel_src:"+per, src);
+  if(tappers>0) store.set("funnel_users:"+per, {tappers:tappers, handoff:handoffUsers, as_of:todayISO(),
+    note:"GA4 totalUsers = unique browsers/devices"});
   markOk("ga4");
 }
 async function refreshAds(){

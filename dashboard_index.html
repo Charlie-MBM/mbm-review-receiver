@@ -284,7 +284,7 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-17l";
+const DATA_VERSION = "2026-07-17m";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
@@ -308,6 +308,13 @@ const SNAPSHOT = {
     // entry unless a manual entry is strictly newer. Feed status histogram this run:
     // active 43 / pending 2 / unpaid 2 / ended 7 (43 = 32 real + 11 F&F excluded).
     active: {concierge:14, so:18, as_of:"2026-07-17T16:15Z", source:"hint"},
+    /* Hint-badge reconciliation (from feed active_members.reconciliation_by_status —
+       refresh task copies it forward each bake). Explains "Hint shows 17, dashboard
+       shows 14": badges count memberships in EVERY status; the North Star counts
+       status-active, non-comp, non-test only. unpaid_concierge is a REAL patient
+       whose membership is live but not paying — billing follow-up, alerted below. */
+    active_recon: {as_of:"2026-07-17T21:12Z", unpaid_concierge:1, pending_concierge:0,
+                   comp_active:11, test_active_excluded:0},
     goal_concierge: 300,
     new_paid: {concierge:1, so:2},   // July MTD, created_at basis, payment on file
     pending:  {concierge:1, so:1, total:2},
@@ -610,6 +617,10 @@ function renderStatus(){
   const hint=srcState("hint");
   if(hint.cls==="stale") alerts.push('<div class="alert red">🚨<div><b>Hint members/consults feed is '+fmtAge(hint.ageH)+' old.</b> The 9:15am laptop poller (MBM-Dashboard-Members-Export) has missed runs — member and consult tiles are showing last-good values, hatched below.</div></div>');
   else if(hint.cls==="aging") alerts.push('<div class="alert amber">⏱<div><b>Hint feed aging ('+fmtAge(hint.ageH)+').</b> Poller may have missed this morning\'s run; values below are last-good.</div></div>');
+  /* 3b. Unpaid concierge membership: live in Hint, not paying — real revenue leak */
+  const _rec=SNAPSHOT.members.active_recon;
+  if(_rec && +_rec.unpaid_concierge>0)
+    alerts.push('<div class="alert amber">💳<div><b>'+fmtN(_rec.unpaid_concierge)+' Concierge membership'+(_rec.unpaid_concierge>1?'s are':' is')+' status "unpaid" in Hint</b> — an active patient not being billed (~$300/mo each). Not counted in the North Star. Check the membership\'s payment method in Hint. As of '+escapeHtml(_rec.as_of||'')+'.</div></div>');
   /* 4. Residual config risk */
   if(SNAPSHOT.gads.incident.residual) alerts.push('<div class="alert amber">⚠️<div><b>Ads goal config:</b> '+escapeHtml(SNAPSHOT.gads.incident.residual)+'</div></div>');
   /* 5. Meta delivery */
@@ -643,6 +654,15 @@ function renderNorthStar(){
     actHtml=fmtN(act.concierge)+' <small>of '+SNAPSHOT.members.goal_concierge+'</small>';
     actExtra='<div class="goalbar"><span style="width:'+pct+'%"></span></div>'+
       '<div class="small" style="margin-top:6px">'+Math.round(pct)+'% of goal · '+fmtN(act.so)+' Service-Only alongside</div>';
+    var rec=SNAPSHOT.members.active_recon;
+    if(rec && act.source==="hint"){
+      var recBits=[];
+      if(+rec.unpaid_concierge>0) recBits.push('<b style="color:var(--warn)">+'+fmtN(rec.unpaid_concierge)+' unpaid</b> (live in Hint, not paying — not counted)');
+      if(+rec.pending_concierge>0) recBits.push('+'+fmtN(rec.pending_concierge)+' pending payment');
+      if(+rec.comp_active>0) recBits.push(fmtN(rec.comp_active)+' comps/F&F excluded');
+      if(+rec.test_active_excluded>0) recBits.push(fmtN(rec.test_active_excluded)+' test accts excluded');
+      actExtra+='<div class="small" style="margin-top:4px;line-height:1.6">Hint badge reconciliation: '+(recBits.length?recBits.join(' · '):'clean')+' — plan badges count every status; this tile counts active paying patients only.</div>';
+    }
     actAsof=(act.source==="hint"?"Hint feed":"manual entry")+" · as of "+escapeHtml(act.as_of||act.period);
   } else {
     actHtml='<span style="color:var(--stale)">—</span>';
@@ -1251,7 +1271,9 @@ function renderEntry(){
       fieldNum("Active Service-Only members","am_so",act.so)+
       '</div><div style="margin-top:12px"><button class="btn" id="saveActive">Save active counts</button> <span class="small" id="amNote">'+(act.as_of?("last saved "+escapeHtml(act.as_of)+" ("+escapeHtml(act.source||"manual")+")"):"never saved")+'</span></div>';
     document.getElementById("saveActive").onclick=()=>{
-      store.set("active:"+curPeriod(), {concierge:num("am_c"), so:num("am_so"), as_of:todayISO(), source:"manual"});
+      // Full timestamp, not date-only: a date-only string compares BEFORE a same-day
+      // feed timestamp, which silently made manual overrides impossible (found 2026-07-17).
+      store.set("active:"+curPeriod(), {concierge:num("am_c"), so:num("am_so"), as_of:new Date().toISOString(), source:"manual"});
       refreshAll();
     };
   } else if(activeTab==="ads"){

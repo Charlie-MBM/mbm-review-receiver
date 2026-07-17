@@ -394,25 +394,40 @@ def main():
     try:
         _act = {"concierge": 0, "so": 0, "total": 0}
         _act_ff = 0
+        _act_name_excluded = 0
         _status_histogram = {}
+        # Aggregate reconciliation grid: status × bucket, with excluded memberships
+        # tracked per status too — so a "Hint badge says 17, dashboard says 14" gap
+        # is answerable from the feed alone (no names exported, counts only).
+        _recon = {}
+        def _recon_add(st, key):
+            _recon.setdefault(st, {})[key] = _recon.get(st, {}).get(key, 0) + 1
         for _m in all_mems:
             _st = (_m.get("status") or "unknown").lower()
             _status_histogram[_st] = _status_histogram.get(_st, 0) + 1
-            if _st != "active":
-                continue
             _pid, _nm = patient_name_of_membership(_m)
-            if is_excluded(_nm):
-                continue
             _plan = plan_name_of(_m)
+            if is_excluded(_nm):
+                _recon_add(_st, "test_account_excluded")
+                if _st == "active":
+                    _act_name_excluded += 1
+                continue
             if is_friends_family(_plan):
-                _act_ff += 1
+                _recon_add(_st, "friends_family")
+                if _st == "active":
+                    _act_ff += 1
                 continue
             _b = bucket_plan(_plan)
+            _recon_add(_st, _b)
+            if _st != "active":
+                continue
             _act[_b] += 1
             _act["total"] += 1
         active_members = dict(_act)
         active_members["friends_family_active_excluded"] = _act_ff
+        active_members["test_accounts_active_excluded"] = _act_name_excluded
         active_members["status_histogram"] = _status_histogram
+        active_members["reconciliation_by_status"] = _recon
         active_members["basis"] = "membership status == 'active'; comps/F&F and test accounts excluded"
         if _act["total"] == 0:
             warnings.append("active_members counted 0 with status=='active' — Hint may use a different "

@@ -58,6 +58,34 @@ HINT_BASE_URL = (
 
 DRY_RUN = os.environ.get("DRY_RUN", "true").lower() != "false"
 
+# --- Ads attribution (mbm-book booking -> membership conversion) -------------
+# ADDITIVE + gated. When ADS_ATTRIB_ENABLED is false (default) the nurture poller
+# behaves exactly as before this block existed. When true, a membership conversion
+# triggers a phone match (E.164) against mbm-book Google Calendar bookings from the
+# last ADS_ATTRIB_LOOKBACK_DAYS; if the matched booking carried a Google click id
+# (gclid/gbraid/wbraid), a pending entry is appended to ads_conversion_queue.json.
+# THIS POLLER NEVER UPLOADS to Google Ads - the main Cowork session reads the queue
+# and uploads via Zapier (see send_nurture_sequence.record_ads_conversion). All
+# queue writes are DRY_RUN-gated, exactly like every other write in this engine.
+# The SA needs READ-ONLY access to the calendar (see gcal_bookings.py).
+ADS_ATTRIB_ENABLED = os.environ.get("ADS_ATTRIB_ENABLED", "false").lower() == "true"
+GOOGLE_SA_KEY_FILE = os.environ.get("GOOGLE_SA_KEY_FILE", "")   # SA JSON, reader on the calendar
+GCAL_CALENDAR_ID = os.environ.get("GCAL_CALENDAR_ID", "")
+ADS_ATTRIB_LOOKBACK_DAYS = 90                                    # click-through window
+ADS_CONVERSION_QUEUE_FILE = SCRIPT_DIR / "ads_conversion_queue.json"
+
+# --- GA4 Measurement Protocol: offline signup_complete (item 6) --------------
+# SEPARATE gate from ADS_ATTRIB_ENABLED. When GA4_MP_ENABLED is true, a membership
+# conversion (same hook as the ads queue) fires ONE GA4 MP call carrying both
+# signup_complete AND membership_signup_complete (identity-free params). This lights
+# up the existing SECONDARY (observation-only) Ads "Sign-up (signup_complete)" action.
+# It is measurement, NOT an ads upload: this poller never uploads to Google Ads and
+# never changes Ads config. Fires with/without a click id and even with no matched
+# booking (deterministic fallback client_id). DRY_RUN logs the call, sends nothing.
+GA4_MP_ENABLED = os.environ.get("GA4_MP_ENABLED", "false").lower() == "true"
+GA4_MEASUREMENT_ID = os.environ.get("GA4_MEASUREMENT_ID", "")
+GA4_API_SECRET = os.environ.get("GA4_API_SECRET", "")
+
 # --- Nurture constants -------------------------------------------------------
 NURTURE_STATE_FILE = SCRIPT_DIR / "nurture_state.json"
 REVIEW_STATE_FILE = SCRIPT_DIR / "patient_state.json"      # READ-ONLY here

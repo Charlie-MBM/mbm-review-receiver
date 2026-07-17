@@ -1,7 +1,7 @@
 {
   "_meta": {
     "go_live_at": "2026-07-13T15:08:06.609934+00:00",
-    "last_run_at": "2026-07-17T16:30:08.171522+00:00",
+    "last_run_at": "2026-07-16T16:30:05.647025+00:00",
     "version": 3
   },
   "mem-5E09FqbSumm8": {
@@ -33,7 +33,7 @@
     "created_at": "2026-07-13T11:58:44.728970-07:00",
     "pat_id": "pat-191oBijPhGoP",
     "plan": "SO - GLP-1 Semaglutide",
-    "reason": "cross_record_conversion",
+    "reason": "reconciled_duplicate_conversion",
     "reconciled": true,
     "start_date": "2026-07-20",
     "status": "suppressed"
@@ -53,5 +53,4 @@
     "reason": "preexisting_back_scan",
     "start_date": "2026-06-29",
     "status": "pending_approval"
-  }
-}
+  },

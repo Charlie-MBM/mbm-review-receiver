@@ -379,3 +379,12 @@ date=2026-07-16  dry_run=False  pending=1  go_live_at=2026-07-13T15:08:06.609934
 - [exit] Colleen K. (mem-KXYcdzicKRW9) plan=SO - GLP-1 Tirzepatide -- cross-record conversion (payment/active elsewhere)
 =======================================================
 
+2026-07-17 09:30:01,638  INFO      nurture poller start (T5d): dry_run=False date=2026-07-17
+2026-07-17 09:30:04,116  INFO      nurture poller: 2 pending; 58 patients scanned; go_live_at=2026-07-13T15:08:06.609934+00:00 approved=0
+
+================ NURTURE RUN PLAN (T5d) ================
+date=2026-07-17  dry_run=False  pending=2  go_live_at=2026-07-13T15:08:06.609934+00:00
+- [exit] Colleen K. (mem-KXYcdzicKRW9) plan=SO - GLP-1 Tirzepatide -- cross-record conversion (payment/active elsewhere)
+- [exit] Marian A. (mem-R6kubnHgfC4B) plan=SO - GLP-1 Semaglutide -- cross-record conversion (payment/active elsewhere)
+=======================================================
+

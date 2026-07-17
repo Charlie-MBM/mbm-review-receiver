@@ -92,3 +92,159 @@ Wrote C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboa
     "No Lead Source field found on patient objects via the API - it may be UI-only. Falling back: members counted, but lead-source split is all 'other'. Check --probe output; if blank, keep the browser read for lead source only."
   ]
 }
+Wrote C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboard\members_feed.json
+{
+  "period": "2026-07",
+  "active_members": {
+    "concierge": 14,
+    "so": 18,
+    "total": 32,
+    "friends_family_active_excluded": 11,
+    "status_histogram": {
+      "active": 43,
+      "pending": 2,
+      "unpaid": 2,
+      "ended": 7
+    },
+    "basis": "membership status == 'active'; comps/F&F and test accounts excluded"
+  },
+  "terminations_mtd": {
+    "concierge": 0,
+    "so": 0,
+    "total": 0,
+    "friends_family_excluded": 0,
+    "nurture_cleanup_excluded": 0,
+    "never_paid_excluded": 1,
+    "payment_unverified": 0,
+    "end_field": "end_date",
+    "end_status_without_date": 0,
+    "basis": "membership end-date in month, PAYING members only; nurture/reconcile cancels, never-paid pendings, comps/F&F and test accounts excluded"
+  },
+  "members": {
+    "concierge": 1,
+    "so": 2,
+    "total": 3
+  },
+  "new_member_basis": "created_at",
+  "members_anchored_by_start_date": {
+    "concierge": 2,
+    "so": 2,
+    "total": 4
+  },
+  "members_pending": {
+    "concierge": 1,
+    "so": 1,
+    "total": 2
+  },
+  "members_counted_basis": "paid",
+  "payment_unknown": 0,
+  "friends_family_excluded": 11,
+  "members_source": {
+    "google": 0,
+    "google_lsa": 0,
+    "bing": 0,
+    "ai": 0,
+    "social": 0,
+    "provider_referral": 0,
+    "word_of_mouth": 0,
+    "other": 3
+  },
+  "pending_future_dated": 2,
+  "lead_source_field": null,
+  "lsa_test": {
+    "since": "2026-07-17",
+    "patients_attributed": 0,
+    "attributed_pending": 0,
+    "attributed_unverified_payment": 0,
+    "signups_checked": 0
+  },
+  "consults": {
+    "completed_mtd": 6,
+    "scheduled_mtd": 9,
+    "status_counts": {
+      "confirmed": 9,
+      "cancelled": 1
+    },
+    "start_field": "start",
+    "appointment_keys": [
+      "attendees",
+      "created_at",
+      "description",
+      "end",
+      "host",
+      "id",
+      "location",
+      "recurring_appointment_id",
+      "start",
+      "status",
+      "title",
+      "updated_at",
+      "workflow_status"
+    ],
+    "match_rule": "non-staff attendee is still a Contact (no patient id) = a real prospect consult; same rule as consult_count.is_consult_booking",
+    "basis": "contact_attendee_running_tally",
+    "booked_mtd_running_tally": 10,
+    "tally_state_written": "2026-07-16T21:53:02.044346+00:00"
+  },
+  "consults_legacy_30min": {
+    "completed_mtd": 10,
+    "scheduled_mtd": 14,
+    "status_counts": {
+      "confirmed": 14
+    },
+    "start_field": "start",
+    "appointment_keys": [
+      "attendees",
+      "created_at",
+      "description",
+      "end",
+      "host",
+      "id",
+      "location",
+      "recurring_appointment_id",
+      "start",
+      "status",
+      "title",
+      "updated_at",
+      "workflow_status"
+    ],
+    "match_rule": "LEGACY/WRONG: duration == 30 min OR 'consult' in title/description"
+  },
+  "appointments": {
+    "completed_mtd": 30,
+    "scheduled_mtd": 43,
+    "status_counts": {
+      "confirmed": 43,
+      "cancelled": 7
+    },
+    "start_field": "start",
+    "appointment_keys": [
+      "attendees",
+      "created_at",
+      "description",
+      "end",
+      "host",
+      "id",
+      "location",
+      "recurring_appointment_id",
+      "start",
+      "status",
+      "title",
+      "updated_at",
+      "workflow_status"
+    ],
+    "appointments_seen": 50,
+    "duration_histogram": {
+      "30": 14,
+      "5": 17,
+      "90": 16,
+      "60": 3
+    }
+  },
+  "warnings": [
+    "11 friends-and-family / comp membership(s) matched EXCLUDE_PLAN_SUBSTRINGS and were dropped from members + pending (not real new members). Adjust EXCLUDE_PLAN_SUBSTRINGS if the plan name differs.",
+    "new-member count by SIGNUP date (created_at) = 3, but by billing anchor (start_date) = 4. The gap is renewals / reactivations / plan-changes / future-dated starts that anchor this month without being new signups. Dashboard uses the signup-date count.",
+    "No Lead Source field found on patient objects via the API - it may be UI-only. Falling back: members counted, but lead-source split is all 'other'. Check --probe output; if blank, keep the browser read for lead source only.",
+    "consults by REAL signal (Contact attendee) = 9 in-window / 10 booked-MTD running tally, but the OLD 30-min heuristic = 14. 30 min is not unique to consults (follow-ups/member visits share the slot), so the old rule over-counted. Dashboard now uses the Contact-attendee basis."
+  ]
+}

@@ -273,3 +273,12 @@
 2026-07-16 10:00:05,749  INFO      poller: click-tracker returned 0 hash(es) to suppress
 2026-07-16 10:00:06,583  INFO      poller: found 0 patient(s) with member visits to evaluate
 2026-07-16 10:00:06,585  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced
+2026-07-17 10:00:03,334  INFO      poller start: since=2026-07-16T17:00:06.584479+00:00 dry_run=False
+2026-07-17 10:00:04,463  ERROR     click-tracker GET returned 404: <!DOCTYPE html>
+<!--[if lt IE 7]> <html class="no-js ie6 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 7]>    <html class="no-js ie7 oldie" lang="en-US"> <![endif]-->
+<!--[if IE 8]>    <html class="no-
+2026-07-17 10:00:04,465  INFO      poller: click-tracker returned 0 hash(es) to suppress
+2026-07-17 10:00:05,450  INFO      poller: found 0 patient(s) with member visits to evaluate
+2026-07-17 10:00:05,450  INFO      walkin-review: WALKIN_REVIEW_ENABLED=false — branch disabled (no-op)
+2026-07-17 10:00:05,452  INFO      poller end: ok | sent=0 skipped=0 errors=0 | last_run_at advanced

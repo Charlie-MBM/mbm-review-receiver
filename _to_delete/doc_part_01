@@ -1,0 +1,65 @@
+ members_feed.json  (Hint aggregates:
+          active_members [v2+], members, pending, consults running tally, warnings)
+9:30a  mbm-dashboard-daily-fast (Cowork task)
+       └─ reads members_feed.json (incl. active_members → SNAPSHOT.members.active,
+          terminations_mtd, consults.booked_mtd_running_tally)
+          + GA4 (runReport MTD: events by channel, click-by-linkDomain handoffs)
+          + Google Ads (GAQL v21 MTD; 'conversions' = GA4-imported all_conversions)
+          + GBP (Performance API via Zapier raw GET, location 3763111265482720361:
+            CALL_CLICKS / WEBSITE_CLICKS / BUSINESS_DIRECTION_REQUESTS, MTD → gbp_perf)
+          + LSA (Google Ads GAQL v21 searchStream: local_services_lead, MTD by
+            creation_date_time → SNAPSHOT.lsa {leads_phone/message/charged/credited,
+            spend}; sources.lsa.as_of. Campaign PAUSED → real zeros; the campaign-spend
+            GAQL already carries LSA spend, FROM campaign no type filter)
+          + LSA TEST cumulative fields (same pull, second window: creation_date_time
+            >= 2026-07-17 → SNAPSHOT.lsa.test.leads_charged_cum [charged only,
+            disputed/credited excluded] ; campaign cost segments.date >= 2026-07-17
+            → spend_cum ; members_feed.json.lsa_test.patients_attributed +
+            attributed_pending → SNAPSHOT.lsa.test. NOT MTD — never reset at
+            month rollover. Feed lacking lsa_test key → leave nulls, do not bake 0.)
+          → updates SNAPSHOT block in index.html, sets sources.*.as_of per source
+          actually refreshed, bumps DATA_VERSION, checks updatedAt, republishes
+Mon    mbm-dashboard-weekly-refresh (Cowork task)
+       └─ adds GSC (browser/API), Ahrefs (browser if API units exhausted),
+          Meta + Nextdoor Ads Manager pulls (Chrome), KW re-bake
+7:15a  mbm-dashboard-health-check (remote scheduled task, cloud)
+       └─ READ-ONLY: GA4 daily taps + Ads daily conversions + artifact updatedAt;
+          alerts Charlie (push/email) on blackout/staleness. Never edits the artifact.
+On-open  ↻ Refresh live (in-page, optional)
+       └─ window.cowork.callMcpTool → Zapier GA4/Ads + Ahrefs MCP. Per-source:
+          success updates src_asof:<k>; failure sets src_err:<k> → red chip.
+          Retries once with backoff. NOTHING falls back silently.
+```
+
+**The SNAPSHOT contract (in index.html):** all baked data lives in one `SNAPSHOT` const with a `sources` block (`as_of`, `cadence_h` per source). A refresh task updates the data, sets that source's `as_of`, bumps `DATA_VERSION`, republishes. Freshness chips and stale-hatching are computed at render from `as_of` vs `cadence_h` — set `as_of` ONLY for sources you actually refreshed.
+
+**API rules (hard-won):**
+- Google Ads: **API v21 only** (v17/v18 → 404, v20 → blocked). `searchStream` endpoint. **NEVER `create_report`** — it silently overrides your field list with an LLM guess.
+- GA4: raw Data API via Zapier `_zap_raw_request` POST to `properties/513547844:runReport`. The packaged runReport action is unreliable. No raw GET exists on this connector (use the Data API's POST-everything surface).
+- Ahrefs: native MCP (`mcp__251f7265…`), NOT Zapier. Units-limited — exhausted as of 2026-07-16; UI is units-free. Empty result arrays (`metrics: []`) are a FAILURE state, not "no change" — rank-tracker with `date: today` can return empty when no snapshot exists for that date.
+- Hint: laptop pollers only. Keys never leave the laptop.
+
+## 3. Failure modes & the alerting model
+
+| Failure | Detection | Behavior |
+|---|---|---|
+| Source pull fails (Zapier "MCP server connection lost", API error) | per-source try/catch with 1 retry + backoff | last-good value stays, chip turns red with error text; tile hatches when age > 2× cadence. Page never blanks; failures are per-metric. |
+| Poller misses runs | hint `as_of` age > 26h (amber) / > 52h (red) | member/consult tiles hatch; alert names the task (MBM-Dashboard-Members-Export) |
+| Ads conversion pipeline breaks | **7-day window: primary conversions = 0 while taps ≥ 10 and paid clicks ≥ 30** → red alert | this exact detector would have fired 2026-07-03 during the July incident |
+| Site tagging breaks | ≥2 consecutive zero-tap days (p<1% at ~4 taps/day) | red alert: "tracking broken, not demand" |
+| Consult tally stale | feed warning when `consult_count_state.json` ≥2 days old | surfaced in feed `warnings` |
+| Refresh task dies entirely | remote health-check task (cloud, independent of laptop AND of the dashboard being opened) pushes/emails | the dashboard can't alert you if nothing opens it — the health check can |
+
+**Incident log — July 2026 "conversion blackout" (resolved):** Google Ads `Conversions` column read 0 from Jul 2–16 while the actions showed ENABLED. Root cause was NOT a dead GA4 link: around Jul 1 the GA4-imported `booking_click`/`phone_click` actions were demoted from **primary** to secondary (`primary_for_goal=false`), and the only primary web goal left was "Sign-up (signup_complete)" — a GA4 event that does not exist on the site. Real conversions kept flowing into `all_conversions` the whole time (they reconcile with GA4 paid-search taps). **Fixed 2026-07-16 via Google Ads API:** both actions restored to primary (conversionActions 7635222383, 7635222386). Residual: implement `signup_complete` in GA4 or demote that action; watch that smart bidding re-learns over ~1–2 weeks. Lesson: dashboards must read `all_conversions` for GA4-imported actions and alert on primary-column silence.
+
+## 4. Known gaps / status (updated 2026-07-16 late)
+- **IN FLIGHT — first-party booking software** (separate task, 2026-07-17): replaces Hint's hosted booking flow. At cutover this contract changes: (a) funnel gains measurable booking_start → booking_complete stages and the "Hint arrival ≈ 100% / outbound telemetry" note retires; (b) `signup_complete` starts firing for real — re-promote the Ads "Sign-up" action to primary THEN, not before; (c) lead_source gets auto-collected at booking (buckets must match the dashboard's, + "Google Local Services"); (d) UTM/gclid stored on the Hint record = real channel→member attribution; (e) VERIFY consult_count.py's Contact-attendee rule against how the new system writes to Hint — if it creates patients at booking, the running tally breaks and must ship a matching update. PHI: booking data persists only in Hint/BAA'd systems; CF KV stores hashes at most.
+- **Active-member counts**: `active_members` (whole-book, status=='active', F&F/test excluded) now in `export_dashboard_members.py`; dashboard prefers the feed-baked `SNAPSHOT.members.active` over manual entry once the refresh task bakes it. Verify `status_histogram` on first run — if Hint uses a status other than `active`, adjust the filter.
+- **Terminations**: `terminations_mtd` field added (end-date-in-month basis, defensive). If `end_field` comes back null with `end_status_without_date > 0`, extend `_END_KEYS` in the exporter. Presentation rule: net growth = adds − terms; at ~150 members show TTM churn + cohorts, never monthly churn %.
+- **Lead Source discipline**: ask "how did you hear about us" at signup, record in Hint. 0/3 July members have it. The only durable attribution.
+- **Hint booking-flow visibility**: asked Hint support (in-app chat, 2026-07-16) whether the hosted signup allows a GA4/GTM tag or UTM passthrough; custom-signup API is the fallback. Handoff stage remains the proxy meanwhile. NOTE: Hint also has an open reply waiting on Charlie in the "New phone number setup" thread (they asked which area code).
+- **GBP Performance API**: ✅ SOLVED 2026-07-16 via Zapier raw GET (no Google approval needed). Baked into the daily refresh contract (§2).
+- **Meta**: diagnosed 2026-07-16 — the "Not delivering" campaign's ad is **Rejected** ("doesn't comply with our Advertising Policies", generic policy strike; likely personal-health policy given the creative). Untouched per Charlie. Options: edit creative + resubmit, request re-review via Business Support Home, or pause. Also pending in Ads Manager: "New Leads Ad" in draft, 3 unpublished changes ("Review and publish (3)"), and a **"Verification may be required soon"** banner — identity verification is Charlie-only, do not automate.
+- **Google Ads goal config**: booking_click + phone_click restored to primary 2026-07-16; "Sign-up (signup_complete)" **demoted to secondary** 2026-07-16 (the GA4 event doesn't exist — re-promote only after the event is actually implemented). Watch: Google search-panel showed "Branded | Bellingham | Search — NOT ELIGIBLE, your ads aren't showing" on 2026-07-16 — check the campaign's status/budget/policy in Ads if it persists.
+- **Ahrefs units**: exhausted 2026-07-16; SEO live-refresh effectively disabled until reset. Weekly browser read is the fallback.
+- **GBP category on SERP**: knowledge panel still showed "Family practice physician" on 2026-07-16 evening — propagation lag, recheck in 24–48h.

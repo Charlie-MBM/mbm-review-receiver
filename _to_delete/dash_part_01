@@ -1,0 +1,595 @@
+' pending payment</span>'):'');
+      html+='<div class="fconv">'+note+'</div>';
+    }
+  }
+  const srcLegend=SRCC.map(c=>'<span style="color:'+c[1]+';font-weight:700">●</span> '+c[2]).join(' &nbsp; ');
+  html+='<div class="small" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--line);line-height:1.9">'+
+    '<b>Traffic source</b> (visits &amp; taps): '+srcLegend+'<br>'+
+    '<b>Consults &amp; members</b> come from the Hint EHR via the laptop poller: consults = '+escapeHtml((ch&&ch.rule)||SNAPSHOT.consults.rule)+'; members counted on '+escapeHtml(SNAPSHOT.members.basis)+'.<br>'+
+    '<span style="font-style:italic">No impressions band here on purpose — search impressions are reach, not funnel. Bar counts are EVENTS; people-counts ride the bars. <b>Hint arrival is not a stage:</b> every booking CTA links directly to mtbakermedical.hint.com (verified 2026-07-17), so arrival ≈ 100% of web taps; GA4\'s outbound counter (saw '+fmtN(handoffs)+' of them) undercounts because its event races page navigation — instrumentation telemetry, not a funnel number.</span></div>';
+  document.getElementById("funnel").innerHTML=html;
+
+  // reach line — deliberately a LINE, not a funnel bar: impressions are reach, carry an
+  // estimated organic component, and would dwarf the real stages into invisibility
+  const rl=document.getElementById("reachLine");
+  if(rl){
+    const proj=projectMonth(SNAPSHOT.gsc.current);
+    const paidImpr=SNAPSHOT.gads.mtd.impressions||0;
+    const reach=(proj?proj.impressions:0)+paidImpr;
+    rl.innerHTML='<b>Search reach this month: ~'+fmtN(reach)+' impressions</b> <span style="color:var(--muted)">('+fmtN(paidImpr)+' paid actual + ~'+fmtN(proj?proj.impressions:0)+' organic projected). Reach, not funnel — it sits up here so it can\'t dwarf the stages that matter below.</span>';
+  }
+
+  // leak box — counts PEOPLE where unique-user data exists; taps are events (~1.9/person)
+  const uLive=store.get("funnel_users:"+period,null);
+  const u=uLive||(period===SNAPSHOT.period?SNAPSHOT.funnel_mtd.users:null);
+  let leakHtml;
+  if(u && +u.tappers>0){
+    const wq=wilson(consults, +u.tappers);
+    const perPerson=taps>0?Math.round((taps/u.tappers)*10)/10:null;
+    const lost=Math.max(0, +u.tappers - consults);
+    leakHtml='<b>'+fmtN(u.tappers)+'</b> people tried to book this month ('+fmtN(taps)+' taps'+(perPerson?(' — ~'+perPerson+' per person'):'')+'). Every booking CTA on the site links straight to Hint\'s booking page (verified 2026-07-17), so essentially all of them arrived — and <b>'+fmtN(consults)+'</b> consults came out ('+(wq?(Math.round(wq.p)+'%, range '+Math.round(wq.lo)+'–'+Math.round(wq.hi)+'%'):'—')+').'+
+      ' <b>The entire drop is inside Hint\'s booking flow</b> (or after a phone call): ~'+fmtN(lost)+' people this month wanted to book and didn\'t finish.'+
+      '<br><b>Why this is permanent:</b> the loss happens on mtbakermedical.hint.com where GA4 goes blind — this box is the only place it\'s visible. Hint support has been asked (2026-07-16) whether the hosted signup allows analytics; until then the booking flow itself is the highest-leverage $0 fix: +10 points of completion ≈ +3 consults/month.'+
+      '<div class="small" style="margin-top:6px;color:var(--stale)">People = GA4 totalUsers (unique browsers/devices; cross-device can double-count) as of '+escapeHtml(u.as_of||'')+'. Taps = events. GA4\'s outbound-arrival counter is an undercount (beacon loss) and is not used here.</div>';
+  } else {
+    const w2=wilson(consults,taps);
+    leakHtml='Of <b>'+fmtN(taps)+'</b> Book/Call taps this month (<b>events, not unique people</b> — people average ~1.9 taps each), <b>'+fmtN(consults)+'</b> consults were booked ('+(w2?Math.round(w2.p):'—')+'% of taps; the per-person rate is roughly double).'+
+      '<br><span class="small" style="color:var(--stale)">Unique-person counts not available for this period. Booking CTAs land directly on Hint, so the drop is inside Hint\'s booking flow, not on the way there.</span>';
+  }
+  document.getElementById("leakBox").innerHTML=leakHtml;
+
+  // daily chart — emphasis pattern: the metric that matters (reached Hint) in the
+  // series green; taps de-emphasized in neutral gray
+  barsAndLine("chDaily", SNAPSHOT.daily.dates,
+    [{label:"Book/Call taps", data:SNAPSHOT.daily.taps, backgroundColor:"#20713F"}]);
+}
+function renderMemberSource(){
+  const el=document.getElementById("memSourceBar"); const legEl=document.getElementById("memSourceLegend"); if(!el) return;
+  const period=selectedPeriod();
+  const ms=store.get("members_source:"+period, null);
+  const order=[["google","Google","#20713F"],["google_lsa","Google Local Services","#8A4A7D"],["bing","Bing","#2C6FC4"],["ai","AI","#7059B3"],["social","Social media","#4A8DB5"],["provider_referral","Provider/ER referral","#9C6F10"],["word_of_mouth","Word of mouth","#61A879"],["other","Other / not recorded","#C2703F"]];
+  const tot=ms?order.reduce((a,c)=>a+(+ms[c[0]]||0),0):0;
+  if(!ms||tot<=0){ el.innerHTML='<div class="fbar fbar-empty" style="width:100%">awaiting Hint lead-source data</div>'; if(legEl) legEl.innerHTML=''; return; }
+  let bar=''; order.forEach(c=>{ const v=+ms[c[0]]||0; if(v>0) bar+='<span style="flex:'+v+';background:'+c[2]+'" title="'+c[1]+': '+v+'"></span>'; });
+  el.innerHTML='<div style="display:flex;height:30px;border-radius:7px;overflow:hidden;background:#eef1ec">'+bar+'</div>';
+  legEl.innerHTML=order.map(c=>{ const v=+ms[c[0]]||0; return v>0?'<span><i style="background:'+c[2]+'"></i>'+c[1]+' '+v+'</span>':''; }).join('');
+  const gap=SNAPSHOT.members.lead_source_gap;
+  document.getElementById("memSourceNote").innerHTML = gap?('⚠ <b>'+escapeHtml(gap)+'</b> — ask at signup and record it in Hint. It costs nothing and it\'s the only attribution that survives a 3-week, 5-visit consideration cycle. Quarterly rollup of this bar is the practice\'s real channel report.'):'';
+}
+
+/* ---------- PAID ---------- */
+function renderPaid(){
+  const period=selectedPeriod(); const a=getAds(period);
+  setRangePill("paidRange", period);
+  const g=a.google;
+  const cpcG=(+g.clicks>0)?(+g.spend)/(+g.clicks):null;
+  const gads=srcState("gads"), meta=srcState("meta"), nd=srcState("nextdoor"), lsa=srcState("lsa");
+  const la=SNAPSHOT.gads.local_actions_mtd;
+  const L=SNAPSHOT.lsa;
+  const lsaLeads=(+L.leads_phone_mtd||0)+(+L.leads_message_mtd||0);
+  const ch=store.get("consults_hint:"+period,null);
+  const consults=(ch&&(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled))||null;
+  let cards="";
+  cards+=card("Google Ads — spend", fmtUSD(g.spend)+' <small>MTD</small>',
+    '<div class="small" style="margin-top:6px;line-height:1.7">'+fmtN(g.clicks)+' clicks · CPC <b>'+fmtUSD(cpcG)+'</b><br>Ad-attributed taps (all conv): <b>'+fmtN(g.conversions)+'</b></div>'+
+    (LSA_GO_LIVE?'<div class="small" style="margin-top:4px">incl. LSA from '+escapeHtml(LSA_GO_LIVE)+' (Local Services spend is inside this MTD total — FROM campaign, no type filter)</div>':''),
+    gads.cls==="stale", "GAQL v21 · "+fmtAge(gads.ageH));
+  cards+=card("LSA (Local Services)", fmtN(lsaLeads)+' <small>leads MTD</small>',
+    '<div class="small" style="margin-top:6px;line-height:1.7">'+fmtN(L.leads_phone_mtd)+' phone · '+fmtN(L.leads_message_mtd)+' message<br>'+
+      fmtN(L.leads_charged_mtd)+' charged · '+fmtN(L.leads_credited_mtd)+' credited · spend <b>'+fmtUSD(L.spend_mtd)+'</b></div>'+
+    '<div class="small" style="margin-top:4px">'+(LSA_GO_LIVE?('pay-per-lead · live from '+escapeHtml(LSA_GO_LIVE)):'pay-per-lead · campaign <b>PAUSED</b> — zeros are real zeros until go-live')+'</div>'+
+    '<div class="small" style="margin-top:4px;color:var(--stale)">LSA phone leads are a <b>fourth distinct call signal</b> (Google forwarding numbers) — never summed with GBP CALL_CLICKS, Ads local actions, or GA4 phone_click.</div>',
+    lsa.cls==="stale", "local_services_lead GAQL v21 · "+fmtAge(lsa.ageH));
+  /* LSA test tile — decision-rule tracker, NOT a KPI trend. No arrows, no rates,
+     no per-lead cost math (small-n). Cumulative since test start; survives month
+     rollover. Stale lsa pull ⇒ hatched last-good values, never a fresh 0/12. */
+  const T=L.test||{};
+  const tLeads=(+T.leads_charged_cum||0), tCk=+T.checkpoint_leads||12;
+  const tPct=Math.min(100,(tLeads/tCk)*100);
+  const tAttr=(T.patients_attributed==null)?null:+T.patients_attributed;
+  cards+=card("LSA test — kill/keep tracker",
+    fmtN(tLeads)+'<small>/'+tCk+' billed leads</small>',
+    '<div class="goalbar"><span style="width:'+tPct+'%"></span></div>'+
+    '<div class="small" style="margin-top:6px;line-height:1.7">'+fmtUSD(+T.spend_cum||0)+' of ~$'+fmtN(+T.checkpoint_spend_est||600)+' checkpoint spend · '+
+      ((tAttr==null)?'<span style="color:var(--stale)">—</span>':('<b>'+fmtN(tAttr)+'</b>'))+' attributed'+
+      ((+T.attributed_pending>0)?(' (+'+fmtN(T.attributed_pending)+' pending payment)'):'')+
+      ' · disputed/credited leads excluded</div>'+
+    (tLeads>=tCk?'<div class="small" style="margin-top:4px;color:var(--warn)"><b>Checkpoint reached — apply the decision rule below.</b></div>':'')+
+    '<div class="small" style="margin-top:6px;line-height:1.6"><b>Decision rule (locked 2026-07-17):</b> evaluate at '+tCk+' billed leads (~$'+fmtN(+T.checkpoint_spend_est||600)+'): ≥2 patients → <b>KEEP</b> · 1 → extend to '+fmtN(+T.extend_leads||20)+' leads · 0 → <b>PAUSE</b>. Override: any <b>Concierge</b> conversion = automatic keep. Working value: GLP SO patient ≈ $500 (Charlie, 2026-07-17 — may revise).</div>'+
+    '<div class="small" style="margin-top:4px;color:var(--stale)">"Attributed" = Hint Lead Source <b>"Google Local Services"</b> — depends on intake asking and recording it. A zero can mean missing attribution, not channel failure.'+
+      ((tAttr==null)?' Shows "—" until the first Hint feed with the LSA bucket lands (exporter upgraded 2026-07-17).':'')+'</div>',
+    lsa.cls==="stale", "cumulative since "+escapeHtml(T.since||"2026-07-17")+" · leads/spend via GAQL · attributed via Hint feed ("+fmtAge(srcState("hint").ageH)+")");
+  cards+=card("GBP local actions", fmtN(la.calls+la.directions)+' <small>calls + directions</small>',
+    '<div class="small" style="margin-top:6px;line-height:1.7">'+fmtN(la.calls)+' calls · '+fmtN(la.directions)+' directions<br>'+fmtN(la.website)+' site visits · '+fmtN(la.other)+' other</div><div class="small" style="margin-top:4px">Google-hosted engagement — never summed with site conversions</div>',
+    false, "via Ads local actions · MTD");
+  cards+=card("Meta", fmtUSD(a.meta.spend)+' <small>'+escapeHtml(SNAPSHOT.meta_ads.window)+'</small>',
+    '<div class="small" style="margin-top:6px;line-height:1.7">'+fmtN(a.meta.clicks)+' link clicks · <b>'+fmtN(a.meta.conversions)+' landing-page views</b><br><b style="color:var(--warn)">LPVs are not leads</b> — no lead event on the pixel</div>',
+    meta.cls==="stale", "manual weekly · "+fmtAge(meta.ageH));
+  cards+=card("Nextdoor", fmtUSD(a.nextdoor.spend)+' <small>'+escapeHtml(SNAPSHOT.nextdoor_ads.window)+'</small>',
+    '<div class="small" style="margin-top:6px;line-height:1.7">'+fmtN(a.nextdoor.impressions)+' impr · '+fmtN(a.nextdoor.clicks)+' clicks<br>no conversion tracking (no pixel)</div>',
+    nd.cls==="stale", "manual weekly · "+fmtAge(nd.ageH));
+  document.getElementById("paidCards").innerHTML=cards;
+
+  // channel economics table
+  const ceEl=document.getElementById("chanEcon");
+  if(ceEl && SNAPSHOT.channel_econ){
+    let ce='<table><thead><tr><th>Channel</th><th class="num">Spend</th><th>Window</th><th class="num">Taps</th><th class="num">People → booking channel</th><th class="num">$ / person</th><th>Read with care</th></tr></thead><tbody>';
+    SNAPSHOT.channel_econ.rows.forEach(r=>{
+      const cpp=(r.spend>0 && r.chan_people>0)?(r.spend/r.chan_people):null;
+      ce+='<tr><td><b>'+escapeHtml(r.ch)+'</b></td>'+
+        '<td class="num">'+(r.spend>0?fmtUSD(r.spend):'<span style="color:var(--good);font-weight:600">$0</span>')+'</td>'+
+        '<td class="small">'+escapeHtml(r.window)+'</td>'+
+        '<td class="num">'+fmtN(r.taps)+'</td>'+
+        '<td class="num"><b>'+fmtN(r.chan_people)+'</b></td>'+
+        '<td class="num">'+(cpp!=null?('<b style="color:'+(cpp>50?'var(--bad)':'var(--forest)')+'">'+(r.warn?'~':'')+fmtUSD(cpp)+'</b>'):(r.spend>0?'<span class="pos-none">—</span>':'<span style="color:var(--good)">free</span>'))+'</td>'+
+        '<td class="small">'+escapeHtml(r.note)+'</td></tr>';
+    });
+    ce+='</tbody></table><div class="small" style="margin-top:8px;line-height:1.7"><b>Booking channel</b> = the person reached the Hint booking page OR tapped call — phone-first bookers count. Rows aren\'t summable (a person can cross channels). <b>What this table cannot say:</b> which channel produces MEMBERS — below the booking channel every row is blind until Lead Source is recorded at signup, and it weighs nothing for intent quality (search intent historically closes better than social). Windows differ where marked; never compare Meta\'s trailing spend to MTD as if equal. GBP\'s 11 profile calls live outside GA4 and can\'t be deduped into these counts. As of '+escapeHtml(SNAPSHOT.channel_econ.as_of)+'.</div>';
+    ceEl.innerHTML=ce;
+  }
+  // campaign table (MTD)
+  let ct='<table><thead><tr><th>Campaign</th><th class="num">Spend</th><th class="num">Clicks</th><th class="num">CPC</th><th class="num">Conv*</th></tr></thead><tbody>';
+  SNAPSHOT.gads.campaigns_mtd.forEach(c=>{
+    ct+='<tr><td>'+escapeHtml(c.name)+'</td><td class="num">'+fmtUSD(c.spend)+'</td><td class="num">'+fmtN(c.clicks)+'</td><td class="num">'+fmtUSD(c.clicks>0?c.spend/c.clicks:null)+'</td><td class="num">'+fmtN(c.conv)+'</td></tr>';
+  });
+  ct+='</tbody></table><div class="small" style="margin-top:8px">*primary-column conversions — artificially 0 for Jul 2–16 (see status alert). Judge campaigns this month on cost per booked consult ('+fmtUSD(consults? (spendMTD(period).spend/consults):null)+' blended), not this column.</div>';
+  document.getElementById("campTable").innerHTML=ct;
+
+  // spend chart (8 months)
+  const periods=recentPeriods(8).reverse();
+  const spendData={}; PLATFORMS.forEach(p=>spendData[p]=[]);
+  periods.forEach(per=>{ const aa=getAds(per); PLATFORMS.forEach(p=>spendData[p].push(+aa[p].spend||0)); });
+  barChartStacked("chSpend", periods, PLATFORMS.map(p=>({label:PLAT_LABEL[p],data:spendData[p],backgroundColor:CH_COLOR[p]})));
+
+  // social panel
+  document.getElementById("socialPanel").innerHTML=
+    '<div class="small" style="font-weight:600;font-size:13px;color:var(--forest);margin-bottom:6px">Social — current state, honestly</div>'+
+    '<div class="small" style="line-height:1.9">'+
+    '<b>Meta paid:</b> '+escapeHtml(SNAPSHOT.meta_ads.warn)+'<br>'+
+    '<b>Nextdoor:</b> '+escapeHtml(SNAPSHOT.nextdoor_ads.warn)+'<br>'+
+    '<b>Organic social (IG/FB):</b> not instrumented — no follower/reach/post data flows here yet. Before adding tiles, decide the goal: if social is meant to produce members, the measure that matters is "Social media" appearing in the Hint lead-source bar above, which costs $0 to track. Vanity reach tiles are deliberately not shown.</div>';
+}
+
+/* ---------- GBP ---------- */
+function renderGBP(){
+  const wrap=document.getElementById("gbpPacks"); if(!wrap) return;
+  const ce=GBP.category_experiment, packs=GBP.packs||[];
+  const today=new Date();
+  const dayspan=(iso)=>{ const d=new Date(iso+"T00:00:00"); return Math.round((today-d)/86400000); };
+  const sinceChange=dayspan(ce.changed_on);
+  const toReadout=-dayspan(ce.readout_on);
+  const packEligible=packs.filter(p=>p.pack);
+  const basePresent=packEligible.filter(p=>p.base!=null).length;
+  const curMeasured=packs.filter(p=>p.cur!=null).length;
+  const curPresent=packEligible.filter(p=>p.cur!=null && p.cur>0).length;
+  const pill=document.getElementById("gbpPill");
+  if(pill) pill.textContent = curMeasured?("re-measured"):("awaiting "+ce.readout_on+" readout");
+  const la=SNAPSHOT.gads.local_actions_mtd;
+  document.getElementById("gbpCards").innerHTML =
+    card("Primary category", '<span style="font-size:18px">'+escapeHtml(ce.primary_after)+'</span>',
+      '<div class="small" style="margin-top:6px">was <b>'+escapeHtml(ce.primary_before)+'</b> · changed '+ce.changed_on+'</div>') +
+    card("Days since change", (sinceChange<0?"—":String(sinceChange)),
+      '<div class="small" style="margin-top:6px">first signal expected in 1–2 weeks; stable readout 3–4 weeks</div>') +
+    card("Packs present", (curMeasured?curPresent:basePresent)+' <small>of '+packEligible.length+'</small>',
+      '<div class="small" style="margin-top:6px">'+(curMeasured?'latest re-measure':'at baseline (pre-change)')+'</div>') +
+    (SNAPSHOT.gbp_perf
+      ? card("GBP — "+escapeHtml(SNAPSHOT.gbp_perf.window||"Insights"), fmtN(SNAPSHOT.gbp_perf.calls)+' <small>calls</small>',
+        '<div class="small" style="margin-top:6px">'+fmtN(SNAPSHOT.gbp_perf.website_clicks)+' website clicks · '+fmtN(SNAPSHOT.gbp_perf.direction_requests)+' directions</div>'+
+        '<div class="small" style="margin-top:4px">Ads local actions MTD: '+fmtN(la.calls)+' calls · '+fmtN(la.directions)+' dir</div>',
+        false, escapeHtml(SNAPSHOT.gbp_perf.source||"GBP Insights")+' · as of '+escapeHtml(SNAPSHOT.gbp_perf.as_of||""))
+      : card("GBP engagement — MTD", fmtN(la.calls+la.directions+la.website+la.other),
+        '<div class="small" style="margin-top:6px">'+fmtN(la.calls)+' calls · '+fmtN(la.directions)+' directions · '+fmtN(la.website)+' site clicks</div><div class="small" style="margin-top:4px">via Ads local actions (24–48h lag); click-to-call undercounts real calls</div>'));
+  const posCell=(v,isPack)=>{
+    if(!isPack) return '<span class="pos-none" title="no local pack renders for this term">no pack</span>';
+    if(v==null) return '<span class="pos-none">absent</span>';
+    return '<span class="pospill '+(v<=3?"pos-top3":v<=10?"pos-top10":"pos-low")+'">'+v+'</span>';
+  };
+  let h='<table><thead><tr><th>Search term</th><th class="num">Baseline</th><th class="num">Latest</th><th class="num">&Delta;</th><th class="num">Organic</th><th>Pack leader</th></tr></thead><tbody>';
+  packs.forEach(function(p){
+    let d='<span class="dlt-flat">pending</span>';
+    if(p.cur!=null || p.base!=null){
+      if(p.cur==null && p.base!=null) d='<span class="dlt-flat">—</span>';
+      else if(p.cur!=null && p.base==null) d='<span class="dlt-up">entered</span>';
+      else if(p.cur!=null && p.base!=null){
+        const dv=p.base-p.cur;
+        d = dv>0?'<span class="dlt-up">▲'+dv+'</span>':(dv<0?'<span class="dlt-dn">▼'+Math.abs(dv)+'</span>':'<span class="dlt-flat">0</span>');
+      }
+    }
+    const leader=escapeHtml(p.leader||"—")+'<span class="small"> · '+(p.lrev!=null?p.lrev+' rev':'—')+(p.lrating?(' · '+p.lrating+'★'):'')+' · '+escapeHtml(p.lcat||'')+'</span>';
+    h+='<tr><td><b>'+escapeHtml(p.term)+'</b></td>'+
+       '<td class="num">'+posCell(p.base,p.pack)+'</td>'+
+       '<td class="num">'+posCell(p.cur,p.pack)+'</td>'+
+       '<td class="num">'+d+'</td>'+
+       '<td class="num">'+(p.organic!=null?'<span class="pospill '+(p.organic<=3?"pos-top3":"pos-top10")+'">'+p.organic+'</span>':'<span class="pos-none">—</span>')+'</td>'+
+       '<td class="small">'+leader+'</td></tr>';
+  });
+  wrap.innerHTML=h+'</tbody></table>';
+  document.getElementById("gbpNote").innerHTML =
+    '<b>The bet:</b> '+escapeHtml(ce.thesis)+'<br>'+
+    '<b>Baseline locked '+ce.baseline_locked+'</b> (pre-change). MBM is organic <b>#1</b> for concierge and TRT yet <b>absent from 4 of 5 packs</b> — that gap is what the category switch tests; it is not a content problem.<br>'+
+    '<span style="font-style:italic">Pack position is a manual SERP read (no API) and personalises by proximity — treat ±1 as noise, and treat a single-point read as directional. Confounds on the readout: review velocity (hold the review-request cadence steady through '+ce.readout_on+') and any Google core update in the window.</span><br>'+
+    (LSA_GO_LIVE?'<span style="font-style:italic"><b>Added confound:</b> Google Local Services Ads live from '+escapeHtml(LSA_GO_LIVE)+' — read the '+ce.readout_on+' pack/engagement readout with that paid entrant in view.</span><br>':'')+
+    (SNAPSHOT.gbp_attrib
+      ? '<b>GBP → bookings funnel (UTM-attributed, MTD):</b> '+fmtN(SNAPSHOT.gbp_attrib.sessions)+' site sessions ('+fmtN(SNAPSHOT.gbp_attrib.users)+' people) · '+fmtN(SNAPSHOT.gbp_attrib.taps)+' booking/phone taps · '+fmtN(SNAPSHOT.gbp_attrib.handoffs)+' reached Hint booking <span class="small">(as of '+escapeHtml(SNAPSHOT.gbp_attrib.as_of||'')+' · undercounts: profile calls/directions never touch the site, and Maps-app taps can strip UTMs)</span><br>'
+      : '<b>GBP → bookings:</b> <span style="font-style:italic">awaiting UTM-attributed data.</span><br>')+
+    (SNAPSHOT.gbp_perf
+      ? '<b>GBP engagement baseline (pre-category-change, Performance API):</b> June = '+fmtN(SNAPSHOT.gbp_perf.june_baseline.calls)+' calls / '+fmtN(SNAPSHOT.gbp_perf.june_baseline.website_clicks)+' website clicks / '+fmtN(SNAPSHOT.gbp_perf.june_baseline.direction_requests)+' directions; Jul 1–15 = '+fmtN(SNAPSHOT.gbp_perf.calls)+' / '+fmtN(SNAPSHOT.gbp_perf.website_clicks)+' / '+fmtN(SNAPSHOT.gbp_perf.direction_requests)+'. <span style="font-style:italic">Jul 14 logged an anomalous 22 direction requests — check for a cause before crediting the category change at the readout. These are all-source profile actions (organic + maps + ads), broader than the Ads local-actions tile.</span>'
+      : '<b style="color:var(--warn)">GBP Performance API not wired:</b> <span style="font-style:italic">'+escapeHtml(GBP.perf_blocker)+'</span>');
+}
+
+/* ---------- SEO ---------- */
+function renderSEO(){
+  const gsc=srcState("gsc"), ah=srcState("ahrefs");
+  const lm=SNAPSHOT.gsc.latest_month;
+  document.getElementById("seoKpis").innerHTML =
+    card("GSC clicks — "+lm.month, fmtN(lm.clicks), '', gsc.cls==="stale", "final month · "+fmtAge(gsc.ageH)) +
+    card("Impressions — "+lm.month, fmtN(lm.impressions), '', gsc.cls==="stale", "final month") +
+    card("CTR — "+lm.month, fmtPct(lm.ctr), '', gsc.cls==="stale", "final month") +
+    card("Avg position — "+lm.month, fmtPos(lm.position), '', gsc.cls==="stale", "final month");
+  document.getElementById("drVal").textContent = SNAPSHOT.ahrefs.dr!=null?fmtN(SNAPSHOT.ahrefs.dr):"—";
+  document.getElementById("refVal").textContent = SNAPSHOT.ahrefs.ref_domains!=null?fmtN(SNAPSHOT.ahrefs.ref_domains):"—";
+  document.getElementById("drNote").innerHTML=escapeHtml(SNAPSHOT.ahrefs.dr_note)+' <span class="asof">as of '+escapeHtml(ah.asof.slice(0,10))+' · '+escapeHtml(SNAPSHOT.sources.ahrefs.how)+'</span>';
+  document.getElementById("refNote").innerHTML='<span class="asof">as of '+escapeHtml(ah.asof.slice(0,10))+'</span>';
+  const hist=SNAPSHOT.gsc.trend;
+  const labels=hist.map(h=>h.date);
+  const cClicks=hist.map(h=>h.clicks), cImpr=hist.map(h=>h.impressions), cPos=hist.map(h=>h.position);
+  const proj=projectMonth(SNAPSHOT.gsc.current);
+  if(proj){
+    labels.push(proj.month+" proj.");
+    cClicks.push(null); cImpr.push(null); cPos.push(null);
+    const n=labels.length;
+    const spur=(lastActual,val)=>{ const a=new Array(n).fill(null); a[n-2]=lastActual; a[n-1]=val; return a; };
+    const lastC=hist[hist.length-1].clicks, lastI=hist[hist.length-1].impressions, lastP=hist[hist.length-1].position;
+    /* clicks & impressions are two measures of different scale → two small multiples
+       on ONE axis each (never a dual-axis chart) */
+    const NOLEG={plugins:{legend:{display:false}}};
+    lineChart("chGscClicks",labels,[
+      {label:"Clicks",data:cClicks,borderColor:"#20713F",backgroundColor:"rgba(32,113,63,.09)",fill:true},
+      {label:"Clicks (proj.)",data:spur(lastC,proj.clicks),borderColor:"#20713F",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
+    ],NOLEG);
+    lineChart("chGscImpr",labels,[
+      {label:"Impressions",data:cImpr,borderColor:"#61A879",backgroundColor:"rgba(97,168,121,.10)",fill:true},
+      {label:"Impressions (proj.)",data:spur(lastI,proj.impressions),borderColor:"#61A879",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
+    ],NOLEG);
+    lineChart("chPos",labels,[
+      {label:"Avg position",data:cPos,borderColor:"#20713F",backgroundColor:"rgba(32,113,63,.08)",fill:true},
+      {label:"Avg position (MTD)",data:spur(lastP,proj.position),borderColor:"#20713F",borderDash:[5,4],pointStyle:"rectRot",pointRadius:4,fill:false}
+    ],{noZero:true,plugins:{legend:{display:false}},scales:{y:{reverse:true,grid:GRID,ticks:TICKS,border:{display:false}},x:{grid:{display:false},ticks:TICKS,border:{color:"#E3E7E1"}}}});
+    renderProjNote(proj, hist[hist.length-1]);
+  }
+  renderKeywords();
+  const note=document.getElementById("seoSyncNote");
+  if(note) note.innerHTML='Ahrefs API is out of units — the ↻ button will refresh GA4/Ads but SEO stays on the '+escapeHtml(gsc.asof.slice(0,10))+' snapshot until units reset.';
+}
+function projectMonth(cur){
+  if(!cur || !(+cur.days_counted>0) || !(+cur.days_in_month>0)) return null;
+  const f=(+cur.days_in_month)/(+cur.days_counted);
+  return { month:cur.month, factor:f, through:cur.through,
+    days_counted:+cur.days_counted, days_in_month:+cur.days_in_month,
+    clicks:Math.round((+cur.clicks||0)*f), impressions:Math.round((+cur.impressions||0)*f),
+    mtd_clicks:+cur.clicks||0, mtd_impressions:+cur.impressions||0,
+    ctr:(cur.ctr==null?null:+cur.ctr), position:(cur.position==null?null:+cur.position),
+    impressions_rounded:!!cur.impressions_rounded };
+}
+function renderProjNote(proj, lastActual){
+  const el=document.getElementById("gscProjNote"); if(!el) return;
+  if(!proj){ el.innerHTML=""; return; }
+  const dpct=(a,b)=>(b>0?Math.round(((a-b)/b)*1000)/10:null);
+  const cD=dpct(proj.clicks,lastActual.clicks), iD=dpct(proj.impressions,lastActual.impressions);
+  const arrow=v=>v==null?"":(v>0?'<b style="color:var(--good)">▲'+v+'%</b>':(v<0?'<b style="color:var(--bad)">▼'+Math.abs(v)+'%</b>':'<b>flat</b>'));
+  const posBetter=(proj.position!=null&&lastActual.position!=null)?(proj.position<lastActual.position):null;
+  el.innerHTML =
+    '<b>'+proj.month+' projection (dashed):</b> '+fmtN(proj.mtd_clicks)+' clicks / '+fmtN(proj.mtd_impressions)+
+    ' impressions banked over <b>'+proj.days_counted+' settled days</b> ('+proj.through+
+    '), scaled ×'+(Math.round(proj.factor*100)/100)+' to a '+proj.days_in_month+'-day month → <b>~'+fmtN(proj.clicks)+
+    ' clicks</b> '+arrow(cD)+' and <b>~'+fmtN(proj.impressions)+' impressions</b> '+arrow(iD)+' vs '+lastActual.date+'.<br>'+
+    '<b>CTR ('+fmtPct(proj.ctr)+') and average position ('+fmtPos(proj.position)+') are month-to-date actuals, deliberately NOT scaled</b> — they are rates; scaling a rate fabricates a number the site never hit'+
+    (posBetter===false?' — and position is currently <b style="color:var(--bad)">worse</b>, so reach is growing faster than rank.':'.')+'<br>'+
+    '<span style="font-style:italic">Straight-line extrapolation front-loads any spike; GSC finalises 2–3 days late so only settled days count'+
+    (proj.impressions_rounded?'; impressions from GSC UI round to 3 significant figures (±~50)':'')+'.</span>';
+}
+function kwMerged(){
+  const live=store.get("kw_live",{})||{};
+  return Object.keys(KW).map(k=>{ const m=KW[k], lv=live[k]||{};
+    return {kw:k, tier:m.t, route:m.r,
+      pos:(lv.p!==undefined?lv.p:m.p),
+      kd:(lv.kd!=null?lv.kd:m.kd),
+      vol:(lv.v!=null?lv.v:m.v),
+      gi:(GSCI[k]!=null?GSCI[k]:null),
+      delta:(lv.d!=null?lv.d:(m.d!=null?m.d:null))}; });
+}
+function renderKeywords(){
+  const wrap=document.getElementById("kwTableWrap"); if(!wrap) return;
+  const rows=kwMerged();
+  let t3=0,t10=0,tot=0; rows.forEach(r=>{ if(r.pos!=null){tot++; if(r.pos<=3)t3++; if(r.pos<=10)t10++;} });
+  const e3=document.getElementById("kwTop3"), e10=document.getElementById("kwTop10"), et=document.getElementById("kwTotal");
+  if(e3) e3.textContent=t3; if(e10) e10.textContent=t10; if(et) et.textContent=tot;
+  const filters=[["all","All "+rows.length],["t1","Tier 1"],["top10","Top 10"],["ranking","Ranking"],["unranked","Not yet"]];
+  document.getElementById("kwFilters").innerHTML=filters.map(f=>'<button class="tab'+(kwState.filter===f[0]?" active":"")+'" onclick="kwSetFilter(\''+f[0]+'\')">'+f[1]+'</button>').join("");
+  let f=rows;
+  if(kwState.filter==="t1") f=rows.filter(r=>r.tier===1);
+  else if(kwState.filter==="top10") f=rows.filter(r=>r.pos!=null&&r.pos<=10);
+  else if(kwState.filter==="ranking") f=rows.filter(r=>r.pos!=null);
+  else if(kwState.filter==="unranked") f=rows.filter(r=>r.pos==null);
+  const k=kwState.sortKey, dir=kwState.sortDir;
+  f=f.slice().sort((a,b)=>{
+    if(k==="kw") return a.kw.localeCompare(b.kw)*dir;
+    if(k==="route") return a.route.localeCompare(b.route)*dir;
+    const av=a[k], bv=b[k];
+    const an=(av==null?(k==="pos"?99999:-1):av), bn=(bv==null?(k==="pos"?99999:-1):bv);
+    return (an-bn)*dir;
+  });
+  document.getElementById("kwCount").textContent="— "+tot+" of "+rows.length+" ranking";
+  const arrow=key=>kwState.sortKey===key?(kwState.sortDir>0?" ▲":" ▼"):"";
+  let h='<table><thead><tr>'+
+    '<th onclick="kwSort(\'kw\')">Keyword'+arrow("kw")+'</th>'+
+    '<th onclick="kwSort(\'tier\')">Tier'+arrow("tier")+'</th>'+
+    '<th class="num" onclick="kwSort(\'pos\')">Pos'+arrow("pos")+'</th>'+
+    '<th class="num" onclick="kwSort(\'delta\')">&Delta;'+arrow("delta")+'</th>'+
+    '<th class="num" onclick="kwSort(\'vol\')">Vol'+arrow("vol")+'</th>'+
+    '<th class="num" onclick="kwSort(\'gi\')" title="Real GSC impressions over 6 months — measured demand, not an estimate">GSC 6mo'+arrow("gi")+'</th>'+
+    '<th class="num" onclick="kwSort(\'kd\')">KD'+arrow("kd")+'</th>'+
+    '<th onclick="kwSort(\'route\')">Target page'+arrow("route")+'</th></tr></thead><tbody>';
+  f.forEach(r=>{
+    const pc=r.pos==null?'<span class="pos-none">—</span>':'<span class="pospill '+(r.pos<=3?"pos-top3":r.pos<=10?"pos-top10":"pos-low")+'">'+r.pos+'</span>';
+    let dc='<span class="dlt-flat">—</span>';
+    if(r.delta!=null && r.delta!==0) dc=r.delta>0?'<span class="dlt-up">▲'+r.delta+'</span>':'<span class="dlt-dn">▼'+Math.abs(r.delta)+'</span>';
+    h+='<tr class="'+(r.tier===1?"t1":"")+'"><td>'+escapeHtml(r.kw)+'</td>'+
+      '<td><span class="tierbadge tb'+r.tier+'">T'+r.tier+'</span></td>'+
+      '<td class="num">'+pc+'</td><td class="num">'+dc+'</td>'+
+      '<td class="num">'+(r.vol!=null?fmtN(r.vol):"—")+'</td>'+
+      '<td class="num">'+(r.gi!=null?'<b style="color:var(--forest)">'+fmtN(r.gi)+'</b>':'<span class="pos-none">—</span>')+'</td>'+
+      '<td class="num">'+(r.kd!=null?r.kd:"—")+'</td>'+
+      '<td class="small">'+escapeHtml(r.route)+'</td></tr>';
+  });
+  wrap.innerHTML=h+'</tbody></table>';
+  const synced=store.get("kw_live_date","");
+  const gscNote=' &nbsp;·&nbsp; <b>GSC '+GSCI_WINDOW+'</b> = real Search Console impressions (measured demand); <span class="pos-none">—</span> means Google never showed the site for that term regardless of Ahrefs <b>Vol</b> (a modeled estimate). Sort by GSC 6mo to see what actually has demand.';
+  document.getElementById("kwNote").innerHTML = (synced? ("Positions synced "+synced+" · Bellingham, mobile.") : ("Latest Ahrefs Rank Tracker snapshot · Bellingham, mobile.")) + gscNote;
+}
+window.kwSetFilter=function(x){ kwState.filter=x; renderKeywords(); };
+window.kwSort=function(k){ if(kwState.sortKey===k) kwState.sortDir*=-1; else { kwState.sortKey=k; kwState.sortDir=(k==="pos"||k==="kw"||k==="route")?1:-1; } renderKeywords(); };
+
+/* ---------- charts ---------- */
+let CHARTS={};
+function destroyChart(id){ if(CHARTS[id]){CHARTS[id].destroy(); delete CHARTS[id];} }
+/* shared chart chrome: styled tooltip, hairline solid grid, recessive axes */
+const TOOLTIP={backgroundColor:"#1c2b22",titleFont:{family:"Inter",size:11,weight:"600"},
+  bodyFont:{family:"Inter",size:11},padding:10,cornerRadius:8,displayColors:true,
+  boxWidth:8,boxHeight:8,boxPadding:3,caretSize:5};
+const GRID={color:"#EEF1EC",drawTicks:false};
+const TICKS={font:{family:"Inter",size:10},color:"#7d8b81",padding:6};
+function lineChart(id, labels, datasets, opts){
+  const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return;
+  destroyChart(id);
+  datasets.forEach(d=>{ if(d.pointBorderColor==null){d.pointBorderColor="#fff";d.pointBorderWidth=2;} if(d.pointHoverRadius==null)d.pointHoverRadius=5; });
+  CHARTS[id]=new Chart(el.getContext("2d"),{type:"line",data:{labels,datasets},options:Object.assign({
+    responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:"index"},
+    plugins:{legend:{display:datasets.length>1,labels:{font:{family:"Inter",size:11},boxWidth:8,boxHeight:8,usePointStyle:true,pointStyle:"circle"}},tooltip:TOOLTIP},
+    scales:{x:{ticks:TICKS,grid:{display:false},border:{color:"#E3E7E1"}},
+            y:{ticks:TICKS,grid:GRID,border:{display:false},beginAtZero:!opts||!opts.noZero}},
+    elements:{point:{radius:2.5},line:{tension:.35,borderWidth:2,borderCapStyle:"round",borderJoinStyle:"round"}}
+  },opts||{})});
+}
+function barChartStacked(id, labels, datasets){
+  const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return; destroyChart(id);
+  datasets.forEach(d=>{ d.borderColor="#fff"; d.borderWidth=1; d.maxBarThickness=22; d.borderRadius=2; });
+  CHARTS[id]=new Chart(el.getContext("2d"),{type:"bar",data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{font:{family:"Inter",size:11},boxWidth:8,boxHeight:8,usePointStyle:true,pointStyle:"rectRounded"}},tooltip:TOOLTIP},
+    scales:{x:{stacked:true,ticks:TICKS,grid:{display:false},border:{color:"#E3E7E1"}},
+            y:{stacked:true,beginAtZero:true,ticks:TICKS,grid:GRID,border:{display:false}}}
+  }});
+}
+function barsAndLine(id, labels, datasets){
+  const el=document.getElementById(id); if(!el||typeof Chart==="undefined") return; destroyChart(id);
+  datasets.forEach(d=>{ d.maxBarThickness=14; d.borderRadius={topLeft:3,topRight:3}; d.borderSkipped="bottom"; });
+  CHARTS[id]=new Chart(el.getContext("2d"),{type:"bar",data:{labels,datasets},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{font:{family:"Inter",size:10},boxWidth:8,boxHeight:8,usePointStyle:true,pointStyle:"rectRounded"}},tooltip:TOOLTIP},
+    scales:{x:{ticks:{font:{family:"Inter",size:9},color:"#7d8b81"},grid:{display:false},border:{color:"#E3E7E1"}},
+            y:{beginAtZero:true,ticks:Object.assign({},TICKS,{precision:0}),grid:GRID,border:{display:false}}}
+  }});
+}
+
+/* ---------- LIVE REFRESH (optional; the daily task re-bakes SNAPSHOT) ----------
+   Every pull surfaces its result. Success updates src_asof:<k>; failure sets
+   src_err:<k> and the chip turns red. NOTHING falls back silently. */
+function unwrap(res){
+  if(res==null) return null;
+  if(typeof res==="object" && !Array.isArray(res) && !res.content) return res;
+  try{ if(res.content && res.content.length){ const t=res.content.map(x=>x.text||"").join(""); return JSON.parse(t); } }catch(e){}
+  if(typeof res==="string"){ try{return JSON.parse(res);}catch(e){return null;} }
+  return res;
+}
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function monthStartISO(){ const d=new Date(); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-01"; }
+async function withRetry(fn, tries){
+  let lastErr=null; const T=tries||2;
+  for(let i=0;i<T;i++){
+    try{ return await fn(); }
+    catch(e){ lastErr=e; if(i<T-1) await new Promise(r=>setTimeout(r, 1200*(i+1))); }
+  }
+  throw lastErr;
+}
+function markOk(k){ store.set("src_asof:"+k, new Date().toISOString()); store.del("src_err:"+k); }
+function markErr(k,e){ store.set("src_err:"+k, String(e&&e.message||e).slice(0,320)); }
+function snip(o){ try{ return JSON.stringify(o).slice(0,200); }catch(e){ return String(o).slice(0,200); } }
+
+async function refreshGA4(){
+  if(!(window.cowork && window.cowork.callMcpTool)) throw new Error("MCP bridge unavailable");
+  const body={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
+    dimensions:[{name:"sessionDefaultChannelGroup"},{name:"eventName"}], metrics:[{name:"eventCount"}],
+    dimensionFilter:{filter:{fieldName:"eventName",inListFilter:{values:["session_start","phone_click","booking_click"]}}}, limit:100 };
+  const res=await window.cowork.callMcpTool(ZAPIER,{ selected_api:"GoogleAnalytics4CLIAPI", action:"_zap_raw_request",
+    instructions:"GA4 runReport: MTD funnel events by channel.",
+    params:{ url:"https://analyticsdata.googleapis.com/v1beta/"+GA4.property+":runReport", method:"POST", fail_on_errors:"true", body:JSON.stringify(body) },
+    output:"channel, event, eventCount rows"});
+  const data=unwrap(res); const rows=(data&&(data.results||data.rows))||[];
+  if(!rows.length) throw new Error("GA4 returned 0 rows — raw: "+snip(data!=null?data:res));
+  const f={visits:0,book:0,phone:0};
+  const src={visits:{organic:0,direct:0,google:0,meta:0,other:0}, inquiries:{organic:0,direct:0,google:0,meta:0,other:0}};
+  rows.forEach(r=>{
+    const chn=String(r.channel||r.sessionDefaultChannelGroup||"").toLowerCase();
+    const ev=r.event_name||r.eventName||r.event||"";
+    const c=parseInt(r.event_count||r.eventCount||0,10)||0;
+    const b=chn.indexOf("paid search")>=0?"google":chn.indexOf("paid social")>=0?"meta":chn.indexOf("organic search")>=0?"organic":chn==="direct"?"direct":"other";
+    if(ev==="session_start"){ f.visits+=c; src.visits[b]+=c; }
+    if(ev==="phone_click"){ f.phone+=c; src.inquiries[b]+=c; }
+    if(ev==="booking_click"){ f.book+=c; src.inquiries[b]+=c; }
+  });
+  // handoffs: outbound clicks to the Hint booking domain, MTD
+  const body2={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
+    dimensions:[{name:"linkDomain"}], metrics:[{name:"eventCount"},{name:"totalUsers"}],
+    dimensionFilter:{filter:{fieldName:"eventName",stringFilter:{value:"click"}}}, limit:50 };
+  const res2=await window.cowork.callMcpTool(ZAPIER,{ selected_api:"GoogleAnalytics4CLIAPI", action:"_zap_raw_request",
+    instructions:"GA4 runReport: MTD outbound clicks by link domain with unique users.",
+    params:{ url:"https://analyticsdata.googleapis.com/v1beta/"+GA4.property+":runReport", method:"POST", fail_on_errors:"true", body:JSON.stringify(body2) },
+    output:"linkDomain, eventCount, totalUsers rows"});
+  const d2=unwrap(res2); const rows2=(d2&&(d2.results||d2.rows))||[];
+  if(!rows2.length) throw new Error("GA4 linkDomain query returned 0 rows — raw: "+snip(d2!=null?d2:res2));
+  let handoffs=0, handoffUsers=0;
+  rows2.forEach(r=>{ const ld=String(r.link_domain||r.linkDomain||""); if(ld==="mtbakermedical.hint.com"){ handoffs+=parseInt(r.event_count||r.eventCount||0,10)||0; handoffUsers+=parseInt(r.total_users||r.totalUsers||0,10)||0; } });
+  // deduped unique tappers (booking+phone, one row, no dimension = users who did both count once)
+  const body3={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
+    metrics:[{name:"totalUsers"}],
+    dimensionFilter:{filter:{fieldName:"eventName",inListFilter:{values:["booking_click","phone_click"]}}}, limit:5 };
+  const res3=await window.cowork.callMcpTool(ZAPIER,{ selected_api:"GoogleAnalytics4CLIAPI", action:"_zap_raw_request",
+    instructions:"GA4 runReport: MTD deduplicated unique users across booking_click + phone_click.",
+    params:{ url:"https://analyticsdata.googleapis.com/v1beta/"+GA4.property+":runReport", method:"POST", fail_on_errors:"true", body:JSON.stringify(body3) },
+    output:"single totalUsers value"});
+  const d3=unwrap(res3); const row3=(d3&&(d3.results||d3.rows))||[];
+  const tappers=(function(){ const r=Array.isArray(row3)?row3[0]:row3; return r?(parseInt(r.total_users||r.totalUsers||0,10)||0):((d3&&+d3.totalUsers)||0); })();
+  const per=curPeriod();
+  store.set("funnel:"+per, Object.assign(getFunnel(per), {site_visits:f.visits, inq_booking:f.book, inq_phone:f.phone, handoffs:handoffs}));
+  store.set("funnel_src:"+per, src);
+  if(tappers>0) store.set("funnel_users:"+per, {tappers:tappers, handoff:handoffUsers, as_of:todayISO(),
+    note:"GA4 totalUsers = unique browsers/devices"});
+  markOk("ga4");
+}
+async function refreshAds(){
+  if(!(window.cowork && window.cowork.callMcpTool)) throw new Error("MCP bridge unavailable");
+  const q="SELECT campaign.name, metrics.cost_micros, metrics.impressions, metrics.clicks, metrics.conversions FROM campaign WHERE segments.date BETWEEN '"+monthStartISO()+"' AND '"+todayISO()+"'";
+  const res=await window.cowork.callMcpTool(ZAPIER,{ selected_api:"GoogleAdsCLIAPI", action:"_zap_raw_request",
+    instructions:"Google Ads GAQL v21: campaign performance, true month-to-date.",
+    params:{ url:"https://googleads.googleapis.com/v21/customers/"+GADS_ACCOUNT+"/googleAds:searchStream", method:"POST", fail_on_errors:"true", body:JSON.stringify({query:q}) },
+    output:"per-campaign cost, impressions, clicks, conversions"});
+  const data=unwrap(res); const rows=(data&&(data.results||data.rows))||[];
+  if(!rows.length) throw new Error("Ads returned 0 rows — raw: "+snip(data!=null?data:res));
+  let spend=0,impr=0,clk=0,conv=0;
+  rows.forEach(r=>{ const cst=(r.cost_micros!=null)?(+r.cost_micros||0)/1e6:(+r.cost||0); spend+=cst; impr+=+r.impressions||0; clk+=+r.clicks||0; conv+=+r.conversions||0; });
+  const per=curPeriod();
+  const prev=store.get("ads:"+per+":google",{});
+  store.set("ads:"+per+":google", {spend:Math.round(spend*100)/100, impressions:impr, clicks:clk, conversions:(prev.conversions!=null?prev.conversions:conv)});
+  markOk("gads");
+}
+async function refreshAhrefs(){
+  if(!(window.cowork && window.cowork.callMcpTool)) throw new Error("MCP bridge unavailable");
+  const pid=parseInt(cfg().project_id,10); if(!pid) throw new Error("no Ahrefs project id");
+  const r=await window.cowork.callMcpTool(AHREFS+"rank-tracker-overview",{project_id:pid,date:todayISO(),device:"mobile",select:"keyword,position,keyword_difficulty,volume,url",limit:1000});
+  const data=unwrap(r); const ov=(data&&data.overviews)||[];
+  if(!ov.length) throw new Error("Rank Tracker returned 0 rows (units exhausted or no snapshot for today) — raw: "+snip(data!=null?data:r));
+  const prev=store.get("kw_live",{})||{};
+  const live={};
+  ov.forEach(o=>{ const k=o.keyword; const prevPos=(prev[k]&&prev[k].p!=null)?prev[k].p:(KW[k]?KW[k].p:null);
+    let d=null; if(o.position!=null&&prevPos!=null) d=prevPos-o.position;
+    live[k]={p:o.position, kd:o.keyword_difficulty, v:o.volume, d:d, url:o.url}; });
+  store.set("kw_live", live); store.set("kw_live_date", todayISO());
+  markOk("ahrefs");
+}
+async function refreshAllLive(){
+  const btn=document.getElementById("refreshBtn");
+  if(btn){ btn.disabled=true; btn.textContent="↻ refreshing…"; }
+  const jobs=[["ga4",refreshGA4],["gads",refreshAds],["ahrefs",refreshAhrefs]];
+  for(const [k,fn] of jobs){
+    try{ await withRetry(fn,2); }
+    catch(e){ markErr(k,e); }
+  }
+  if(btn){ btn.disabled=false; btn.textContent="↻ Refresh live"; }
+  refreshAll();
+}
+
+/* ---------- DATA ENTRY ---------- */
+let activeTab="members";
+function num(id){ const v=parseFloat(document.getElementById(id).value); return isNaN(v)?0:v; }
+function fieldNum(label,id,val){ return '<div class="field"><label>'+label+'</label><input type="number" step="any" id="'+id+'" value="'+(val==null?"":val)+'"></div>'; }
+function renderEntry(){
+  const period=selectedPeriod(); const body=document.getElementById("entryBody");
+  if(activeTab==="members"){
+    const act=getActive()||{};
+    body.innerHTML='<div class="small" style="margin-bottom:10px;line-height:1.7"><b>Active member totals</b> — the North Star. Enter today\'s counts from Hint (Members → filter Active). Saved with today\'s date; the Hint feed upgrade will overwrite this automatically once it ships. Aggregate counts only — never names.</div>'+
+      '<div class="formgrid" style="max-width:520px">'+
+      fieldNum("Active Concierge members","am_c",act.concierge)+
+      fieldNum("Active Service-Only members","am_so",act.so)+
+      '</div><div style="margin-top:12px"><button class="btn" id="saveActive">Save active counts</button> <span class="small" id="amNote">'+(act.as_of?("last saved "+escapeHtml(act.as_of)+" ("+escapeHtml(act.source||"manual")+")"):"never saved")+'</span></div>';
+    document.getElementById("saveActive").onclick=()=>{
+      store.set("active:"+curPeriod(), {concierge:num("am_c"), so:num("am_so"), as_of:todayISO(), source:"manual"});
+      refreshAll();
+    };
+  } else if(activeTab==="ads"){
+    const a=getAds(period);
+    let f='<div class="small" style="margin-bottom:10px">Per-platform ad numbers for <b>'+period+'</b>. Google auto-refreshes (GAQL, MTD); Meta &amp; Nextdoor come from the weekly Ads Manager pull. For Meta, "conversions" = <b>landing-page views</b>, not leads.</div>';
+    f+='<table><tr><th>Platform</th><th class="num">Spend $</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">Conv / LPV</th></tr>';
+    PLATFORMS.forEach(p=>{ const d=a[p];
+      f+='<tr><td>'+PLAT_LABEL[p]+'</td>'+
+        '<td class="num"><input style="width:90px" type="number" step="0.01" id="ad_'+p+'_spend" value="'+(d.spend||"")+'"></td>'+
+        '<td class="num"><input style="width:90px" type="number" id="ad_'+p+'_impressions" value="'+(d.impressions||"")+'"></td>'+
+        '<td class="num"><input style="width:80px" type="number" id="ad_'+p+'_clicks" value="'+(d.clicks||"")+'"></td>'+
+        '<td class="num"><input style="width:90px" type="number" id="ad_'+p+'_conversions" value="'+(d.conversions||"")+'"></td></tr>';
+    });
+    f+='</table><div style="margin-top:12px"><button class="btn" id="saveAds">Save ad numbers</button></div>';
+    body.innerHTML=f;
+    document.getElementById("saveAds").onclick=()=>{ PLATFORMS.forEach(p=>{ store.set("ads:"+period+":"+p,{spend:num("ad_"+p+"_spend"),impressions:num("ad_"+p+"_impressions"),clicks:num("ad_"+p+"_clicks"),conversions:num("ad_"+p+"_conversions")}); }); refreshAll(); };
+  } else if(activeTab==="funnel"){
+    const ff=getFunnel(period);
+    body.innerHTML='<div class="small" style="margin-bottom:10px">Funnel overrides for <b>'+period+'</b>. Visits/taps/handoffs come from GA4, consults &amp; members from the Hint poller — edit here only to correct.</div>'+
+      '<div class="formgrid">'+
+      fieldNum("Site visits","fn_visits",ff.site_visits)+
+      fieldNum("Booking taps","fn_book",ff.inq_booking)+
+      fieldNum("Phone taps","fn_phone",ff.inq_phone)+
+      fieldNum("Hint handoffs","fn_hand",ff.handoffs)+
+      fieldNum("Consults booked","fn_consults",ff.consults)+
+      fieldNum("New members","fn_members",ff.new_members)+
+      '</div><div style="margin-top:12px"><button class="btn" id="saveFunnel">Save funnel</button></div>';
+    document.getElementById("saveFunnel").onclick=()=>{ store.set("funnel:"+period,Object.assign(getFunnel(period),{site_visits:num("fn_visits"),inq_booking:num("fn_book"),inq_phone:num("fn_phone"),handoffs:num("fn_hand"),consults:num("fn_consults"),new_members:num("fn_members")})); refreshAll(); };
+  } else if(activeTab==="settings"){
+    const c=cfg();
+    body.innerHTML='<div class="formgrid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">'+
+      '<div class="field"><label>Ahrefs project ID</label><input id="set_pid" value="'+escapeHtml(c.project_id)+'"></div>'+
+      '<div class="field"><label>Ahrefs domain</label><input id="set_dom" value="'+escapeHtml(c.ahrefs_domain)+'"></div>'+
+      '</div><div style="margin-top:12px"><button class="btn" id="saveSettings">Save settings</button> <span class="small" id="setNote"></span></div>'+
+      '<div class="banner info" style="margin-top:16px">Metric definitions, refresh mechanics and failure modes are documented in <b>mbm-review-receiver/DASHBOARD_METRICS.md</b> — the contract every refresh task follows.</div>';
+    document.getElementById("saveSettings").onclick=()=>{ saveCfg({project_id:document.getElementById("set_pid").value.trim(),ahrefs_domain:document.getElementById("set_dom").value.trim()}); document.getElementById("setNote").textContent="saved ✓"; refreshAll(); };
+  }
+}
+
+/* ---------- WIRING ---------- */
+function buildPeriodPicker(){
+  const ps=document.getElementById("periodSel"); const prevVal=ps.value;
+  const periods=recentPeriods(18);
+  ps.innerHTML=periods.map(p=>'<option value="'+p+'">'+p+'</option>').join("");
+  if(prevVal && periods.indexOf(prevVal)>=0) ps.value=prevVal; else ps.value=curPeriod();
+}
+function refreshAll(){ renderStatus(); renderNorthStar(); renderFunnel(); renderMemberSource(); renderPaid(); renderGBP(); renderSEO(); renderEntry(); }
+function init(){
+  buildPeriodPicker();
+  document.getElementById("periodSel").onchange=refreshAll;
+  document.getElementById("refreshBtn").onclick=()=>refreshAllLive();
+  document.querySelectorAll("#entryTabs .tab").forEach(t=>{ t.onclick=()=>{ document.querySelectorAll("#entryTabs .tab").forEach(x=>x.classList.remove("active")); t.classList.add("active"); activeTab=t.dataset.tab; renderEntry(); }; });
+  document.getElementById("foot").innerHTML='Every tile carries its source and as-of date; hatched tiles are serving last-good (stale) values. Baked snapshot '+escapeHtml(SNAPSHOT.baked_at)+' · data version '+escapeHtml(DATA_VERSION)+'. Definitions &amp; refresh contract: <b>mbm-review-receiver/DASHBOARD_METRICS.md</b>. Windows are true month-to-date unless a tile says otherwise. Trend arrows are deliberately absent from small counts — a one-member swing is 33% noise, not a trend.';
+  seedRealData();
+  refreshAll();
+}
+function boot(){
+  try{ init(); }
+  catch(e){
+    var b=document.createElement('div');
+    b.style.cssText='font-family:monospace;font-size:12px;background:#fbeeea;color:#b4452f;padding:14px;margin:14px;border:1px solid #b4452f;border-radius:8px;white-space:pre-wrap';
+    b.textContent='Dashboard error (please send this to Claude):\n'+(e&&e.message||e)+'\n\n'+(e&&e.stack||'');
+    if(document.body) document.body.insertBefore(b, document.body.firstChild);
+  }
+}
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",boot); else boot();
+</script>
+</body>
+</html>

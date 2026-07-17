@@ -95,7 +95,12 @@ EXCLUDE_NAME_SUBSTRINGS = ["charles robert platt", "zztest", "zz-test", "test", 
 EXCLUDE_PLAN_SUBSTRINGS = ["friends and family", "friends & family", "friend", "f&f"]
 
 # The 7 dashboard lead-source buckets (must match the dashboard + Hint dropdown).
-SOURCE_KEYS = ["google", "bing", "ai", "social", "provider_referral", "word_of_mouth", "other"]
+SOURCE_KEYS = ["google", "google_lsa", "bing", "ai", "social", "provider_referral", "word_of_mouth", "other"]
+
+# LSA kill/keep test window (dashboard "LSA test" tile; DASHBOARD_METRICS.md §1).
+# Patients attributed = members/SO with Hint Lead Source mapping to google_lsa,
+# signed up ON OR AFTER this date. Cumulative across months — not MTD.
+LSA_TEST_SINCE = "2026-07-17"
 
 
 def _headers():
@@ -243,6 +248,11 @@ def map_source(raw):
     if not raw:
         return "other"
     r = raw.strip().lower()
+    # LSA must be checked BEFORE the google catch-all: "Google Local Services"
+    # contains "google" and would otherwise vanish into the generic bucket,
+    # making the LSA test tile's patients_attributed permanently zero.
+    if "local service" in r or "lsa" in r.replace("/", " ").replace("-", " ").replace("(", " ").replace(")", " ").split():
+        return "google_lsa"
     if "bing" in r:
         return "bing"
     if "google" in r or "search" in r or "online" in r:
@@ -412,17 +422,37 @@ def main():
         warnings.append(f"active_members tally failed ({_e}) — dashboard North Star falls back to "
                         f"manual entry until fixed.")
 
-    # --- Terminations this month (2026-07-16: feeds net member growth = adds − terms).
-    # Hint's membership objects don't have a documented "terminated_at"; we look for the
-    # first present of several end-date keys, and separately count end-like statuses whose
-    # end date is unknowable. Defensive: never breaks the feed; exports its own diagnostics.
+    # --- Terminations this month (feeds net member growth = adds − terms).
+    # A TERMINATION means a PAYING member left. The nurture pipeline CANCELS stale unpaid
+    # pending memberships (day-30 cleanup / duplicate reconcile — see nurture_engine.py,
+    # CANCEL_REASON_CLEANUP + CANCEL_REASON_RECONCILE); those cancels carry end dates but
+    # are NOT churn (the person was never a paying member) and MUST be excluded (2026-07-17,
+    # Charlie's catch: mem-R6kubnHgfC4B reconcile-canceled 7/14 with end_date 7/20 would
+    # otherwise have counted as a July termination). Two gates:
+    #   1. cancellation_reason id in NURTURE_CANCEL_REASON_IDS -> nurture cleanup, excluded.
+    #   2. otherwise, the patient must have a payment method on file (same signal as the
+    #      new-member paid gate) -> no payment = never-paid pending, excluded; unverifiable
+    #      = counted separately as payment_unverified, never silently included.
+    # Defensive: never breaks the feed; exports its own diagnostics.
+    NURTURE_CANCEL_REASON_IDS = {"cnr-nQZGCIlgkXEl",   # "Contract expired" = day-30 cleanup
+                                 "cnr-XDiXnv3xSgom"}   # "Switched plans"   = duplicate reconcile
     terminations = None
     try:
         _END_KEYS = ("end_date", "ended_at", "cancelled_at", "canceled_at",
                      "termination_date", "terminated_at", "cancellation_date")
         _END_STATUSES = ("cancelled", "canceled", "terminated", "ended", "inactive", "expired")
+        def _cancel_reason_id(m):
+            cr = m.get("cancellation_reason")
+            if isinstance(cr, dict):
+                return cr.get("id")
+            if isinstance(cr, str):
+                return cr
+            return None
         _t = {"concierge": 0, "so": 0, "total": 0}
         _t_ff = 0
+        _nurture_excluded = 0
+        _never_paid_excluded = 0
+        _pay_unverified = 0
         _end_field = None
         _end_status_no_date = 0
         for _m in all_mems:
@@ -446,13 +476,34 @@ def main():
             if is_friends_family(_plan2):
                 _t_ff += 1
                 continue
+            # Gate 1: nurture/reconcile cancels are pipeline hygiene, not churn.
+            if _cancel_reason_id(_m) in NURTURE_CANCEL_REASON_IDS:
+                _nurture_excluded += 1
+                continue
+            # Gate 2: only ever-paying members count as terminations.
+            _pay2 = has_payment_source(_pid2) if _pid2 else None
+            if _pay2 is False:
+                _never_paid_excluded += 1
+                continue
+            if _pay2 is None:
+                _pay_unverified += 1
+                continue
             _t[bucket_plan(_plan2)] += 1
             _t["total"] += 1
         terminations = dict(_t)
         terminations["friends_family_excluded"] = _t_ff
+        terminations["nurture_cleanup_excluded"] = _nurture_excluded
+        terminations["never_paid_excluded"] = _never_paid_excluded
+        terminations["payment_unverified"] = _pay_unverified
         terminations["end_field"] = _end_field
         terminations["end_status_without_date"] = _end_status_no_date
-        terminations["basis"] = "membership end-date in month; comps/F&F and test accounts excluded"
+        terminations["basis"] = ("membership end-date in month, PAYING members only; nurture/"
+                                 "reconcile cancels, never-paid pendings, comps/F&F and test "
+                                 "accounts excluded")
+        if _pay_unverified > 0:
+            warnings.append(f"terminations: {_pay_unverified} ended membership(s) could not be "
+                            f"payment-verified and are excluded from the count — verify manually "
+                            f"in Hint whether they were paying members.")
         if _end_field is None and _end_status_no_date > 0:
             warnings.append(f"terminations: no end-date field found on membership objects, but "
                             f"{_end_status_no_date} membership(s) carry an end-like status. "
@@ -547,6 +598,45 @@ def main():
             probe_rows.append({"plan_bucket": b, "signup_in": signup_in, "started_in": started_in,
                                "lead_source_raw": raw, "field": key,
                                "mapped": bucket, "has_payment": has_pay})
+
+    # --- LSA test tile: patients attributed to Google Local Services ------------
+    # Cumulative since LSA_TEST_SINCE (crosses month boundaries — deliberately NOT
+    # scoped to `relevant`). Attributed = signup on/after the test start whose Hint
+    # Lead Source maps to google_lsa. Paid and pending are counted separately: the
+    # kill/keep rule evaluates on PAID patients only (pending can still be nurture-
+    # cancelled at day 30). PHI: aggregate counts only, no names exported.
+    lsa_test = {"since": LSA_TEST_SINCE, "patients_attributed": 0,
+                "attributed_pending": 0, "attributed_unverified_payment": 0,
+                "signups_checked": 0}
+    try:
+        for m in all_mems:
+            _raw_dt = created_at_of(m) if has_created_field else m.get("start_date")
+            if not _raw_dt or str(_raw_dt)[:10] < LSA_TEST_SINCE:
+                continue
+            _pid3, _nm3 = patient_name_of_membership(m)
+            if is_excluded(_nm3) or is_friends_family(plan_name_of(m)):
+                continue
+            lsa_test["signups_checked"] += 1
+            if not _pid3:
+                continue
+            _raw_src, _ = extract_lead_source(get_patient(_pid3) or {})
+            if map_source(_raw_src) != "google_lsa":
+                continue
+            _pay3 = has_payment_source(_pid3)
+            if _pay3 is True:
+                lsa_test["patients_attributed"] += 1
+            elif _pay3 is False:
+                lsa_test["attributed_pending"] += 1
+            else:
+                lsa_test["attributed_unverified_payment"] += 1
+        if lsa_test["attributed_unverified_payment"]:
+            warnings.append(f"lsa_test: {lsa_test['attributed_unverified_payment']} LSA-attributed "
+                            f"signup(s) could not be payment-verified — excluded from "
+                            f"patients_attributed; verify manually in Hint.")
+    except Exception as _e:
+        lsa_test = None
+        warnings.append(f"lsa_test tally failed ({_e}) — dashboard LSA test tile keeps last-good "
+                        f"attributed count (zero ≠ null: do not bake a fresh 0).")
 
     # Choose the member basis. If payment status couldn't be verified for ANY member
     # (systemic endpoint/scope failure), don't zero out the dashboard — fall back to the
@@ -733,6 +823,7 @@ def main():
         "excluded_count": excluded_count,
         "friends_family_excluded": friends_family_excluded,   # comp/F&F memberships dropped from the count
         "ambiguous_plans": sorted(set(ambiguous_plans)),
+        "lsa_test": lsa_test,          # cumulative LSA-attributed patients since LSA_TEST_SINCE (kill/keep tile)
         "consults": consults,          # REAL prospect consults (Contact attendee); see match_rule/basis
         "consults_legacy_30min": consults_legacy_30min,  # OLD 30-min heuristic — comparison only, do NOT use
         "appointments": appointments,  # practice-wide appointment volume (all types)
@@ -747,7 +838,7 @@ def main():
                                            "members_counted_basis", "payment_unknown",
                                            "friends_family_excluded",
                                            "members_source", "pending_future_dated",
-                                           "lead_source_field", "consults", "consults_legacy_30min",
+                                           "lead_source_field", "lsa_test", "consults", "consults_legacy_30min",
                                            "appointments", "warnings")}, indent=2))
 
     if args.probe:

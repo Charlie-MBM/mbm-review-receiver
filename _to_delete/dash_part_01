@@ -1,4 +1,67 @@
-' pending payment</span>'):'');
+n","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; const a=(p||"").split("-"); return a[1]?m[+a[1]-1]:""; }
+
+/* ---------- FUNNEL ---------- */
+function srcSegs(split, colors){
+  let segs=''; let tot=0;
+  colors.forEach(function(c){ tot+=+(split&&split[c[0]])||0; });
+  colors.forEach(function(c){ const v=+(split&&split[c[0]])||0; if(v>0) segs+='<span style="flex:'+v+';background:'+c[1]+'" title="'+(c[2]||c[0])+': '+v+'"></span>'; });
+  if(tot<=0) segs='<span style="flex:1;background:#d3dcd5"></span>';
+  return segs;
+}
+function fbar(val, w, split, colors, sub){
+  const txt=fmtN(val)+(sub?' <span style="font-weight:400;opacity:.85;font-size:10.5px;margin-left:3px">'+sub+'</span>':'');
+  /* Labels never clip: a narrow bar can't fit its label inside (overflow:hidden
+     chops it into a jumble), so below 40% width the label renders OUTSIDE the
+     bar end in ink. Wide bars keep the in-bar white label. */
+  const narrow = w < 40;
+  if(split && colors){
+    if(narrow) return '<div class="fbar fbar-split" style="width:'+w+'%">'+srcSegs(split,colors)+'</div><span class="fnum-out">'+txt+'</span>';
+    return '<div class="fbar fbar-split" style="width:'+w+'%"><span class="fnum">'+txt+'</span>'+srcSegs(split,colors)+'</div>';
+  }
+  if(narrow) return '<div class="fbar" style="width:'+w+'%"></div><span class="fnum-out">'+txt+'</span>';
+  return '<div class="fbar" style="width:'+w+'%">'+txt+'</div>';
+}
+function renderFunnel(){
+  const period=selectedPeriod(); const f=getFunnel(period);
+  setRangePill("funnelRange", period);
+  const src=store.get("funnel_src:"+period, null);
+  const memRaw=store.get("members_split:"+period, null);
+  const ch=store.get("consults_hint:"+period, null);
+  const mp=store.get("members_pending:"+period, null);
+  const SRCC=[["organic","#20713F","Organic search"],["direct","#7059B3","Direct"],["google","#9C6F10","Google Ads"],["meta","#2C6FC4","Meta"],["other","#C2703F","Other"]];
+  const MEMC=[["concierge","#20713F","Concierge"],["so","#7059B3","SO"]];
+  const visits=+f.site_visits||0;
+  const taps=(+f.inq_booking||0)+(+f.inq_phone||0);
+  const handoffs=+f.handoffs||0;
+  const consults=(ch&&(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled))||(+f.consults||0);
+  const memTot=memRaw?((+memRaw.concierge||0)+(+memRaw.so||0)):(+f.new_members||0);
+  // unique-people counts (GA4 totalUsers) — shown ON the bars so events vs people is never ambiguous
+  const uF=store.get("funnel_users:"+period,null)||(period===SNAPSHOT.period?SNAPSHOT.funnel_mtd.users:null);
+  const stages=[
+    {label:"Site visits", val:visits, split:(src&&src.visits)||null, colors:SRCC, sub:"sessions"},
+    {label:"Tried to book", val:taps, split:(src&&src.inquiries)||null, colors:SRCC, sub:"taps"+(uF&&uF.tappers?(" · "+fmtN(uF.tappers)+" people"):"")},
+    {label:"Consults booked (Hint)", val:consults, isConsult:true},
+    {label:"New paid members", val:memTot, split:(memRaw&&memTot>0)?memRaw:null, colors:MEMC, isMembers:true}
+  ];
+  const max=Math.max.apply(null,stages.map(s=>s.val).concat([1]));
+  let html="";
+  for(let i=0;i<stages.length;i++){
+    const s=stages[i]; const w=Math.max(6,(s.val/max)*100);
+    let bar;
+    if(s.val>0||i<2) bar=fbar(s.val,w,s.split,s.colors,s.sub);
+    else bar='<div class="fbar fbar-empty" style="width:'+w+'%"></div><span class="fnum-out">0 <span class="fsub">'+(s.isMembers?'awaiting Hint':'none yet')+'</span></span>';
+    html+='<div class="fstage"><div class="flabel">'+s.label+'</div><div class="fbar-wrap">'+bar+'</div></div>';
+    if(i<stages.length-1){
+      const next=stages[i+1];
+      let note="";
+      if(i===0) note=rateHTML(stages[1].val, s.val, "of visits tap book/call");
+      else if(i===1){
+        const den=(uF&&uF.tappers>0)?+uF.tappers:s.val;
+        note=rateHTML(next.val, den, (uF&&uF.tappers>0)
+          ? ("of the "+fmtN(uF.tappers)+" PEOPLE who tried to book ended up with a booked consult. Booking CTAs link straight to Hint, so arrival is ~100% — this whole drop happens inside Hint's booking flow or after a phone call")
+          : "of taps became booked consults (events — repeat taps inflate the denominator)");
+      }
+      else if(i===2) note=rateHTML(next.val, s.val, "— members can close from prior-month consults")+((mp&&mp.total)?(' <span class="rate">+ '+mp.total+' pending payment</span>'):'');
       html+='<div class="fconv">'+note+'</div>';
     }
   }
@@ -523,7 +586,9 @@ function renderEntry(){
       fieldNum("Active Service-Only members","am_so",act.so)+
       '</div><div style="margin-top:12px"><button class="btn" id="saveActive">Save active counts</button> <span class="small" id="amNote">'+(act.as_of?("last saved "+escapeHtml(act.as_of)+" ("+escapeHtml(act.source||"manual")+")"):"never saved")+'</span></div>';
     document.getElementById("saveActive").onclick=()=>{
-      store.set("active:"+curPeriod(), {concierge:num("am_c"), so:num("am_so"), as_of:todayISO(), source:"manual"});
+      // Full timestamp, not date-only: a date-only string compares BEFORE a same-day
+      // feed timestamp, which silently made manual overrides impossible (found 2026-07-17).
+      store.set("active:"+curPeriod(), {concierge:num("am_c"), so:num("am_so"), as_of:new Date().toISOString(), source:"manual"});
       refreshAll();
     };
   } else if(activeTab==="ads"){
@@ -570,7 +635,41 @@ function buildPeriodPicker(){
   ps.innerHTML=periods.map(p=>'<option value="'+p+'">'+p+'</option>').join("");
   if(prevVal && periods.indexOf(prevVal)>=0) ps.value=prevVal; else ps.value=curPeriod();
 }
-function refreshAll(){ renderStatus(); renderNorthStar(); renderFunnel(); renderMemberSource(); renderPaid(); renderGBP(); renderSEO(); renderEntry(); }
+function renderFinance(){
+  const F=SNAPSHOT.finance; if(!F) return;
+  const el=document.getElementById("finance"); if(!el) return;
+  setRangePill("finRange", F.month);
+  const qb=srcState("qb"), hint=srcState("hint");
+  const rev=(F.revenue&&F.revenue.mtd!=null)?+F.revenue.mtd:null;
+  const cost=(F.costs&&F.costs.mtd!=null)?+F.costs.mtd:null;
+  const net=(rev!=null&&cost!=null)?(rev-cost):null;
+  const dash='<span style="color:var(--stale)">—</span>';
+  let cards="";
+  cards+=card("Revenue — collected (MTD)", rev!=null?fmtUSD(rev):dash,
+    '<div class="small" style="margin-top:6px;line-height:1.6">'+escapeHtml(F.revenue.basis)+
+    (rev==null?'<br><b>Not wired yet:</b> lands with the next Hint feed run (exporter v4 revenue pull).':'')+'</div>',
+    false, rev!=null?("Hint · as of "+escapeHtml(F.revenue.as_of||"")):"awaiting first pull");
+  cards+=card("Costs — booked (MTD)", cost!=null?fmtUSD(cost):dash,
+    '<div class="small" style="margin-top:6px;line-height:1.6">'+escapeHtml(F.costs.basis)+
+    (cost==null?'<br><b>Not wired yet:</b> reconnect the QuickBooks connector, then the daily task pulls P&L expenses.':'')+'</div>',
+    qb&&qb.cls==="stale"&&cost!=null, cost!=null?("QuickBooks · as of "+escapeHtml(F.costs.as_of||"")):"awaiting QuickBooks re-auth");
+  cards+=card("Net (MTD)", net!=null?('<span style="color:'+(net>=0?'var(--good)':'var(--bad)')+'">'+fmtUSD(net)+'</span>'):dash,
+    '<div class="small" style="margin-top:6px;line-height:1.6">'+(net!=null?('margin '+(rev>0?Math.round(net/rev*100)+'%':'—')+' · '):'')+escapeHtml(F.caveat)+'</div>',
+    false, net!=null?"computed":"needs both sides wired", true);
+  el.innerHTML=cards;
+}
+function renderLeadMagnet(){
+  const K=SNAPSHOT.kit; const el=document.getElementById("leadMagnet"); if(!el||!K) return;
+  const kc=srcState("kit");
+  const n=(K.checklist_signups_mtd!=null)?fmtN(K.checklist_signups_mtd):'—';
+  const tot=(K.list_total!=null)?fmtN(K.list_total):'—';
+  el.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline">'+
+    '<div><span class="k" style="font-weight:600">CHECKLIST SIGNUPS (KIT)</span> <span style="font-size:26px;font-weight:700;margin-left:8px">'+n+'</span> <span class="small">MTD</span></div>'+
+    '<div class="small">list total <b>'+tot+'</b></div>'+
+    '<div class="small" style="flex:1">'+escapeHtml(K.note)+(K.checklist_signups_mtd==null?' · <b>Not wired yet:</b> reconnect Kit (Zapier), then the daily task pulls signups.':'')+'</div>'+
+    '<div class="asof" style="margin:0">Kit · '+(kc&&kc.asof?fmtAge(kc.ageH):"never pulled")+'</div></div>';
+}
+function refreshAll(){ renderStatus(); renderFinance(); renderLeadMagnet(); renderNorthStar(); renderFunnel(); renderMemberSource(); renderPaid(); renderGBP(); renderSEO(); renderEntry(); }
 function init(){
   buildPeriodPicker();
   document.getElementById("periodSel").onchange=refreshAll;

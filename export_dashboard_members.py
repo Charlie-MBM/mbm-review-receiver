@@ -614,6 +614,75 @@ def main():
                                "lead_source_raw": raw, "field": key,
                                "mapped": bucket, "has_payment": has_pay})
 
+    # --- Revenue MTD (dashboard profitability widget, added 2026-07-18) ---------
+    # Sum of payments COLLECTED this month from Hint. The Hint provider API's
+    # billing surface isn't documented in our code yet, so this probes candidate
+    # endpoints defensively and reports exactly what it used. PHI: aggregate
+    # dollars only - no names, no line items exported.
+    revenue_mtd = None
+    try:
+        _rev_endpoints = ["/api/provider/payments", "/api/provider/invoices",
+                          "/api/provider/transactions", "/api/provider/charges"]
+        _AMT_KEYS = ("amount_cents", "total_cents", "amount", "total", "amount_due_cents", "paid_amount")
+        _DATE_KEYS = ("paid_at", "collected_at", "created_at", "date", "charged_at", "posted_at")
+        _PAIDISH = ("paid", "succeeded", "settled", "completed", "captured", "collected")
+        for _ep in _rev_endpoints:
+            try:
+                _out, _off = [], 0
+                while True:
+                    _r = _get(_ep, {"limit": 100, "offset": _off})
+                    _batch = _as_list(_r.json())
+                    _out += _batch
+                    _tot = _r.headers.get("x-total-count")
+                    if len(_batch) < 100 or (_tot and len(_out) >= int(_tot)) or _off > 20000:
+                        break
+                    _off += 100
+            except Exception:
+                continue
+            if not _out:
+                continue
+            _sum_c, _n, _amt_field, _date_field, _cents = 0, 0, None, None, None
+            for _p in _out:
+                if not isinstance(_p, dict):
+                    continue
+                _st = str(_p.get("status") or "").lower()
+                if _st and not any(k in _st for k in _PAIDISH):
+                    continue
+                _draw = None
+                for _dk in _DATE_KEYS:
+                    if _p.get(_dk):
+                        _draw = _p.get(_dk); _date_field = _date_field or _dk; break
+                if not _draw or not in_month(_draw, y, mo):
+                    continue
+                for _ak in _AMT_KEYS:
+                    if _p.get(_ak) is not None:
+                        try:
+                            _v = float(_p.get(_ak))
+                        except Exception:
+                            continue
+                        if _cents is None:
+                            _cents = _ak.endswith("_cents") or _v > 100000  # heuristic once
+                        _sum_c += _v; _n += 1; _amt_field = _amt_field or _ak
+                        break
+            if _n > 0:
+                _dollars = round(_sum_c / 100.0, 2) if (_amt_field or "").endswith("_cents") else round(_sum_c, 2)
+                revenue_mtd = {"collected": _dollars, "payments_count": _n,
+                               "endpoint": _ep, "amount_field": _amt_field,
+                               "date_field": _date_field,
+                               "basis": "payments with paid-like status, dated this month",
+                               "cents_assumed": bool((_amt_field or "").endswith("_cents"))}
+                if not (_amt_field or "").endswith("_cents"):
+                    warnings.append(f"revenue_mtd: amount field '{_amt_field}' has no _cents suffix - "
+                                    f"assumed DOLLARS. Verify one payment in Hint against the total "
+                                    f"(${_dollars}) before trusting the profitability widget.")
+                break
+        if revenue_mtd is None:
+            warnings.append("revenue_mtd: no billing endpoint yielded payment rows "
+                            "(tried payments/invoices/transactions/charges). Profitability "
+                            "widget's revenue side stays unwired - check Hint API docs/scopes.")
+    except Exception as _e:
+        warnings.append(f"revenue_mtd probe failed ({_e}) - revenue stays unwired.")
+
     # --- LSA test tile: patients attributed to Google Local Services ------------
     # Cumulative since LSA_TEST_SINCE (crosses month boundaries — deliberately NOT
     # scoped to `relevant`). Attributed = signup on/after the test start whose Hint
@@ -838,6 +907,7 @@ def main():
         "excluded_count": excluded_count,
         "friends_family_excluded": friends_family_excluded,   # comp/F&F memberships dropped from the count
         "ambiguous_plans": sorted(set(ambiguous_plans)),
+        "revenue_mtd": revenue_mtd,       # collected payments this month (profitability widget)
         "lsa_test": lsa_test,          # cumulative LSA-attributed patients since LSA_TEST_SINCE (kill/keep tile)
         "consults": consults,          # REAL prospect consults (Contact attendee); see match_rule/basis
         "consults_legacy_30min": consults_legacy_30min,  # OLD 30-min heuristic — comparison only, do NOT use
@@ -853,7 +923,7 @@ def main():
                                            "members_counted_basis", "payment_unknown",
                                            "friends_family_excluded",
                                            "members_source", "pending_future_dated",
-                                           "lead_source_field", "lsa_test", "consults", "consults_legacy_30min",
+                                           "lead_source_field", "revenue_mtd", "lsa_test", "consults", "consults_legacy_30min",
                                            "appointments", "warnings")}, indent=2))
 
     if args.probe:

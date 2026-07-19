@@ -1,4 +1,81 @@
-'. "
+(tried payments/invoices/transactions/charges). Profitability "
+                            "widget's revenue side stays unwired - check Hint API docs/scopes.")
+    except Exception as _e:
+        warnings.append(f"revenue_mtd probe failed ({_e}) - revenue stays unwired.")
+
+    # --- LSA test tile: patients attributed to Google Local Services ------------
+    # Cumulative since LSA_TEST_SINCE (crosses month boundaries — deliberately NOT
+    # scoped to `relevant`). Attributed = signup on/after the test start whose Hint
+    # Lead Source maps to google_lsa. Paid and pending are counted separately: the
+    # kill/keep rule evaluates on PAID patients only (pending can still be nurture-
+    # cancelled at day 30). PHI: aggregate counts only, no names exported.
+    lsa_test = {"since": LSA_TEST_SINCE, "patients_attributed": 0,
+                "attributed_pending": 0, "attributed_unverified_payment": 0,
+                "signups_checked": 0}
+    try:
+        for m in all_mems:
+            _raw_dt = created_at_of(m) if has_created_field else m.get("start_date")
+            if not _raw_dt or str(_raw_dt)[:10] < LSA_TEST_SINCE:
+                continue
+            _pid3, _nm3 = patient_name_of_membership(m)
+            if is_excluded(_nm3) or is_friends_family(plan_name_of(m)):
+                continue
+            lsa_test["signups_checked"] += 1
+            if not _pid3:
+                continue
+            _raw_src, _ = extract_lead_source(get_patient(_pid3) or {})
+            if map_source(_raw_src) != "google_lsa":
+                continue
+            _pay3 = has_payment_source(_pid3)
+            if _pay3 is True:
+                lsa_test["patients_attributed"] += 1
+            elif _pay3 is False:
+                lsa_test["attributed_pending"] += 1
+            else:
+                lsa_test["attributed_unverified_payment"] += 1
+        if lsa_test["attributed_unverified_payment"]:
+            warnings.append(f"lsa_test: {lsa_test['attributed_unverified_payment']} LSA-attributed "
+                            f"signup(s) could not be payment-verified — excluded from "
+                            f"patients_attributed; verify manually in Hint.")
+    except Exception as _e:
+        lsa_test = None
+        warnings.append(f"lsa_test tally failed ({_e}) — dashboard LSA test tile keeps last-good "
+                        f"attributed count (zero ≠ null: do not bake a fresh 0).")
+
+    # Choose the member basis. If payment status couldn't be verified for ANY member
+    # (systemic endpoint/scope failure), don't zero out the dashboard — fall back to the
+    # old "count all memberships" behavior and flag it loudly.
+    nonexcluded = all_members["total"]
+    if nonexcluded > 0 and payment_unknown == nonexcluded:
+        members = all_members
+        members_source = all_source
+        pending = {"concierge": 0, "so": 0, "total": 0}
+        members_counted_basis = "all_fallback"
+        warnings.append("payment_methods endpoint returned no data for ANY new membership this run - "
+                        "could not verify payment on file. Counted ALL new memberships as members "
+                        "(old behavior); pending split unavailable. Check API key scope / endpoint.")
+    else:
+        members = paid_members
+        members_source = paid_source
+        members_counted_basis = "paid"
+        if payment_unknown > 0:
+            warnings.append(f"{payment_unknown} new membership(s) could not be payment-verified (API error) "
+                            f"and are excluded from BOTH members and pending - verify manually in Hint.")
+
+    if friends_family_excluded:
+        warnings.append(f"{friends_family_excluded} friends-and-family / comp membership(s) matched "
+                        f"EXCLUDE_PLAN_SUBSTRINGS and were dropped from members + pending (not real "
+                        f"new members). Adjust EXCLUDE_PLAN_SUBSTRINGS if the plan name differs.")
+
+    if members["total"] != anchored_paid["total"]:
+        warnings.append(f"new-member count by SIGNUP date ({signup_basis_field}) = {members['total']}, "
+                        f"but by billing anchor (start_date) = {anchored_paid['total']}. The gap is "
+                        f"renewals / reactivations / plan-changes / future-dated starts that anchor this "
+                        f"month without being new signups. Dashboard uses the signup-date count.")
+
+    if members["total"] and members_source["other"] == members["total"] and lead_source_field is None:
+        warnings.append("No Lead Source field found on patient objects via the API - it may be UI-only. "
+                        "Falling back: members counted, but lead-source split is all 'other'. "
                         "Check --probe output; if blank, keep the browser read for lead source only.")
 
     # Optional: real consults from completed appointments this month (bonus).
@@ -150,6 +227,7 @@
         "excluded_count": excluded_count,
         "friends_family_excluded": friends_family_excluded,   # comp/F&F memberships dropped from the count
         "ambiguous_plans": sorted(set(ambiguous_plans)),
+        "revenue_mtd": revenue_mtd,       # collected payments this month (profitability widget)
         "lsa_test": lsa_test,          # cumulative LSA-attributed patients since LSA_TEST_SINCE (kill/keep tile)
         "consults": consults,          # REAL prospect consults (Contact attendee); see match_rule/basis
         "consults_legacy_30min": consults_legacy_30min,  # OLD 30-min heuristic — comparison only, do NOT use
@@ -165,7 +243,7 @@
                                            "members_counted_basis", "payment_unknown",
                                            "friends_family_excluded",
                                            "members_source", "pending_future_dated",
-                                           "lead_source_field", "lsa_test", "consults", "consults_legacy_30min",
+                                           "lead_source_field", "revenue_mtd", "lsa_test", "consults", "consults_legacy_30min",
                                            "appointments", "warnings")}, indent=2))
 
     if args.probe:

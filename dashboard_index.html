@@ -289,16 +289,16 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-19a";
+const DATA_VERSION = "2026-07-19c";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
-  baked_at: "2026-07-19T16:45Z",
+  baked_at: "2026-07-19T18:35Z",
   period: "2026-07",
   sources: {
     hint:   {as_of:"2026-07-19T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
-    ga4:    {as_of:"2026-07-19T16:45Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
-    gads:   {as_of:"2026-07-19T16:45Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
+    ga4:    {as_of:"2026-07-19T18:35Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
+    gads:   {as_of:"2026-07-19T18:35Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
     gsc:    {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Search Console", how:"weekly; settles 2-3 days late"},
     ahrefs: {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Ahrefs (DR/links)", how:"browser read — API units exhausted 2026-07-16"},
     gbp:    {as_of:"2026-07-19T16:45Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
@@ -338,13 +338,13 @@ const SNAPSHOT = {
   consults: {scheduled_mtd:10, completed_mtd:6, upcoming:4, cancelled:1,
              rule:"erasure-proof running tally of consults booked this month (supersedes the 30-min-slot heuristic, which over-read 14)"},
   funnel_mtd: {
-    visits:836, taps_booking:87, taps_phone:6, handoffs:49,
-    visits_src:{organic:247, direct:346, google:86, meta:106, other:51},
-    taps_src:{organic:41, direct:13, google:10, meta:12, other:17},
+    visits:847, taps_booking:90, taps_phone:6, handoffs:49,
+    visits_src:{organic:247, direct:346, google:91, meta:110, other:53},
+    taps_src:{organic:44, direct:13, google:10, meta:13, other:16},
     /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
        after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
        Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
-    users: {tappers:41, handoff:33, booking_channel:35, as_of:"2026-07-19",
+    users: {tappers:42, handoff:33, booking_channel:35, as_of:"2026-07-19",
             note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: phone-only people this month)"}
   },
   daily: { // Jul 1..18 (through yesterday) — feeds the chart + anomaly detectors
@@ -356,15 +356,15 @@ const SNAPSHOT = {
     ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0,0]
   },
   gads: {
-    mtd:{spend:680.20, impressions:2666, clicks:214, conv_primary:2, conv_ga4_all:7},
+    mtd:{spend:680.20, impressions:2675, clicks:214, conv_primary:2, conv_ga4_all:7},
     campaigns_mtd:[
       {name:"IV & NAD | Search", spend:276.08, impr:396, clicks:43, conv:1},
-      {name:"Concierge | Search", spend:208.49, impr:1814, clicks:126, conv:1},
-      {name:"Ketamine Relaunch | Search", spend:114.93, impr:93, clicks:12, conv:0},
+      {name:"Concierge | Search", spend:208.49, impr:1821, clicks:126, conv:1},
+      {name:"Ketamine Relaunch | Search", spend:114.93, impr:95, clicks:12, conv:0},
       {name:"Branded | Search", spend:60.83, impr:321, clicks:32, conv:0},
       {name:"Perimenopause | Search", spend:19.87, impr:42, clicks:1, conv:0}
     ],
-    local_actions_mtd:{calls:15, directions:19, website:23, other:34},
+    local_actions_mtd:{calls:14, directions:19, website:23, other:34},
     incident:{
       what:"GA4-imported booking_click/phone_click were demoted from PRIMARY to secondary ~Jul 1, so the Conversions column read 0 for 14 days while the actions showed ENABLED. The import itself never broke — real conversions kept landing in All conversions.",
       fixed:"2026-07-16 via API: both actions restored to primary. Expect the Conversions column to populate from ~Jul 17.",
@@ -453,7 +453,7 @@ SNAPSHOT.gbp_perf = {calls:15, website_clicks:21, direction_requests:52,
    2026-07-17). Counts only profile→website clicks; profile CALLS and DIRECTIONS never
    touch the site (see gbp_perf), and some Maps-app taps strip UTMs, so this UNDERCOUNTS
    GBP's real contribution. Refresh task re-pulls MTD alongside the funnel queries. */
-SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07-18"};
+SNAPSHOT.gbp_attrib = {sessions:19, users:15, taps:2, handoffs:1, as_of:"2026-07-19"};
 /* Channel economics (verified 2026-07-17): taps = booking+phone events by session
    channel; hint_people = UNIQUE users whose outbound click reached mtbakermedical.hint.com
    (GA4 totalUsers by channel). Spend windows differ where noted — never silently blend.
@@ -462,9 +462,9 @@ SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07
 /* chan_people = unique users who reached a BOOKING CHANNEL (Hint page OR phone tap),
    per session channel. Not summable across rows (one person can cross channels). */
 SNAPSHOT.channel_econ = { as_of:"2026-07-19", rows:[
-  {ch:"Organic search", spend:0,      window:"—",                    taps:41, chan_people:14, note:"strongest feeder, $0 marginal"},
+  {ch:"Organic search", spend:0,      window:"—",                    taps:44, chan_people:14, note:"strongest feeder, $0 marginal"},
   {ch:"Google Ads (paid search)", spend:680.20, window:"MTD",        taps:10, chan_people:7,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
-  {ch:"Meta (paid social)", spend:13.51, window:"Jun 14–Jul 13 trailing", taps:12, chan_people:6, note:"ad REJECTED ~Jul 9 — taps came from ~9 delivery days; window mismatched, treat $/person as approximate", warn:true},
+  {ch:"Meta (paid social)", spend:13.51, window:"Jun 14–Jul 13 trailing", taps:13, chan_people:6, note:"ad REJECTED ~Jul 9 — taps came from ~9 delivery days; window mismatched, treat $/person as approximate", warn:true},
   {ch:"Direct", spend:0, window:"—",                                 taps:13, chan_people:7,  note:"includes people returning after seeing MBM elsewhere"},
   {ch:"GBP (profile link)", spend:0, window:"—",                     taps:2,  chan_people:1,  note:"UTM-attributed; badly undercounts — 15 profile CALLS + 52 direction requests this month bypass the site entirely"},
   {ch:"Nextdoor", spend:59.93, window:"since Jul 8",                 taps:0,  chan_people:0,  note:"no pixel and no UTM on ad links — its traffic hides in Direct/Unassigned; tag the ad URLs to see it"},

@@ -2,7 +2,7 @@
 {
   "name": "Mbm Performance Dashboard",
   "schemaVersion": 1,
-  "description": "Mt. Baker Medical performance dashboard — north star: active Concierge members vs 300 goal. Verified funnel (GA4 taps → Hint handoffs → booked consults → paid members), true month-to-date Google Ads via GAQL v21, GBP local actions, per-source freshness chips, and anomaly alerts that catch silent data breaks. Every number carries its source and as-of date; stale data is marked, never silently served.",
+  "description": "Mt. Baker Medical performance dashboard — north star: active Concierge members vs 300 goal. Verified funnel, true MTD Google Ads (GAQL v21), GBP profile actions, LSA + LSA kill/keep test tracker, channel economics, per-source freshness chips, anomaly alerts. Every number carries its source and as-of date; stale data is marked, never silently served.",
   "mcpTools": [
     "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__gsc-performance-history",
     "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__rank-tracker-overview",
@@ -162,6 +162,9 @@
   </div>
 
   <!-- NORTH STAR -->
+  <h2 class="sec">Monthly Profitability<span class="rule"></span><span class="pill" id="finRange"></span></h2>
+  <div class="cards" id="finance"></div>
+
   <h2 class="sec">North Star — Concierge Membership<span class="rule"></span><span class="pill" id="nsRange"></span></h2>
   <p class="sec-note" id="nsNote"></p>
   <div class="cards" id="northstar"></div>
@@ -189,6 +192,8 @@
   </div>
 
   <!-- PAID -->
+  <div class="panel" id="leadMagnet" style="margin-bottom:18px"></div>
+
   <h2 class="sec">Paid Channels<span class="rule"></span><span class="pill" id="paidRange"></span></h2>
   <p class="sec-note"><b>Google Ads is true month-to-date</b> (GAQL, API v21). "Ad-attributed taps" counts GA4-imported booking/phone actions from the <i>All conversions</i> column — immune to the primary/secondary goal misconfiguration that silently zeroed the Conversions column Jul 2–16. Meta &amp; Nextdoor are manual weekly pulls with their own as-of dates.</p>
   <div class="panel" style="margin-top:0;margin-bottom:14px">
@@ -284,32 +289,45 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-17k";
+const DATA_VERSION = "2026-07-18b";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
-  baked_at: "2026-07-16T21:46Z",
+  baked_at: "2026-07-18T16:45Z",
   period: "2026-07",
   sources: {
-    hint:   {as_of:"2026-07-16T21:56Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (corrected feed, v16c)"},
-    ga4:    {as_of:"2026-07-16T21:43Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
-    gads:   {as_of:"2026-07-16T21:44Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
+    hint:   {as_of:"2026-07-18T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
+    ga4:    {as_of:"2026-07-18T16:45Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
+    gads:   {as_of:"2026-07-18T16:45Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
     gsc:    {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Search Console", how:"weekly; settles 2-3 days late"},
     ahrefs: {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Ahrefs (DR/links)", how:"browser read — API units exhausted 2026-07-16"},
-    gbp:    {as_of:"2026-07-16T23:26Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
+    gbp:    {as_of:"2026-07-18T16:45Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
     meta:   {as_of:"2026-07-14T00:00Z", cadence_h:192, label:"Meta Ads", how:"manual weekly Ads Manager pull"},
     nextdoor:{as_of:"2026-07-14T00:00Z", cadence_h:192, label:"Nextdoor", how:"manual weekly Ads Manager pull"},
-    lsa:    {as_of:"2026-07-17T14:39Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"}
+    lsa:    {as_of:"2026-07-18T16:45Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"},
+    qb:     {as_of:null, cadence_h:32,  label:"QuickBooks (costs)", how:"P&L total expenses MTD via QuickBooks connector; null until first pull (reconnect needed 2026-07-18)"},
+    kit:    {as_of:null, cadence_h:32,  label:"Kit (checklist signups)", how:"v4 API: form subscribers created MTD; null until first pull (reconnect needed 2026-07-18)"},
   },
   members: {
-    // Active totals: NOT yet in the Hint feed (exporter upgrade committed 2026-07-16;
-    // populates after next poller run). Until then the Members entry tab feeds this.
-    // Feed-baked active totals: the refresh task copies members_feed.json.active_members
-    // here as {concierge, so, as_of, source:"hint"}. null until the upgraded feed runs.
-    active: null,
+    // FEED-BAKED active totals — first populated 2026-07-17 by the upgraded exporter
+    // (members_feed.json.active_members). Basis: membership status == 'active';
+    // comps/F&F (11) and test accounts excluded. getActive() prefers this over manual
+    // entry unless a manual entry is strictly newer. Feed status histogram this run:
+    // active 43 / pending 2 / unpaid 2 / ended 7 (43 = 32 real + 11 F&F excluded).
+    active: {concierge:14, so:18, as_of:"2026-07-18T16:15Z", source:"hint"},
+    /* Hint-badge reconciliation (from feed active_members.reconciliation_by_status —
+       refresh task copies it forward each bake). Explains "Hint shows 17, dashboard
+       shows 14": badges count memberships in EVERY status; the North Star counts
+       status-active, non-comp, non-test only. unpaid_concierge is a REAL patient
+       whose membership is live but not paying — billing follow-up, alerted below. */
+    active_recon: {as_of:"2026-07-18T16:15Z", unpaid_concierge:1, pending_concierge:0,
+                   comp_active:11, test_active_excluded:0},
     goal_concierge: 300,
     new_paid: {concierge:1, so:2},   // July MTD, created_at basis, payment on file
     pending:  {concierge:1, so:1, total:2},
+    // Terminations MTD (end-date-in-month, PAYING members only; nurture/reconcile
+    // cancels, never-paid pendings and comps/F&F excluded). Net growth = adds − terms.
+    terminations_mtd: {concierge:0, so:0, total:0},
     basis: "signup date (created_at) + payment method on file; Friends & Family comps excluded",
     source_mix: {google:0, google_lsa:0, bing:0, ai:0, social:0, provider_referral:0, word_of_mouth:0, other:3},
     lead_source_gap: "0 of 3 July members have Lead Source filled in Hint"
@@ -320,33 +338,33 @@ const SNAPSHOT = {
   consults: {scheduled_mtd:10, completed_mtd:6, upcoming:4, cancelled:1,
              rule:"erasure-proof running tally of consults booked this month (supersedes the 30-min-slot heuristic, which over-read 14)"},
   funnel_mtd: {
-    visits:712, taps_booking:57, taps_phone:6, handoffs:36,
-    visits_src:{organic:208, direct:319, google:79, meta:80, other:26},
-    taps_src:{organic:29, direct:9, google:9, meta:11, other:5},
+    visits:771, taps_booking:70, taps_phone:6, handoffs:45,
+    visits_src:{organic:238, direct:341, google:82, meta:80, other:30},
+    taps_src:{organic:38, direct:11, google:10, meta:11, other:6},
     /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
        after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
        Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
-    users: {tappers:34, handoff:30, booking_channel:33, as_of:"2026-07-17",
-            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: 3 phone-only people this month)"}
+    users: {tappers:38, handoff:33, booking_channel:35, as_of:"2026-07-18",
+            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: phone-only people this month)"}
   },
-  daily: { // Jul 1..16 (16th partial) — feeds the chart + anomaly detectors
-    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16"],
-    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,2],
-    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,0],
-    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,11],
-    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,0]
+  daily: { // Jul 1..17 (through yesterday) — feeds the chart + anomaly detectors
+    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16","07-17"],
+    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,11,4],
+    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,7,2],
+    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,16,5],
+    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0]
   },
   gads: {
-    mtd:{spend:600.82, impressions:2312, clicks:196, conv_primary:1, conv_ga4_all:6},
+    mtd:{spend:624.76, impressions:2540, clicks:206, conv_primary:2, conv_ga4_all:7},
     campaigns_mtd:[
-      {name:"IV & NAD | Search", spend:225.00, impr:337, clicks:39, conv:0},
-      {name:"Concierge | Search", spend:195.12, impr:1548, clicks:113, conv:1},
-      {name:"Ketamine Relaunch | Search", spend:100.00, impr:64, clicks:11, conv:0},
+      {name:"IV & NAD | Search", spend:238.34, impr:370, clicks:40, conv:1},
+      {name:"Concierge | Search", spend:205.72, impr:1724, clicks:122, conv:1},
+      {name:"Ketamine Relaunch | Search", spend:99.99, impr:83, clicks:11, conv:0},
       {name:"Branded | Search", spend:60.83, impr:321, clicks:32, conv:0},
       {name:"Perimenopause | Search", spend:19.87, impr:42, clicks:1, conv:0}
     ],
-    local_actions_mtd:{calls:11, directions:17, website:15, other:9},
+    local_actions_mtd:{calls:13, directions:19, website:20, other:14},
     incident:{
       what:"GA4-imported booking_click/phone_click were demoted from PRIMARY to secondary ~Jul 1, so the Conversions column read 0 for 14 days while the actions showed ENABLED. The import itself never broke — real conversions kept landing in All conversions.",
       fixed:"2026-07-16 via API: both actions restored to primary. Expect the Conversions column to populate from ~Jul 17.",
@@ -368,7 +386,7 @@ const SNAPSHOT = {
      the campaign-spend feed automatically (FROM campaign has no type filter — verified
      live: the LOCAL_SERVICES campaign appears in that query with cost_micros 0). */
   lsa: {leads_phone_mtd:0, leads_message_mtd:0, leads_charged_mtd:0, leads_credited_mtd:0,
-        spend_mtd:0, as_of:"2026-07-17",
+        spend_mtd:0, as_of:"2026-07-18",
     /* LSA TEST — kill/keep decision tracker (NOT a KPI trend: no arrows, no rates).
        Cumulative since 2026-07-17, deliberately NOT MTD — the test window crosses
        month boundaries. Refresh contract (DASHBOARD_METRICS.md §1):
@@ -380,11 +398,24 @@ const SNAPSHOT = {
          null = feed hasn't run with the upgraded exporter yet — render "—", never 0.
        Zero ≠ null: a dead lsa pull keeps these last-good values + stale chip. */
     test: {since:"2026-07-17",
-           leads_charged_cum:0,          // real zero — campaign PAUSED, pull path verified live 2026-07-17
+           leads_charged_cum:0,          // real zero — 0 billed leads since 2026-07-17, pull path verified live 2026-07-18
            spend_cum:0,
-           patients_attributed:null,     // awaiting first upgraded-feed run
-           attributed_pending:null,
+           patients_attributed:0,        // feed lsa_test present (signups_checked:0) — real zero, not null
+           attributed_pending:0,
            checkpoint_leads:12, checkpoint_spend_est:600, extend_leads:20}},
+  /* FINANCE (added 2026-07-18, v18b): monthly profitability = Hint revenue - QB costs.
+     Revenue: payments COLLECTED in Hint this month (feed revenue_mtd, exporter v4).
+     Costs: QuickBooks P&L total expenses MTD via the QuickBooks connector.
+     Both null until their pulls run (QB + Kit connectors needed re-auth 2026-07-18;
+     exporter revenue lands after next poller/task run). Zero != null: render "-",
+     never $0, while unwired. QB expenses LAG manual entry/categorization - the
+     widget says so. No trend arrows; month is partial until EOM. */
+  finance: {month:"2026-07",
+    revenue:{mtd:null, as_of:null, source:"hint", basis:"payments collected in Hint this month"},
+    costs:{mtd:null, as_of:null, source:"quickbooks", basis:"QuickBooks P&L total expenses, MTD"},
+    caveat:"QB costs lag entry/categorization; partial month until EOM. Net = collected revenue minus booked expenses - not GAAP, a pulse."},
+  kit: {checklist_signups_mtd:null, list_total:null, as_of:null,
+        note:"Perimenopause checklist form signups (Kit). Ad-driven share visible in GA4 via utm_campaign=perimenopause_checklist."},
   gsc: {
     latest_month:{month:"2026-06", clicks:206, impressions:7360, ctr:2.8, position:15.6},
     trend:[
@@ -414,15 +445,15 @@ const SNAPSHOT = {
    PRE-CATEGORY-CHANGE BASELINE (category switched 2026-07-16): June full month =
    13 calls / 29 website clicks / 67 directions. Jul 1–15 = 11 / 11 / 51.
    Jul 14 had an anomalous 22 direction requests — remember at the Aug 6 readout. */
-SNAPSHOT.gbp_perf = {calls:11, website_clicks:11, direction_requests:51,
-  window:"Jul 1–15", as_of:"2026-07-16", source:"GBP Performance API",
+SNAPSHOT.gbp_perf = {calls:14, website_clicks:17, direction_requests:51,
+  window:"Jul 1–17", as_of:"2026-07-18", source:"GBP Performance API",
   june_baseline:{calls:13, website_clicks:29, direction_requests:67}};
 /* GBP → site attribution: GA4 events where sessionMedium == "gbp" (the profile's
    website link was already UTM-tagged ?utm_source=google&utm_medium=gbp — verified
    2026-07-17). Counts only profile→website clicks; profile CALLS and DIRECTIONS never
    touch the site (see gbp_perf), and some Maps-app taps strip UTMs, so this UNDERCOUNTS
    GBP's real contribution. Refresh task re-pulls MTD alongside the funnel queries. */
-SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07-17"};
+SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07-18"};
 /* Channel economics (verified 2026-07-17): taps = booking+phone events by session
    channel; hint_people = UNIQUE users whose outbound click reached mtbakermedical.hint.com
    (GA4 totalUsers by channel). Spend windows differ where noted — never silently blend.
@@ -430,12 +461,12 @@ SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07
    recorded at signup; this table measures cost per person DELIVERED TO the booking flow. */
 /* chan_people = unique users who reached a BOOKING CHANNEL (Hint page OR phone tap),
    per session channel. Not summable across rows (one person can cross channels). */
-SNAPSHOT.channel_econ = { as_of:"2026-07-17", rows:[
-  {ch:"Organic search", spend:0,      window:"—",                    taps:29, chan_people:12, note:"strongest feeder, $0 marginal"},
-  {ch:"Google Ads (paid search)", spend:600.82, window:"MTD",        taps:9,  chan_people:7,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16"},
+SNAPSHOT.channel_econ = { as_of:"2026-07-18", rows:[
+  {ch:"Organic search", spend:0,      window:"—",                    taps:38, chan_people:14, note:"strongest feeder, $0 marginal"},
+  {ch:"Google Ads (paid search)", spend:624.76, window:"MTD",        taps:10, chan_people:7,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
   {ch:"Meta (paid social)", spend:13.51, window:"Jun 14–Jul 13 trailing", taps:11, chan_people:6, note:"ad REJECTED ~Jul 9 — taps came from ~9 delivery days; window mismatched, treat $/person as approximate", warn:true},
-  {ch:"Direct", spend:0, window:"—",                                 taps:9,  chan_people:5,  note:"includes people returning after seeing MBM elsewhere"},
-  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:2,  chan_people:1,  note:"UTM-attributed; badly undercounts — 11 profile CALLS + 51 direction requests this month bypass the site entirely"},
+  {ch:"Direct", spend:0, window:"—",                                 taps:9,  chan_people:6,  note:"includes people returning after seeing MBM elsewhere"},
+  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:2,  chan_people:1,  note:"UTM-attributed; badly undercounts — 14 profile CALLS + 51 direction requests this month bypass the site entirely"},
   {ch:"Nextdoor", spend:59.93, window:"since Jul 8",                 taps:0,  chan_people:0,  note:"no pixel and no UTM on ad links — its traffic hides in Direct/Unassigned; tag the ad URLs to see it"},
   {ch:"LSA (Local Services)", spend:0, window:"—",                   taps:0,  chan_people:0,  note:"pay-per-lead; PAUSED — first paid entrant play, see LSA task. Leads arrive as forwarded phone/message contacts, not GA4 taps, so this row stays 0/0 here until go-live"}
 ]};
@@ -573,6 +604,9 @@ function srcState(k){
   const s=SNAPSHOT.sources[k]; if(!s) return null;
   const live=store.get("src_asof:"+k, null);   // live-refresh success updates this
   const asof=live||s.as_of;
+  if(!asof){ // source declared but never pulled (e.g. QB/Kit awaiting connector auth)
+    return {key:k, label:s.label, asof:null, ageH:Infinity, cls:"stale", err:store.get("src_err:"+k,null), how:s.how, unwired:true};
+  }
   const err=store.get("src_err:"+k, null);
   const ageH=(Date.now()-new Date(asof).getTime())/3600000;
   let cls="fresh";
@@ -580,7 +614,7 @@ function srcState(k){
   if(k==="meta"||k==="nextdoor"||k==="ahrefs") cls=(ageH>s.cadence_h*2)?"stale":"manual";
   return {key:k, label:s.label, asof, ageH, cls, err, how:s.how};
 }
-function fmtAge(h){ if(h<1) return Math.round(h*60)+"m ago"; if(h<48) return Math.round(h)+"h ago"; return Math.round(h/24)+"d ago"; }
+function fmtAge(h){ if(!isFinite(h)) return "never"; if(h<1) return Math.round(h*60)+"m ago"; if(h<48) return Math.round(h)+"h ago"; return Math.round(h/24)+"d ago"; }
 function renderStatus(){
   const chips=Object.keys(SNAPSHOT.sources).map(k=>{
     const s=srcState(k);
@@ -606,6 +640,10 @@ function renderStatus(){
   const hint=srcState("hint");
   if(hint.cls==="stale") alerts.push('<div class="alert red">🚨<div><b>Hint members/consults feed is '+fmtAge(hint.ageH)+' old.</b> The 9:15am laptop poller (MBM-Dashboard-Members-Export) has missed runs — member and consult tiles are showing last-good values, hatched below.</div></div>');
   else if(hint.cls==="aging") alerts.push('<div class="alert amber">⏱<div><b>Hint feed aging ('+fmtAge(hint.ageH)+').</b> Poller may have missed this morning\'s run; values below are last-good.</div></div>');
+  /* 3b. Unpaid concierge membership: live in Hint, not paying — real revenue leak */
+  const _rec=SNAPSHOT.members.active_recon;
+  if(_rec && +_rec.unpaid_concierge>0)
+    alerts.push('<div class="alert amber">💳<div><b>'+fmtN(_rec.unpaid_concierge)+' Concierge membership'+(_rec.unpaid_concierge>1?'s are':' is')+' status "unpaid" in Hint</b> — an active patient not being billed (~$300/mo each). Not counted in the North Star. Check the membership\'s payment method in Hint. As of '+escapeHtml(_rec.as_of||'')+'.</div></div>');
   /* 4. Residual config risk */
   if(SNAPSHOT.gads.incident.residual) alerts.push('<div class="alert amber">⚠️<div><b>Ads goal config:</b> '+escapeHtml(SNAPSHOT.gads.incident.residual)+'</div></div>');
   /* 5. Meta delivery */
@@ -639,6 +677,15 @@ function renderNorthStar(){
     actHtml=fmtN(act.concierge)+' <small>of '+SNAPSHOT.members.goal_concierge+'</small>';
     actExtra='<div class="goalbar"><span style="width:'+pct+'%"></span></div>'+
       '<div class="small" style="margin-top:6px">'+Math.round(pct)+'% of goal · '+fmtN(act.so)+' Service-Only alongside</div>';
+    var rec=SNAPSHOT.members.active_recon;
+    if(rec && act.source==="hint"){
+      var recBits=[];
+      if(+rec.unpaid_concierge>0) recBits.push('<b style="color:var(--warn)">+'+fmtN(rec.unpaid_concierge)+' unpaid</b> (live in Hint, not paying — not counted)');
+      if(+rec.pending_concierge>0) recBits.push('+'+fmtN(rec.pending_concierge)+' pending payment');
+      if(+rec.comp_active>0) recBits.push(fmtN(rec.comp_active)+' comps/F&F excluded');
+      if(+rec.test_active_excluded>0) recBits.push(fmtN(rec.test_active_excluded)+' test accts excluded');
+      actExtra+='<div class="small" style="margin-top:4px;line-height:1.6">Hint badge reconciliation: '+(recBits.length?recBits.join(' · '):'clean')+' — plan badges count every status; this tile counts active paying patients only.</div>';
+    }
     actAsof=(act.source==="hint"?"Hint feed":"manual entry")+" · as of "+escapeHtml(act.as_of||act.period);
   } else {
     actHtml='<span style="color:var(--stale)">—</span>';
@@ -659,67 +706,4 @@ function renderNorthStar(){
       '<div class="small" style="margin-top:6px">'+escapeHtml(t.note)+' ÷ all new members (blended)</div><div class="small" style="margin-top:4px">cost per booked consult: <b>'+fmtUSD(cpc2)+'</b></div>'+smallN(),
       false, "computed · spend "+fmtUSD(t.spend));
 }
-function periodShort(p){ const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; const a=(p||"").split("-"); return a[1]?m[+a[1]-1]:""; }
-
-/* ---------- FUNNEL ---------- */
-function srcSegs(split, colors){
-  let segs=''; let tot=0;
-  colors.forEach(function(c){ tot+=+(split&&split[c[0]])||0; });
-  colors.forEach(function(c){ const v=+(split&&split[c[0]])||0; if(v>0) segs+='<span style="flex:'+v+';background:'+c[1]+'" title="'+(c[2]||c[0])+': '+v+'"></span>'; });
-  if(tot<=0) segs='<span style="flex:1;background:#d3dcd5"></span>';
-  return segs;
-}
-function fbar(val, w, split, colors, sub){
-  const txt=fmtN(val)+(sub?' <span style="font-weight:400;opacity:.85;font-size:10.5px;margin-left:3px">'+sub+'</span>':'');
-  /* Labels never clip: a narrow bar can't fit its label inside (overflow:hidden
-     chops it into a jumble), so below 40% width the label renders OUTSIDE the
-     bar end in ink. Wide bars keep the in-bar white label. */
-  const narrow = w < 40;
-  if(split && colors){
-    if(narrow) return '<div class="fbar fbar-split" style="width:'+w+'%">'+srcSegs(split,colors)+'</div><span class="fnum-out">'+txt+'</span>';
-    return '<div class="fbar fbar-split" style="width:'+w+'%"><span class="fnum">'+txt+'</span>'+srcSegs(split,colors)+'</div>';
-  }
-  if(narrow) return '<div class="fbar" style="width:'+w+'%"></div><span class="fnum-out">'+txt+'</span>';
-  return '<div class="fbar" style="width:'+w+'%">'+txt+'</div>';
-}
-function renderFunnel(){
-  const period=selectedPeriod(); const f=getFunnel(period);
-  setRangePill("funnelRange", period);
-  const src=store.get("funnel_src:"+period, null);
-  const memRaw=store.get("members_split:"+period, null);
-  const ch=store.get("consults_hint:"+period, null);
-  const mp=store.get("members_pending:"+period, null);
-  const SRCC=[["organic","#20713F","Organic search"],["direct","#7059B3","Direct"],["google","#9C6F10","Google Ads"],["meta","#2C6FC4","Meta"],["other","#C2703F","Other"]];
-  const MEMC=[["concierge","#20713F","Concierge"],["so","#7059B3","SO"]];
-  const visits=+f.site_visits||0;
-  const taps=(+f.inq_booking||0)+(+f.inq_phone||0);
-  const handoffs=+f.handoffs||0;
-  const consults=(ch&&(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled))||(+f.consults||0);
-  const memTot=memRaw?((+memRaw.concierge||0)+(+memRaw.so||0)):(+f.new_members||0);
-  // unique-people counts (GA4 totalUsers) — shown ON the bars so events vs people is never ambiguous
-  const uF=store.get("funnel_users:"+period,null)||(period===SNAPSHOT.period?SNAPSHOT.funnel_mtd.users:null);
-  const stages=[
-    {label:"Site visits", val:visits, split:(src&&src.visits)||null, colors:SRCC, sub:"sessions"},
-    {label:"Tried to book", val:taps, split:(src&&src.inquiries)||null, colors:SRCC, sub:"taps"+(uF&&uF.tappers?(" · "+fmtN(uF.tappers)+" people"):"")},
-    {label:"Consults booked (Hint)", val:consults, isConsult:true},
-    {label:"New paid members", val:memTot, split:(memRaw&&memTot>0)?memRaw:null, colors:MEMC, isMembers:true}
-  ];
-  const max=Math.max.apply(null,stages.map(s=>s.val).concat([1]));
-  let html="";
-  for(let i=0;i<stages.length;i++){
-    const s=stages[i]; const w=Math.max(6,(s.val/max)*100);
-    let bar;
-    if(s.val>0||i<2) bar=fbar(s.val,w,s.split,s.colors,s.sub);
-    else bar='<div class="fbar fbar-empty" style="width:'+w+'%"></div><span class="fnum-out">0 <span class="fsub">'+(s.isMembers?'awaiting Hint':'none yet')+'</span></span>';
-    html+='<div class="fstage"><div class="flabel">'+s.label+'</div><div class="fbar-wrap">'+bar+'</div></div>';
-    if(i<stages.length-1){
-      const next=stages[i+1];
-      let note="";
-      if(i===0) note=rateHTML(stages[1].val, s.val, "of visits tap book/call");
-      else if(i===1){
-        const den=(uF&&uF.tappers>0)?+uF.tappers:s.val;
-        note=rateHTML(next.val, den, (uF&&uF.tappers>0)
-          ? ("of the "+fmtN(uF.tappers)+" PEOPLE who tried to book ended up with a booked consult. Booking CTAs link straight to Hint, so arrival is ~100% — this whole drop happens inside Hint's booking flow or after a phone call")
-          : "of taps became booked consults (events — repeat taps inflate the denominator)");
-      }
-      else if(i===2) note=rateHTML(next.val, s.val, "— members can close from prior-month consults")+((mp&&mp.total)?(' <span class="rate">+ '+mp.total+
+function periodShort(p){ const m=["Ja

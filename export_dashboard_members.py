@@ -861,6 +861,19 @@ def main():
         # window count above UNDER-reports. consult_count.py captures consults while they're
         # still Contacts on each daily run and persists a monthly tally that never decays --
         # that's the authoritative "consults booked this month" number.
+        # ADVANCE the erasure-proof tally as part of THIS 9:15 job. The standalone
+        # MBM-Daily-Summary task is on a WEEKLY (Monday) trigger, so the tally used to
+        # move only on Mondays and missed same-day + /book-beta online bookings. This
+        # runs reliably every morning; tally() is idempotent + never-decays and folds in
+        # mbm-book GCal bookings (gated GCAL_ENABLED). daily_end=now_dt so TODAY counts.
+        # Failure here must never break the feed -> last-good tally is left untouched.
+        try:
+            import consult_count as _cc
+            _m_start = datetime(now_dt.year, now_dt.month, 1, tzinfo=timezone.utc)
+            _cc.tally(appts, _m_start, now_dt, _m_start)
+        except Exception as _e:
+            warnings.append(f"consult tally-advance failed ({_e}); tally left as last-good.")
+
         consults_running = read_consult_tally(period)
         if consults_running is not None:
             consults["booked_mtd_running_tally"] = consults_running["mtd_count"]

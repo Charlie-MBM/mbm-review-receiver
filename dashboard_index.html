@@ -290,11 +290,11 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-19d";
+const DATA_VERSION = "2026-07-19e";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
-  baked_at: "2026-07-19T20:07Z",
+  baked_at: "2026-07-19T20:12Z",
   period: "2026-07",
   sources: {
     hint:   {as_of:"2026-07-19T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
@@ -644,7 +644,7 @@ function renderStatus(){
   /* 3b. Unpaid concierge membership: live in Hint, not paying — real revenue leak */
   const _rec=SNAPSHOT.members.active_recon;
   if(_rec && +_rec.unpaid_concierge>0)
-    alerts.push('<div class="alert amber">💳<div><b>'+fmtN(_rec.unpaid_concierge)+' Concierge membership'+(_rec.unpaid_concierge>1?'s are':' is')+' status "unpaid" in Hint</b> — an active patient not being billed (~$300/mo each). Not counted in the North Star. Check the membership\'s payment method in Hint. As of '+escapeHtml(_rec.as_of||'')+'.</div></div>');
+    alerts.push('<div class="alert amber">💳<div><b>'+fmtN(_rec.unpaid_concierge)+' Concierge membership'+(_rec.unpaid_concierge>1?'s are':' is')+' status "unpaid" in Hint</b> — an active patient not being billed (~$300/mo each). Not counted in the North Star. <a href="https://app.hint.com/members" target="_blank" rel="noopener" style="color:#7a4e00;font-weight:800;text-decoration:underline">→ Open Hint members &amp; add a payment method</a>. As of '+escapeHtml(_rec.as_of||'')+'.</div></div>');
   /* 4. Residual config risk */
   if(SNAPSHOT.gads.incident.residual) alerts.push('<div class="alert amber">⚠️<div><b>Ads goal config:</b> '+escapeHtml(SNAPSHOT.gads.incident.residual)+'</div></div>');
   /* 5. Meta delivery */

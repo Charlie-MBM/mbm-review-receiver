@@ -45,3 +45,8 @@ consult_count_state.json
 *service_account*.json
 *-gcp-credentials*.json
 mbm-ga4-reader*.json
+
+# Scratch/quarantine — never commit
+_to_delete/
+_v0719_*.html
+_dash_build.html

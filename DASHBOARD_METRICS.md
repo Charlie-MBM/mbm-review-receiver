@@ -1,6 +1,6 @@
 # MBM Performance Dashboard — Metric Definitions, Refresh Mechanics, Failure Modes
 
-**Last updated:** 2026-07-17 (DATA_VERSION `2026-07-17m` — badge reconciliation + unpaid-concierge billing alert + manual-entry timestamp fix; `2026-07-17l` first task-baked feed w/ active members; `2026-07-17k` funnel label-clip fix; `2026-07-17j` — "LSA test" kill/keep tracker tile added: `SNAPSHOT.lsa.test` cumulative-since-2026-07-17 fields, decision rule locked, exporter `google_lsa` lead-source bucket + `lsa_test` feed key. Prior same-day: `2026-07-17i` funnel restructure — tap→Hint arrival ≈100%, handoff demoted to instrumentation; `2026-07-17h` LSA added as first pay-per-lead paid source: `SNAPSHOT.lsa` + `sources.lsa`, Paid tile, channel-econ row, `LSA_GO_LIVE` gate; campaign PAUSED, verified zeros)
+**Last updated:** 2026-07-19 (DATA_VERSION `2026-07-18c` — taller GSC clicks/impressions charts + per-chart current-month pace line; `2026-07-18b`/`2026-07-18a` daily bakes; **hosted partner copy added**: private Cloudflare Worker `mbm-dashboard` serving the baked HTML at an unguessable noindex URL, pushed each bake via `push_hosted_dashboard.py` — see §2. Prior: `2026-07-17m` — badge reconciliation + unpaid-concierge billing alert + manual-entry timestamp fix; `2026-07-17l` first task-baked feed w/ active members; `2026-07-17k` funnel label-clip fix; `2026-07-17j` — "LSA test" kill/keep tracker tile added: `SNAPSHOT.lsa.test` cumulative-since-2026-07-17 fields, decision rule locked, exporter `google_lsa` lead-source bucket + `lsa_test` feed key. Prior same-day: `2026-07-17i` funnel restructure — tap→Hint arrival ≈100%, handoff demoted to instrumentation; `2026-07-17h` LSA added as first pay-per-lead paid source: `SNAPSHOT.lsa` + `sources.lsa`, Paid tile, channel-econ row, `LSA_GO_LIVE` gate; campaign PAUSED, verified zeros)
 **Artifact:** `C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboard\index.html`
 **This doc is the contract.** Any task that refreshes, edits, or republishes the dashboard follows it. If you change a definition, change it here in the same commit.
 
@@ -23,6 +23,10 @@
 ### North Star
 
 **Badge reconciliation (added 2026-07-17):** the North Star counts **status-active, non-comp, non-test paying patients**. Hint's plan badges count memberships in EVERY status (unpaid, pending, comps, test accounts), so badge totals routinely exceed the tile — that gap is rendered ON the tile from `SNAPSHOT.members.active_recon` (`unpaid_concierge`, `pending_concierge`, `comp_active`, `test_active_excluded`), copied each bake from the feed's `active_members.reconciliation_by_status` grid. **`unpaid_concierge` > 0 fires an amber billing alert** — that's a live patient not being billed. Manual member entry stamps a FULL timestamp (`new Date().toISOString()`), not date-only — date-only compared before same-day feed timestamps and silently made manual overrides impossible (bug found+fixed 2026-07-17, v17m).
+**Profitability widget (added 2026-07-18, v18b — TOP of dashboard):** `SNAPSHOT.finance` = Hint revenue − QuickBooks costs, both true MTD. Revenue = payments **collected** in Hint this month (feed `revenue_mtd.collected`, exporter probes billing endpoints defensively and reports `endpoint`/`amount_field`/`cents_assumed` — **verify one payment against the total on first run, and read the cents-vs-dollars warning if present**). Costs = QuickBooks P&L **total expenses** MTD via the QuickBooks connector. Net + margin computed at render only when BOTH sides present; nulls render "—" with per-side fix instructions, never $0 (zero ≠ null). On-widget caveat: QB costs lag entry/categorization; partial month until EOM; "not GAAP, a pulse." No trend arrows. Sources `qb` + `kit` may have `as_of:null` (= never pulled): `srcState` returns `{cls:"stale", ageH:Infinity, unwired:true}` and chips show "never" — never NaN.
+
+**Checklist signups (added 2026-07-18):** `SNAPSHOT.kit` = perimenopause checklist form signups MTD + list total, from Kit v4 API (form subscribers created this month). This is the Meta perimenopause campaign's REAL conversion (Meta deliberately never sees signups — health-data rule; see MBM_META_ADS_NOTES.md). Ad-driven share via GA4 `utm_campaign=perimenopause_checklist`.
+
 | Tile | Definition | Source | Window | Caveats |
 |---|---|---|---|---|
 | Active Concierge members | Count of memberships with status `active`, plan bucketed "concierge", excluding comps/F&F and test accounts. Goal: 300. | Hint via `export_dashboard_members.py` → `members_feed.json.active_members` (feed v2+); manual entry (Data Entry → Members) until first feed with the field | point-in-time | Feed upgrade committed 2026-07-16; populates on next poller run. Manual entries carry "manual entry · as of date". |
@@ -90,6 +94,19 @@ Consults are NOT a strict subset of handoffs (phone/walk-in bookings exist); mem
             → spend_cum ; members_feed.json.lsa_test.patients_attributed +
             attributed_pending → SNAPSHOT.lsa.test. NOT MTD — never reset at
             month rollover. Feed lacking lsa_test key → leave nulls, do not bake 0.)
+          + FINANCE: revenue from feed revenue_mtd.collected (+ as_of = feed generated_at)
+            → SNAPSHOT.finance.revenue. COSTS from QuickBooks — call the QuickBooks
+            connector's company_info tool first (opens the OAuth session), THEN
+            profit_loss_quickbooks_account with periodStart = current month's 1st
+            (YYYY-MM-01) and periodEnd = today; take the top-level totalExpenses →
+            SNAPSHOT.finance.costs.mtd + as_of(now ISO) + sources.qb.as_of(now ISO).
+            QB income is ~$0 (concierge revenue is collected in Hint, not booked in QB),
+            so take ONLY totalExpenses — ignore QB's own net/income. Net + margin are a
+            render-time computation (Hint revenue − QB costs); never hardcode net.
+            QB connector unauthorized → leave nulls + report, never fake.
+          + KIT: v4 API GET form subscribers created this month (perimenopause
+            checklist form) → SNAPSHOT.kit {checklist_signups_mtd, list_total} +
+            sources.kit.as_of. Kit connector unauthorized → leave nulls + report.
           + active_recon (feed active_members.reconciliation_by_status →
             SNAPSHOT.members.active_recon {unpaid_concierge, pending_concierge,
             comp_active, test_active_excluded, as_of})
@@ -98,6 +115,14 @@ Consults are NOT a strict subset of handoffs (phone/walk-in bookings exist); mem
             first task bake 2026-07-17: totals updated, dailies didn't)
           → updates SNAPSHOT block in index.html, sets sources.*.as_of per source
           actually refreshed, bumps DATA_VERSION, checks updatedAt, republishes
+          + pushes the private hosted partner copy AS THE LAST STEP (after the
+            artifact publish verifies): `python push_hosted_dashboard.py` re-uploads
+            the `mbm-dashboard` Cloudflare Worker with the freshly-baked HTML inlined.
+            Hosted URL (share-with-partner, aggregate-only, noindex):
+            https://mbm-dashboard.charlie-956.workers.dev/dash-8a19bca7b8cbc5f3724077d0
+            Worker acct 95619789467f5b8aa49e44428e1ed443; CLOUDFLARE_API_TOKEN has
+            Workers Scripts:Edit but NOT KV — so HTML is inlined, not KV-backed. The
+            script hides the ↻ live-refresh button when the Cowork bridge is absent.
 Mon    mbm-dashboard-weekly-refresh (Cowork task)
        └─ adds GSC (browser/API), Ahrefs (browser if API units exhausted),
           Meta + Nextdoor Ads Manager pulls (Chrome), KW re-bake
@@ -131,7 +156,22 @@ On-open  ↻ Refresh live (in-page, optional)
 
 **Incident log — July 2026 "conversion blackout" (resolved):** Google Ads `Conversions` column read 0 from Jul 2–16 while the actions showed ENABLED. Root cause was NOT a dead GA4 link: around Jul 1 the GA4-imported `booking_click`/`phone_click` actions were demoted from **primary** to secondary (`primary_for_goal=false`), and the only primary web goal left was "Sign-up (signup_complete)" — a GA4 event that does not exist on the site. Real conversions kept flowing into `all_conversions` the whole time (they reconcile with GA4 paid-search taps). **Fixed 2026-07-16 via Google Ads API:** both actions restored to primary (conversionActions 7635222383, 7635222386). Residual: implement `signup_complete` in GA4 or demote that action; watch that smart bidding re-learns over ~1–2 weeks. Lesson: dashboards must read `all_conversions` for GA4-imported actions and alert on primary-column silence.
 
-## 4. Known gaps / status (updated 2026-07-16 late)
+## 4. Known gaps / status
+
+**⚡ 2026-07-18 BOOKING CUTOVER HAPPENED (see mbm-book-ops skill): the site's booking
+CTAs now go to mtbakermedical.com/book-beta (MBM's own booking system), NOT
+mtbakermedical.hint.com.** The §4 cutover checklist is ACTIVE: (a) the funnel's
+"tap→Hint arrival ≈100%" framing is obsolete — bookings complete ON-SITE now;
+(b) GA4 outbound-linkDomain "handoffs" to hint.com will collapse to ~0 — that is
+EXPECTED, not a tracking break (do not fire the zero-tap alarm logic at it);
+(c) booking_click still fires on CTA click (verified in bundle) so taps remain valid;
+(d) consult_count.py's Contact-attendee rule MUST be re-verified against bookings
+created by the new system (it creates Hint patients instantly — check the attendee
+shape); (e) Meta CAPI Schedule beacon fires pre-navigation and /book* suppression
+still applies — verified live 2026-07-18. Funnel definitions in §1 need a revision
+pass once a few days of /book-beta data exist.
+
+ (updated 2026-07-16 late)
 - **IN FLIGHT — first-party booking software** (separate task, 2026-07-17): replaces Hint's hosted booking flow. At cutover this contract changes: (a) funnel gains measurable booking_start → booking_complete stages and the "Hint arrival ≈ 100% / outbound telemetry" note retires; (b) `signup_complete` starts firing for real — re-promote the Ads "Sign-up" action to primary THEN, not before; (c) lead_source gets auto-collected at booking (buckets must match the dashboard's, + "Google Local Services"); (d) UTM/gclid stored on the Hint record = real channel→member attribution; (e) VERIFY consult_count.py's Contact-attendee rule against how the new system writes to Hint — if it creates patients at booking, the running tally breaks and must ship a matching update. PHI: booking data persists only in Hint/BAA'd systems; CF KV stores hashes at most.
 - **Active-member counts**: `active_members` (whole-book, status=='active', F&F/test excluded) now in `export_dashboard_members.py`; dashboard prefers the feed-baked `SNAPSHOT.members.active` over manual entry once the refresh task bakes it. Verify `status_histogram` on first run — if Hint uses a status other than `active`, adjust the filter.
 - **Terminations**: `terminations_mtd` field added (end-date-in-month basis, defensive). If `end_field` comes back null with `end_status_without_date > 0`, extend `_END_KEYS` in the exporter. Presentation rule: net growth = adds − terms; at ~150 members show TTM churn + cohorts, never monthly churn %.

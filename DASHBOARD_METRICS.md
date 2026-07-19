@@ -1,6 +1,6 @@
 # MBM Performance Dashboard — Metric Definitions, Refresh Mechanics, Failure Modes
 
-**Last updated:** 2026-07-19 (DATA_VERSION `2026-07-18c` — taller GSC clicks/impressions charts + per-chart current-month pace line; `2026-07-18b`/`2026-07-18a` daily bakes; **hosted partner copy added**: private Cloudflare Worker `mbm-dashboard` serving the baked HTML at an unguessable noindex URL, pushed each bake via `push_hosted_dashboard.py` — see §2. Prior: `2026-07-17m` — badge reconciliation + unpaid-concierge billing alert + manual-entry timestamp fix; `2026-07-17l` first task-baked feed w/ active members; `2026-07-17k` funnel label-clip fix; `2026-07-17j` — "LSA test" kill/keep tracker tile added: `SNAPSHOT.lsa.test` cumulative-since-2026-07-17 fields, decision rule locked, exporter `google_lsa` lead-source bucket + `lsa_test` feed key. Prior same-day: `2026-07-17i` funnel restructure — tap→Hint arrival ≈100%, handoff demoted to instrumentation; `2026-07-17h` LSA added as first pay-per-lead paid source: `SNAPSHOT.lsa` + `sources.lsa`, Paid tile, channel-econ row, `LSA_GO_LIVE` gate; campaign PAUSED, verified zeros)
+**Last updated:** 2026-07-19 (DATA_VERSION `2026-07-19d` — **weekly deep refresh**: Ahrefs DR 1→0, referring domains 280→300; tracked-keyword list REGENERATED from the Rank Tracker UI (42 kw, allowance 42) — dropped ~10 no-longer-tracked terms, added the new **walk-in/urgent-care cluster as Tier 4** (`.tb4` CSS added; 7 kw → /walk-in-visits/); Meta re-pulled trailing-30 Jun 19–Jul 18 ($17.80 / 1,662 impr / 86 clicks / 81 LPV across 2 campaigns); Nextdoor Ads-Manager NOT refreshed (login wall) → spend/impr/clicks held stale from 07-14, BUT utm_source=nextdoor is now LIVE (GA4 shows 5 nextdoor/paid sessions MTD). **GSC HELD + flagged**: the Ahrefs web-UI Search Console report only contains July-2026-onward data (62 clicks / 2,530 impr / pos 20.4 all-time) — no complete prior month and inconsistent with the baked historical series (June 206/7,360), so the GSC block was left untouched rather than overwritten; connection is alive but appears recently (re)linked — Charlie to check the GSC↔Ahrefs property link. QB + Kit still unwired (both need re-auth). Prior: `2026-07-18c` — taller GSC clicks/impressions charts + per-chart current-month pace line; `2026-07-18b`/`2026-07-18a` daily bakes; **hosted partner copy added**: private Cloudflare Worker `mbm-dashboard` serving the baked HTML at an unguessable noindex URL, pushed each bake via `push_hosted_dashboard.py` — see §2. Prior: `2026-07-17m` — badge reconciliation + unpaid-concierge billing alert + manual-entry timestamp fix; `2026-07-17l` first task-baked feed w/ active members; `2026-07-17k` funnel label-clip fix; `2026-07-17j` — "LSA test" kill/keep tracker tile added: `SNAPSHOT.lsa.test` cumulative-since-2026-07-17 fields, decision rule locked, exporter `google_lsa` lead-source bucket + `lsa_test` feed key. Prior same-day: `2026-07-17i` funnel restructure — tap→Hint arrival ≈100%, handoff demoted to instrumentation; `2026-07-17h` LSA added as first pay-per-lead paid source: `SNAPSHOT.lsa` + `sources.lsa`, Paid tile, channel-econ row, `LSA_GO_LIVE` gate; campaign PAUSED, verified zeros)
 **Artifact:** `C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboard\index.html`
 **This doc is the contract.** Any task that refreshes, edits, or republishes the dashboard follows it. If you change a definition, change it here in the same commit.
 
@@ -124,13 +124,14 @@ Consults are NOT a strict subset of handoffs (phone/walk-in bookings exist); mem
             Workers Scripts:Edit but NOT KV — so HTML is inlined, not KV-backed. The
             script hides the ↻ live-refresh button when the Cowork bridge is absent.
 Mon    mbm-dashboard-weekly-refresh (Cowork task)
-       └─ adds GSC (browser/API), Ahrefs (browser if API units exhausted),
-          Meta + Nextdoor Ads Manager pulls (Chrome), KW re-bake
+       └─ adds GSC (Chrome read of Ahrefs web UI), Ahrefs DR/refdomains/ranks
+          (Chrome read of Ahrefs web UI — API NOT used), Meta + Nextdoor Ads
+          Manager pulls (Chrome), KW re-bake from Rank Tracker UI
 7:15a  mbm-dashboard-health-check (remote scheduled task, cloud)
        └─ READ-ONLY: GA4 daily taps + Ads daily conversions + artifact updatedAt;
           alerts Charlie (push/email) on blackout/staleness. Never edits the artifact.
 On-open  ↻ Refresh live (in-page, optional)
-       └─ window.cowork.callMcpTool → Zapier GA4/Ads + Ahrefs MCP. Per-source:
+       └─ window.cowork.callMcpTool → Zapier GA4/Ads. Per-source:
           success updates src_asof:<k>; failure sets src_err:<k> → red chip.
           Retries once with backoff. NOTHING falls back silently.
 ```
@@ -140,7 +141,7 @@ On-open  ↻ Refresh live (in-page, optional)
 **API rules (hard-won):**
 - Google Ads: **API v21 only** (v17/v18 → 404, v20 → blocked). `searchStream` endpoint. **NEVER `create_report`** — it silently overrides your field list with an LLM guess.
 - GA4: raw Data API via Zapier `_zap_raw_request` POST to `properties/513547844:runReport`. The packaged runReport action is unreliable. No raw GET exists on this connector (use the Data API's POST-everything surface).
-- Ahrefs: native MCP (`mcp__251f7265…`), NOT Zapier. Units-limited — exhausted as of 2026-07-16; UI is units-free. Empty result arrays (`metrics: []`) are a FAILURE state, not "no change" — rank-tracker with `date: today` can return empty when no snapshot exists for that date.
+- Ahrefs: **API is NOT used by the dashboard** (decision 2026-07-19). The account's API tier is Trial with a 0-unit workspace limit — DR/refdomains/rank pulls fail, and even GSC (which costs 0 units) returns empty `metrics: []` across all history via the API. SEO numbers (GSC, DR, referring domains, tracked-keyword ranks) are refreshed **weekly via a Chrome read of the Ahrefs paid web UI** (project "Mt. Baker Medical", ID 9915753). Web UI is units-free. If a weekly Chrome read finds the web UI's GSC report ALSO empty, the GSC↔Ahrefs connection is dead (reconnect it) — distinct from the API decision.
 - Hint: laptop pollers only. Keys never leave the laptop.
 
 ## 3. Failure modes & the alerting model
@@ -180,5 +181,5 @@ pass once a few days of /book-beta data exist.
 - **GBP Performance API**: ✅ SOLVED 2026-07-16 via Zapier raw GET (no Google approval needed). Baked into the daily refresh contract (§2).
 - **Meta**: diagnosed 2026-07-16 — the "Not delivering" campaign's ad is **Rejected** ("doesn't comply with our Advertising Policies", generic policy strike; likely personal-health policy given the creative). Untouched per Charlie. Options: edit creative + resubmit, request re-review via Business Support Home, or pause. Also pending in Ads Manager: "New Leads Ad" in draft, 3 unpublished changes ("Review and publish (3)"), and a **"Verification may be required soon"** banner — identity verification is Charlie-only, do not automate.
 - **Google Ads goal config**: booking_click + phone_click restored to primary 2026-07-16; "Sign-up (signup_complete)" **demoted to secondary** 2026-07-16 (the GA4 event doesn't exist — re-promote only after the event is actually implemented). Watch: Google search-panel showed "Branded | Bellingham | Search — NOT ELIGIBLE, your ads aren't showing" on 2026-07-16 — check the campaign's status/budget/policy in Ads if it persists.
-- **Ahrefs units**: exhausted 2026-07-16; SEO live-refresh effectively disabled until reset. Weekly browser read is the fallback.
+- **Ahrefs SEO**: API dropped 2026-07-19 (Trial tier, 0-unit limit — reset date 2026-08-16 does NOT raise the limit off zero; only a paid API plan would). SEO tiles are refreshed **weekly by a Chrome read of the paid web UI** — this is the method now, not a fallback. Requires a connected Chrome session; an unattended weekly bake leaves the SEO tiles stale + reports them rather than erroring.
 - **GBP category on SERP**: knowledge panel still showed "Family practice physician" on 2026-07-16 evening — propagation lag, recheck in 24–48h.

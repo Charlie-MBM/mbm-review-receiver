@@ -162,6 +162,9 @@
   </div>
 
   <!-- NORTH STAR -->
+  <h2 class="sec">Monthly Profitability<span class="rule"></span><span class="pill" id="finRange"></span></h2>
+  <div class="cards" id="finance"></div>
+
   <h2 class="sec">North Star — Concierge Membership<span class="rule"></span><span class="pill" id="nsRange"></span></h2>
   <p class="sec-note" id="nsNote"></p>
   <div class="cards" id="northstar"></div>
@@ -189,6 +192,8 @@
   </div>
 
   <!-- PAID -->
+  <div class="panel" id="leadMagnet" style="margin-bottom:18px"></div>
+
   <h2 class="sec">Paid Channels<span class="rule"></span><span class="pill" id="paidRange"></span></h2>
   <p class="sec-note"><b>Google Ads is true month-to-date</b> (GAQL, API v21). "Ad-attributed taps" counts GA4-imported booking/phone actions from the <i>All conversions</i> column — immune to the primary/secondary goal misconfiguration that silently zeroed the Conversions column Jul 2–16. Meta &amp; Nextdoor are manual weekly pulls with their own as-of dates.</p>
   <div class="panel" style="margin-top:0;margin-bottom:14px">
@@ -218,7 +223,7 @@
   <div id="seoBody">
     <div class="cards" id="seoKpis" style="margin-bottom:14px"></div>
     <div class="grid2">
-      <div class="panel"><div class="small" style="margin-bottom:6px">GSC clicks <span class="small" style="font-weight:400">— dashed = current month projected</span></div><div class="chartbox" style="height:86px"><canvas id="chGscClicks"></canvas></div><div class="small" style="margin:10px 0 6px">GSC impressions</div><div class="chartbox" style="height:86px"><canvas id="chGscImpr"></canvas></div></div>
+      <div class="panel"><div class="small" style="margin-bottom:2px">GSC clicks <span class="small" style="font-weight:400">— dashed = current month projected</span></div><div class="small" id="gscClicksPace" style="margin-bottom:6px;font-weight:400"></div><div class="chartbox" style="height:150px"><canvas id="chGscClicks"></canvas></div><div class="small" style="margin:14px 0 2px">GSC impressions</div><div class="small" id="gscImprPace" style="margin-bottom:6px;font-weight:400"></div><div class="chartbox" style="height:150px"><canvas id="chGscImpr"></canvas></div></div>
       <div class="panel"><div class="small" style="margin-bottom:6px">Average position (lower is better)</div><div class="chartbox"><canvas id="chPos"></canvas></div></div>
     </div>
     <div class="panel" style="margin-top:14px;background:#f7faf8"><div class="small" id="gscProjNote" style="line-height:1.85"></div></div>
@@ -284,37 +289,39 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-17m";
+const DATA_VERSION = "2026-07-19a";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
-  baked_at: "2026-07-17T16:48Z",
+  baked_at: "2026-07-19T16:45Z",
   period: "2026-07",
   sources: {
-    hint:   {as_of:"2026-07-17T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
-    ga4:    {as_of:"2026-07-17T16:48Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
-    gads:   {as_of:"2026-07-17T16:32Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
+    hint:   {as_of:"2026-07-19T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
+    ga4:    {as_of:"2026-07-19T16:45Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
+    gads:   {as_of:"2026-07-19T16:45Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
     gsc:    {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Search Console", how:"weekly; settles 2-3 days late"},
     ahrefs: {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Ahrefs (DR/links)", how:"browser read — API units exhausted 2026-07-16"},
-    gbp:    {as_of:"2026-07-17T16:45Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
+    gbp:    {as_of:"2026-07-19T16:45Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
     meta:   {as_of:"2026-07-14T00:00Z", cadence_h:192, label:"Meta Ads", how:"manual weekly Ads Manager pull"},
     nextdoor:{as_of:"2026-07-14T00:00Z", cadence_h:192, label:"Nextdoor", how:"manual weekly Ads Manager pull"},
-    lsa:    {as_of:"2026-07-17T14:39Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"}
+    lsa:    {as_of:"2026-07-19T16:45Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"},
+    qb:     {as_of:null, cadence_h:32,  label:"QuickBooks (costs)", how:"P&L total expenses MTD via QuickBooks connector; null until first pull (reconnect needed 2026-07-18)"},
+    kit:    {as_of:null, cadence_h:32,  label:"Kit (checklist signups)", how:"v4 API: form subscribers created MTD; null until first pull (reconnect needed 2026-07-18)"},
   },
   members: {
     // FEED-BAKED active totals — first populated 2026-07-17 by the upgraded exporter
     // (members_feed.json.active_members). Basis: membership status == 'active';
     // comps/F&F (11) and test accounts excluded. getActive() prefers this over manual
     // entry unless a manual entry is strictly newer. Feed status histogram this run:
-    // active 43 / pending 2 / unpaid 2 / ended 7 (43 = 32 real + 11 F&F excluded).
-    active: {concierge:14, so:18, as_of:"2026-07-17T16:15Z", source:"hint"},
+    // active 44 / pending 2 / unpaid 2 / ended 7 (44 = 32 real + 11 F&F + 1 test excluded).
+    active: {concierge:14, so:18, as_of:"2026-07-19T16:15Z", source:"hint"},
     /* Hint-badge reconciliation (from feed active_members.reconciliation_by_status —
        refresh task copies it forward each bake). Explains "Hint shows 17, dashboard
        shows 14": badges count memberships in EVERY status; the North Star counts
        status-active, non-comp, non-test only. unpaid_concierge is a REAL patient
        whose membership is live but not paying — billing follow-up, alerted below. */
-    active_recon: {as_of:"2026-07-17T21:12Z", unpaid_concierge:1, pending_concierge:0,
-                   comp_active:11, test_active_excluded:0},
+    active_recon: {as_of:"2026-07-19T16:15Z", unpaid_concierge:1, pending_concierge:0,
+                   comp_active:11, test_active_excluded:1},
     goal_concierge: 300,
     new_paid: {concierge:1, so:2},   // July MTD, created_at basis, payment on file
     pending:  {concierge:1, so:1, total:2},
@@ -331,33 +338,33 @@ const SNAPSHOT = {
   consults: {scheduled_mtd:10, completed_mtd:6, upcoming:4, cancelled:1,
              rule:"erasure-proof running tally of consults booked this month (supersedes the 30-min-slot heuristic, which over-read 14)"},
   funnel_mtd: {
-    visits:734, taps_booking:66, taps_phone:6, handoffs:42,
-    visits_src:{organic:217, direct:328, google:80, meta:80, other:29},
-    taps_src:{organic:30, direct:9, google:10, meta:11, other:12},
+    visits:836, taps_booking:87, taps_phone:6, handoffs:49,
+    visits_src:{organic:247, direct:346, google:86, meta:106, other:51},
+    taps_src:{organic:41, direct:13, google:10, meta:12, other:17},
     /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
        after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
        Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
-    users: {tappers:36, handoff:32, booking_channel:34, as_of:"2026-07-17",
-            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: 3 phone-only people this month)"}
+    users: {tappers:41, handoff:33, booking_channel:35, as_of:"2026-07-19",
+            note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: phone-only people this month)"}
   },
-  daily: { // Jul 1..16 (16th partial) — feeds the chart + anomaly detectors
-    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16"],
-    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,2],
-    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,0],
-    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,11],
-    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,0]
+  daily: { // Jul 1..18 (through yesterday) — feeds the chart + anomaly detectors
+    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16","07-17","07-18"],
+    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,11,4,17],
+    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,7,2,4],
+    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,16,8,6],
+    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0],
+    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0,0]
   },
   gads: {
-    mtd:{spend:616.35, impressions:2393, clicks:201, conv_primary:2, conv_ga4_all:7},
+    mtd:{spend:680.20, impressions:2666, clicks:214, conv_primary:2, conv_ga4_all:7},
     campaigns_mtd:[
-      {name:"IV & NAD | Search", spend:238.34, impr:354, clicks:40, conv:1},
-      {name:"Concierge | Search", spend:197.31, impr:1610, clicks:117, conv:1},
-      {name:"Ketamine Relaunch | Search", spend:99.99, impr:66, clicks:11, conv:0},
+      {name:"IV & NAD | Search", spend:276.08, impr:396, clicks:43, conv:1},
+      {name:"Concierge | Search", spend:208.49, impr:1814, clicks:126, conv:1},
+      {name:"Ketamine Relaunch | Search", spend:114.93, impr:93, clicks:12, conv:0},
       {name:"Branded | Search", spend:60.83, impr:321, clicks:32, conv:0},
       {name:"Perimenopause | Search", spend:19.87, impr:42, clicks:1, conv:0}
     ],
-    local_actions_mtd:{calls:11, directions:17, website:15, other:9},
+    local_actions_mtd:{calls:15, directions:19, website:23, other:34},
     incident:{
       what:"GA4-imported booking_click/phone_click were demoted from PRIMARY to secondary ~Jul 1, so the Conversions column read 0 for 14 days while the actions showed ENABLED. The import itself never broke — real conversions kept landing in All conversions.",
       fixed:"2026-07-16 via API: both actions restored to primary. Expect the Conversions column to populate from ~Jul 17.",
@@ -379,7 +386,7 @@ const SNAPSHOT = {
      the campaign-spend feed automatically (FROM campaign has no type filter — verified
      live: the LOCAL_SERVICES campaign appears in that query with cost_micros 0). */
   lsa: {leads_phone_mtd:0, leads_message_mtd:0, leads_charged_mtd:0, leads_credited_mtd:0,
-        spend_mtd:0, as_of:"2026-07-17",
+        spend_mtd:0, as_of:"2026-07-19",
     /* LSA TEST — kill/keep decision tracker (NOT a KPI trend: no arrows, no rates).
        Cumulative since 2026-07-17, deliberately NOT MTD — the test window crosses
        month boundaries. Refresh contract (DASHBOARD_METRICS.md §1):
@@ -391,11 +398,24 @@ const SNAPSHOT = {
          null = feed hasn't run with the upgraded exporter yet — render "—", never 0.
        Zero ≠ null: a dead lsa pull keeps these last-good values + stale chip. */
     test: {since:"2026-07-17",
-           leads_charged_cum:0,          // real zero — campaign PAUSED, pull path verified live 2026-07-17
+           leads_charged_cum:0,          // real zero — 0 billed leads since 2026-07-17, pull path verified live 2026-07-18
            spend_cum:0,
-           patients_attributed:null,     // awaiting first upgraded-feed run
-           attributed_pending:null,
+           patients_attributed:0,        // feed lsa_test present (signups_checked:0) — real zero, not null
+           attributed_pending:0,
            checkpoint_leads:12, checkpoint_spend_est:600, extend_leads:20}},
+  /* FINANCE (added 2026-07-18, v18b): monthly profitability = Hint revenue - QB costs.
+     Revenue: payments COLLECTED in Hint this month (feed revenue_mtd, exporter v4).
+     Costs: QuickBooks P&L total expenses MTD via the QuickBooks connector.
+     Both null until their pulls run (QB + Kit connectors needed re-auth 2026-07-18;
+     exporter revenue lands after next poller/task run). Zero != null: render "-",
+     never $0, while unwired. QB expenses LAG manual entry/categorization - the
+     widget says so. No trend arrows; month is partial until EOM. */
+  finance: {month:"2026-07",
+    revenue:{mtd:null, as_of:null, source:"hint", basis:"payments collected in Hint this month"},
+    costs:{mtd:null, as_of:null, source:"quickbooks", basis:"QuickBooks P&L total expenses, MTD"},
+    caveat:"QB costs lag entry/categorization; partial month until EOM. Net = collected revenue minus booked expenses - not GAAP, a pulse."},
+  kit: {checklist_signups_mtd:null, list_total:null, as_of:null,
+        note:"Perimenopause checklist form signups (Kit). Ad-driven share visible in GA4 via utm_campaign=perimenopause_checklist."},
   gsc: {
     latest_month:{month:"2026-06", clicks:206, impressions:7360, ctr:2.8, position:15.6},
     trend:[
@@ -425,15 +445,15 @@ const SNAPSHOT = {
    PRE-CATEGORY-CHANGE BASELINE (category switched 2026-07-16): June full month =
    13 calls / 29 website clicks / 67 directions. Jul 1–15 = 11 / 11 / 51.
    Jul 14 had an anomalous 22 direction requests — remember at the Aug 6 readout. */
-SNAPSHOT.gbp_perf = {calls:12, website_clicks:12, direction_requests:51,
-  window:"Jul 1–17", as_of:"2026-07-17", source:"GBP Performance API",
+SNAPSHOT.gbp_perf = {calls:15, website_clicks:21, direction_requests:52,
+  window:"Jul 1–18", as_of:"2026-07-19", source:"GBP Performance API",
   june_baseline:{calls:13, website_clicks:29, direction_requests:67}};
 /* GBP → site attribution: GA4 events where sessionMedium == "gbp" (the profile's
    website link was already UTM-tagged ?utm_source=google&utm_medium=gbp — verified
    2026-07-17). Counts only profile→website clicks; profile CALLS and DIRECTIONS never
    touch the site (see gbp_perf), and some Maps-app taps strip UTMs, so this UNDERCOUNTS
    GBP's real contribution. Refresh task re-pulls MTD alongside the funnel queries. */
-SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07-17"};
+SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07-18"};
 /* Channel economics (verified 2026-07-17): taps = booking+phone events by session
    channel; hint_people = UNIQUE users whose outbound click reached mtbakermedical.hint.com
    (GA4 totalUsers by channel). Spend windows differ where noted — never silently blend.
@@ -441,12 +461,12 @@ SNAPSHOT.gbp_attrib = {sessions:18, users:14, taps:2, handoffs:1, as_of:"2026-07
    recorded at signup; this table measures cost per person DELIVERED TO the booking flow. */
 /* chan_people = unique users who reached a BOOKING CHANNEL (Hint page OR phone tap),
    per session channel. Not summable across rows (one person can cross channels). */
-SNAPSHOT.channel_econ = { as_of:"2026-07-17", rows:[
-  {ch:"Organic search", spend:0,      window:"—",                    taps:30, chan_people:12, note:"strongest feeder, $0 marginal"},
-  {ch:"Google Ads (paid search)", spend:616.35, window:"MTD",        taps:10, chan_people:7,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
-  {ch:"Meta (paid social)", spend:13.51, window:"Jun 14–Jul 13 trailing", taps:11, chan_people:6, note:"ad REJECTED ~Jul 9 — taps came from ~9 delivery days; window mismatched, treat $/person as approximate", warn:true},
-  {ch:"Direct", spend:0, window:"—",                                 taps:9,  chan_people:5,  note:"includes people returning after seeing MBM elsewhere"},
-  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:2,  chan_people:1,  note:"UTM-attributed; badly undercounts — 11 profile CALLS + 51 direction requests this month bypass the site entirely"},
+SNAPSHOT.channel_econ = { as_of:"2026-07-19", rows:[
+  {ch:"Organic search", spend:0,      window:"—",                    taps:41, chan_people:14, note:"strongest feeder, $0 marginal"},
+  {ch:"Google Ads (paid search)", spend:680.20, window:"MTD",        taps:10, chan_people:7,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
+  {ch:"Meta (paid social)", spend:13.51, window:"Jun 14–Jul 13 trailing", taps:12, chan_people:6, note:"ad REJECTED ~Jul 9 — taps came from ~9 delivery days; window mismatched, treat $/person as approximate", warn:true},
+  {ch:"Direct", spend:0, window:"—",                                 taps:13, chan_people:7,  note:"includes people returning after seeing MBM elsewhere"},
+  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:2,  chan_people:1,  note:"UTM-attributed; badly undercounts — 15 profile CALLS + 52 direction requests this month bypass the site entirely"},
   {ch:"Nextdoor", spend:59.93, window:"since Jul 8",                 taps:0,  chan_people:0,  note:"no pixel and no UTM on ad links — its traffic hides in Direct/Unassigned; tag the ad URLs to see it"},
   {ch:"LSA (Local Services)", spend:0, window:"—",                   taps:0,  chan_people:0,  note:"pay-per-lead; PAUSED — first paid entrant play, see LSA task. Leads arrive as forwarded phone/message contacts, not GA4 taps, so this row stays 0/0 here until go-live"}
 ]};
@@ -584,6 +604,9 @@ function srcState(k){
   const s=SNAPSHOT.sources[k]; if(!s) return null;
   const live=store.get("src_asof:"+k, null);   // live-refresh success updates this
   const asof=live||s.as_of;
+  if(!asof){ // source declared but never pulled (e.g. QB/Kit awaiting connector auth)
+    return {key:k, label:s.label, asof:null, ageH:Infinity, cls:"stale", err:store.get("src_err:"+k,null), how:s.how, unwired:true};
+  }
   const err=store.get("src_err:"+k, null);
   const ageH=(Date.now()-new Date(asof).getTime())/3600000;
   let cls="fresh";
@@ -591,7 +614,7 @@ function srcState(k){
   if(k==="meta"||k==="nextdoor"||k==="ahrefs") cls=(ageH>s.cadence_h*2)?"stale":"manual";
   return {key:k, label:s.label, asof, ageH, cls, err, how:s.how};
 }
-function fmtAge(h){ if(h<1) return Math.round(h*60)+"m ago"; if(h<48) return Math.round(h)+"h ago"; return Math.round(h/24)+"d ago"; }
+function fmtAge(h){ if(!isFinite(h)) return "never"; if(h<1) return Math.round(h*60)+"m ago"; if(h<48) return Math.round(h)+"h ago"; return Math.round(h/24)+"d ago"; }
 function renderStatus(){
   const chips=Object.keys(SNAPSHOT.sources).map(k=>{
     const s=srcState(k);
@@ -1026,6 +1049,12 @@ function renderProjNote(proj, lastActual){
   const cD=dpct(proj.clicks,lastActual.clicks), iD=dpct(proj.impressions,lastActual.impressions);
   const arrow=v=>v==null?"":(v>0?'<b style="color:var(--good)">▲'+v+'%</b>':(v<0?'<b style="color:var(--bad)">▼'+Math.abs(v)+'%</b>':'<b>flat</b>'));
   const posBetter=(proj.position!=null&&lastActual.position!=null)?(proj.position<lastActual.position):null;
+  /* Per-chart "how the current month is pacing so far" — MTD banked + projected delta vs last full month */
+  const paceC=document.getElementById("gscClicksPace");
+  const paceI=document.getElementById("gscImprPace");
+  const paceTxt=(mtd,projVal,d,lastVal)=>'<b>'+fmtN(mtd)+'</b> banked in '+proj.days_counted+' days → on pace for <b>~'+fmtN(projVal)+'</b> '+arrow(d)+' vs '+fmtN(lastVal)+' in '+lastActual.date;
+  if(paceC) paceC.innerHTML=paceTxt(proj.mtd_clicks, proj.clicks, cD, lastActual.clicks);
+  if(paceI) paceI.innerHTML=paceTxt(proj.mtd_impressions, proj.impressions, iD, lastActual.impressions);
   el.innerHTML =
     '<b>'+proj.month+' projection (dashed):</b> '+fmtN(proj.mtd_clicks)+' clicks / '+fmtN(proj.mtd_impressions)+
     ' impressions banked over <b>'+proj.days_counted+' settled days</b> ('+proj.through+
@@ -1320,7 +1349,41 @@ function buildPeriodPicker(){
   ps.innerHTML=periods.map(p=>'<option value="'+p+'">'+p+'</option>').join("");
   if(prevVal && periods.indexOf(prevVal)>=0) ps.value=prevVal; else ps.value=curPeriod();
 }
-function refreshAll(){ renderStatus(); renderNorthStar(); renderFunnel(); renderMemberSource(); renderPaid(); renderGBP(); renderSEO(); renderEntry(); }
+function renderFinance(){
+  const F=SNAPSHOT.finance; if(!F) return;
+  const el=document.getElementById("finance"); if(!el) return;
+  setRangePill("finRange", F.month);
+  const qb=srcState("qb"), hint=srcState("hint");
+  const rev=(F.revenue&&F.revenue.mtd!=null)?+F.revenue.mtd:null;
+  const cost=(F.costs&&F.costs.mtd!=null)?+F.costs.mtd:null;
+  const net=(rev!=null&&cost!=null)?(rev-cost):null;
+  const dash='<span style="color:var(--stale)">—</span>';
+  let cards="";
+  cards+=card("Revenue — collected (MTD)", rev!=null?fmtUSD(rev):dash,
+    '<div class="small" style="margin-top:6px;line-height:1.6">'+escapeHtml(F.revenue.basis)+
+    (rev==null?'<br><b>Not wired yet:</b> lands with the next Hint feed run (exporter v4 revenue pull).':'')+'</div>',
+    false, rev!=null?("Hint · as of "+escapeHtml(F.revenue.as_of||"")):"awaiting first pull");
+  cards+=card("Costs — booked (MTD)", cost!=null?fmtUSD(cost):dash,
+    '<div class="small" style="margin-top:6px;line-height:1.6">'+escapeHtml(F.costs.basis)+
+    (cost==null?'<br><b>Not wired yet:</b> reconnect the QuickBooks connector, then the daily task pulls P&L expenses.':'')+'</div>',
+    qb&&qb.cls==="stale"&&cost!=null, cost!=null?("QuickBooks · as of "+escapeHtml(F.costs.as_of||"")):"awaiting QuickBooks re-auth");
+  cards+=card("Net (MTD)", net!=null?('<span style="color:'+(net>=0?'var(--good)':'var(--bad)')+'">'+fmtUSD(net)+'</span>'):dash,
+    '<div class="small" style="margin-top:6px;line-height:1.6">'+(net!=null?('margin '+(rev>0?Math.round(net/rev*100)+'%':'—')+' · '):'')+escapeHtml(F.caveat)+'</div>',
+    false, net!=null?"computed":"needs both sides wired", true);
+  el.innerHTML=cards;
+}
+function renderLeadMagnet(){
+  const K=SNAPSHOT.kit; const el=document.getElementById("leadMagnet"); if(!el||!K) return;
+  const kc=srcState("kit");
+  const n=(K.checklist_signups_mtd!=null)?fmtN(K.checklist_signups_mtd):'—';
+  const tot=(K.list_total!=null)?fmtN(K.list_total):'—';
+  el.innerHTML='<div style="display:flex;flex-wrap:wrap;gap:18px;align-items:baseline">'+
+    '<div><span class="k" style="font-weight:600">CHECKLIST SIGNUPS (KIT)</span> <span style="font-size:26px;font-weight:700;margin-left:8px">'+n+'</span> <span class="small">MTD</span></div>'+
+    '<div class="small">list total <b>'+tot+'</b></div>'+
+    '<div class="small" style="flex:1">'+escapeHtml(K.note)+(K.checklist_signups_mtd==null?' · <b>Not wired yet:</b> reconnect Kit (Zapier), then the daily task pulls signups.':'')+'</div>'+
+    '<div class="asof" style="margin:0">Kit · '+(kc&&kc.asof?fmtAge(kc.ageH):"never pulled")+'</div></div>';
+}
+function refreshAll(){ renderStatus(); renderFinance(); renderLeadMagnet(); renderNorthStar(); renderFunnel(); renderMemberSource(); renderPaid(); renderGBP(); renderSEO(); renderEntry(); }
 function init(){
   buildPeriodPicker();
   document.getElementById("periodSel").onchange=refreshAll;

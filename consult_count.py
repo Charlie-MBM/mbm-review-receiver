@@ -104,7 +104,12 @@ def _merge_gcal_bookings(st, month_start, daily_end):
     except Exception:
         span_days = GCAL_SOURCE_LOOKBACK_MIN_DAYS
     lookback = max(GCAL_SOURCE_LOOKBACK_MIN_DAYS, span_days)
-    events = gcal_bookings.fetch_mbm_book_events(now, cal, sa, lookback)
+    # lookahead_days must span the BOOKING HORIZON, not 1 day. Consults are booked for
+    # FUTURE dates (days/weeks out) and Google's events.list filters by event START time,
+    # so a consult booked TODAY for e.g. Jul 27 is invisible under the default 1-day
+    # lookahead. 120d covers any realistic consult horizon; the month filter below still
+    # keys on booked_at, so only THIS MONTH's bookings are counted regardless of start.
+    events = gcal_bookings.fetch_mbm_book_events(now, cal, sa, lookback, lookahead_days=120)
     if not events:  # None (hard failure) or [] (nothing) -> leave the tally as-is
         return
     counted = st["counted"]

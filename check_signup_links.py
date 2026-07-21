@@ -37,7 +37,10 @@ except Exception as e:  # noqa: BLE001
 
 # Alert config read straight from env (NOT via nurture_engine.spruce_send_sms,
 # which is DRY_RUN-gated - we always want the dead-link alert to actually send).
-ALERT_PHONE = os.environ.get("ALERT_PHONE", "")
+# Prefer an explicit ALERT_PHONE; otherwise reuse SUMMARY_SMS_TO (the number the
+# daily-summary poller already texts) so this works with the existing .env and
+# never needs a separate secret.
+ALERT_PHONE = os.environ.get("ALERT_PHONE", "") or os.environ.get("SUMMARY_SMS_TO", "")
 SPRUCE_API_KEY = os.environ.get("SPRUCE_API_KEY", "")
 SPRUCE_INTERNAL_ENDPOINT_ID = os.environ.get("SPRUCE_INTERNAL_ENDPOINT_ID", "")
 SPRUCE_BASE_URL = "https://api.sprucehealth.com/v1"

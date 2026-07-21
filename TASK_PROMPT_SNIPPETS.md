@@ -112,17 +112,33 @@ You do the weekly deep refresh of the MBM performance dashboard. Run the ENTIRE
 daily contract first (it is the prompt of mbm-dashboard-daily-fast; the doc
 mbm-review-receiver/DASHBOARD_METRICS.md is the authority), then add:
 
-W1. GSC: latest COMPLETE month is the KPI row; current month only as the dashed
-    projection (counts scaled by days_in_month/settled_days; CTR and position
-    NOT scaled - they're rates). GSC settles 2-3 days late. Small-multiples
-    charts, never dual-axis.
+W1. GSC (via Chrome, NOT the API): the Ahrefs API returns empty for GSC and the
+    account's API tier is trial/0-units, so read GSC numbers from the Ahrefs web UI
+    (project "Mt. Baker Medical" -> Search Console report) in a connected Chrome
+    session. Latest COMPLETE month is the KPI row; current month only as the dashed
+    projection (counts scaled by days_in_month/settled_days; CTR and position NOT
+    scaled - they're rates). GSC settles 2-3 days late. Small-multiples charts,
+    never dual-axis. Chrome not connected this run -> leave the GSC KPI row + as_of
+    untouched and REPORT stale; never throw, never bake nulls. FIRST run: confirm
+    the web UI actually shows GSC data - if it's empty there too, the GSC<->Ahrefs
+    connection is dead and needs reconnecting (tell Charlie).
 
-W2. AHREFS: refresh DR / referring domains. Empty API responses are a FAILURE,
-    not a result (throw, keep last-good + stale chip); if API units are
-    exhausted, do a browser read and label it. REGENERATE the dashboard's
-    tracked-keyword list from the Rank Tracker itself - do not trust the
-    baked list (it drifted once: five "dead" keywords were never tracked).
-    Keyword allowance is 42, not 50.
+W2. AHREFS RANKS (via the Rank Tracker API - NOT Chrome): call
+    rank-tracker-overview (project_id 9915753, device "mobile", date=today,
+    select keyword,position,keyword_difficulty,volume,url,serp_updated). It costs
+    0 units and works on the trial tier (Site Explorer does NOT - see W2b). Map
+    each row into the KW const: p=position, kd=keyword_difficulty, v=volume,
+    r=url path; PRESERVE the existing tier (t) and re-derive d = position vs the
+    prior baked p. The Rank Tracker list IS the source of truth for which
+    keywords exist (allowance 42) - reconcile the KW const to it, do not trust a
+    drifted baked list. API returns 0 rows -> leave last-good ranks + report;
+    never bake nulls.
+
+W2b. AHREFS DR/REFDOMAINS (via Chrome, NOT the API): Site Explorer calls
+    (domain-rating, refdomains) need API units and the trial limit is 0, so read
+    DR + referring domains from the Ahrefs web UI in a connected Chrome session.
+    Chrome not connected -> leave last-good + stale chip and REPORT; never throw,
+    never bake nulls.
 
 W3. META + NEXTDOOR: weekly Ads Manager pulls. Meta "Results" = landing-page
     views, NEVER label them leads (no lead event on the pixel). Label windows

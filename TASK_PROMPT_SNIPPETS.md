@@ -37,6 +37,32 @@ Never fake a timestamp on stale data. Zero != null.
    SNAPSHOT.channel_econ rows (spend + taps + chan_people per channel; windows
    labeled honestly - never mix trailing windows into MTD).
 
+2b. BOOKING FUNNEL - PULL BOTH METRICS FOR ALL SEVEN BOOKING EVENTS. One
+   runReport shape, dimensions:[{name:"eventName"}],
+   metrics:[{name:"eventCount"},{name:"totalUsers"}], dimensionFilter eventName
+   inListFilter values: booking_click, booking_start, booking_step_1,
+   booking_step_2, booking_complete, booking_complete_server,
+   booking_unavailable. eventCount AND totalUsers, every event, every run -
+   people is the headline number on the dashboard, events are the muted
+   secondary. Run it TWICE:
+     (a) MTD (month 1st -> today)          -> SNAPSHOT.funnel_mtd.booking
+     (b) 2026-07-18 -> yesterday           -> SNAPSHOT.funnel_mtd.booking_since_cutover
+         (keep window_start:"2026-07-18"; set window_end + as_of)
+   Write EVERY stage as the PAIR <stage>_events + <stage>_people. Key mapping:
+   booking_click->clicks_*, booking_start->starts_*, booking_step_1->step1_*,
+   booking_step_2->step2_*, booking_complete->completes_* (CLIENT-side),
+   booking_complete_server->completes_server_*, booking_unavailable->
+   unavailable_*. In the since-cutover block also carry form_start_*,
+   portal_open_*, phone_click_*, lead_submit_* and page_views/page_users for
+   /book-beta. An event GA4 returns NO ROW for is null, NEVER 0 (zero != null) -
+   the dashboard renders null as "not yet measured".
+   booking_complete_server is AUTHORITATIVE for bookings; client booking_complete
+   is ad-blocked and undercounts - bake it, never headline it. booking_click
+   BEFORE 2026-07-28 is inflated ~2.31x by the capture-phase+onClick double-fire
+   fixed in commit 2529b3c - never compare that EVENT series across 2026-07-28
+   (people/totalUsers was unaffected). The dashboard computes the worst
+   step-over-step drop itself - do not hardcode which step it is.
+
 3. EXTEND SNAPSHOT.daily ARRAYS THROUGH YESTERDAY - EVERY RUN, not weekly:
    dates, taps, handoffs, ads_clicks, ads_conv_primary, ads_conv_ga4_all. The
    anomaly detectors read these; QA fails any bake whose last date lags baked_at
@@ -125,7 +151,9 @@ W1. GSC (via Chrome, NOT the API): the Ahrefs API returns empty for GSC and the
 
 W2. AHREFS RANKS (via the Rank Tracker API - NOT Chrome): call
     rank-tracker-overview (project_id 9915753, device "mobile", date=today,
-    select keyword,position,keyword_difficulty,volume,url,serp_updated). It costs
+    select keyword,position,keyword_difficulty,volume,url,serp_updated,
+    limit=100 - MANDATORY: on this trial tier any limit > 100, including the
+    default 1000 when omitted, silently returns 0 rows at 0 units). It costs
     0 units and works on the trial tier (Site Explorer does NOT - see W2b). Map
     each row into the KW const: p=position, kd=keyword_difficulty, v=volume,
     r=url path; PRESERVE the existing tier (t) and re-derive d = position vs the

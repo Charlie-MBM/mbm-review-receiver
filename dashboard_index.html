@@ -85,6 +85,16 @@
   .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
   /* funnel */
   .funnel{display:flex;flex-direction:column;gap:0}
+  /* visits context strip (restored 2026-07-29) - the .fbar family survived from the
+     pre-2026-07-28 four-bar funnel in _dash_build.html; the rebuild deleted the rules
+     but left .fbar/.fbar-empty still emitted by renderMemberSource(), so its empty
+     state was rendering unstyled. Restored here, used by both. */
+  .fbar{height:34px;border-radius:8px;background:linear-gradient(90deg,var(--forest),var(--sage));display:flex;align-items:center;padding:0 12px;color:#fff;font-family:var(--label);font-size:13px;font-weight:600;min-width:54px}
+  .fbar-split{padding:0;background:none;position:relative;overflow:hidden}
+  .fbar-split .fnum{position:absolute;left:12px;top:0;height:100%;display:flex;align-items:center;color:#fff;font-weight:600;z-index:1;text-shadow:0 1px 2px rgba(0,0,0,.28)}
+  .fbar-split>span:not(.fnum){display:block;height:100%}
+  .fbar-empty{background:#e3e7e1;color:var(--muted)}
+  .fbar-empty .fsub{font-weight:400;font-style:italic;margin-left:4px}
   /* funnel — vertical, people-first booking stages (rebuilt 2026-07-28).
      Same card language as .card/.panel: white, 1px --line, 12px radius. */
   .vstage{display:grid;grid-template-columns:96px 1fr auto;gap:16px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 15px;margin-bottom:8px}
@@ -185,9 +195,12 @@
   <div class="cards" id="northstar"></div>
 
   <!-- FUNNEL -->
-  <h2 class="sec">Acquisition Funnel<span class="rule"></span><span class="pill" id="funnelRange"></span></h2>
+  <h2 class="sec">Booking Funnel<span class="rule"></span><span class="pill" id="funnelRange"></span></h2>
   <p class="sec-note">The booking funnel, <b>people first</b>: every stage is unique people (GA4 totalUsers), with the raw event count muted beside it — events per person differ at every stage, so an events-only funnel lies. The window is the 10 days since the 2026-07-18 <b>/book-beta</b> cutover (Jul 18–27), the only period in which GA4 sees the flow end to end; the final stage is counted server-side. Booked consults and new members stay Hint's numbers — they are the North Star cards above.</p>
   <div class="small" id="reachLine" style="margin:0 0 8px;padding:8px 12px;background:#F1F4EF;border:1px solid var(--line);border-radius:10px;font-size:12px"></div>
+  <!-- visits context strip (restored 2026-07-29) - deliberately OUTSIDE the funnel panel:
+       visits are SESSIONS, the stages below are PEOPLE. -->
+  <div class="panel" id="visitsStrip" style="margin:0 0 10px"></div>
   <div class="panel"><div class="funnel" id="funnel"></div></div>
   <div class="grid2" style="margin-top:14px">
     <div class="panel">
@@ -195,7 +208,8 @@
       <div id="leakBox" class="small" style="font-size:12.5px;line-height:1.9"></div>
     </div>
     <div class="panel">
-      <div class="small" style="margin-bottom:6px">Daily booking intent (Book/Call taps) — this month</div>
+      <div class="small" style="margin-bottom:6px">Daily booking intent (Book/Call) — this month</div>
+      <div class="small" id="dailyTapsBasis" style="margin-bottom:6px;font-size:11px;color:var(--stale);line-height:1.6"></div>
       <div class="chartbox" style="height:160px"><canvas id="chDaily"></canvas></div>
     </div>
   </div>
@@ -304,24 +318,24 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-28b";
+const DATA_VERSION = "2026-07-29b";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
-  baked_at: "2026-07-28T16:48Z",
+  baked_at: "2026-07-29T16:45Z",
   period: "2026-07",
   sources: {
-    hint:   {as_of:"2026-07-28T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
-    ga4:    {as_of:"2026-07-28T16:40Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
-    gads:   {as_of:"2026-07-28T16:45Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
+    hint:   {as_of:"2026-07-29T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
+    ga4:    {as_of:"2026-07-29T16:40Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
+    gads:   {as_of:"2026-07-29T16:41Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
     gsc:    {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Search Console", how:"weekly; settles 2-3 days late"},
     ahrefs: {as_of:"2026-07-27T16:20Z", cadence_h:192, label:"Ahrefs (DR/links)", how:"Ranks: Rank Tracker API (project 9915753, mobile, 0 units). DR/links: Chrome read of Ahrefs web UI (Site Explorer needs units; trial limit 0)"},
-    gbp:    {as_of:"2026-07-28T16:46Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
+    gbp:    {as_of:"2026-07-29T16:43Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
     meta:   {as_of:"2026-07-27T16:31Z", cadence_h:192, label:"Meta Ads", how:"weekly Ads Manager pull (Chrome); trailing-30 window, excluded from MTD"},
     nextdoor:{as_of:"2026-07-20T13:01Z", cadence_h:192, label:"Nextdoor", how:"weekly Ads Manager pull (Chrome), since-launch window"},
-    lsa:    {as_of:"2026-07-28T16:45Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"},
+    lsa:    {as_of:"2026-07-29T16:39Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"},
     qb:     {as_of:"2026-07-28T16:48Z", cadence_h:32,  label:"QuickBooks (costs)", how:"P&L total expenses MTD via QuickBooks connector (MBM Services, Inc.)"},
-    kit:    {as_of:"2026-07-28T16:48Z", cadence_h:32,  label:"Kit (checklist signups)", how:"v4 API: form subscribers created MTD (Perimenopause Checklist form 9467856)"},
+    kit:    {as_of:"2026-07-29T16:44Z", cadence_h:32,  label:"Kit (checklist signups)", how:"v4 API: form subscribers created MTD (Perimenopause Checklist form 9467856)"},
   },
   members: {
     // FEED-BAKED active totals — first populated 2026-07-17 by the upgraded exporter
@@ -329,37 +343,55 @@ const SNAPSHOT = {
     // comps/F&F (11) and test accounts excluded. getActive() prefers this over manual
     // entry unless a manual entry is strictly newer. Feed status histogram this run:
     // active 48 / pending 2 / unpaid 2 / ended 7 (48 = 36 real + 11 F&F + 1 test excluded).
-    active: {concierge:15, so:21, as_of:"2026-07-28T16:15Z", source:"hint"},
+    active: {concierge:16, so:20, as_of:"2026-07-29T16:15Z", source:"hint"},
     /* Hint-badge reconciliation (from feed active_members.reconciliation_by_status —
        refresh task copies it forward each bake). Explains "Hint shows 17, dashboard
        shows 14": badges count memberships in EVERY status; the North Star counts
        status-active, non-comp, non-test only. unpaid_concierge is a REAL patient
        whose membership is live but not paying — billing follow-up, alerted below. */
-    active_recon: {as_of:"2026-07-28T16:15Z", unpaid_concierge:2, pending_concierge:2,
+    active_recon: {as_of:"2026-07-29T16:15Z", unpaid_concierge:2, pending_concierge:2,
                    comp_active:11, test_active_excluded:1},
     goal_concierge: 300,
-    new_paid: {concierge:2, so:3},   // July MTD, created_at basis, payment on file
+    new_paid: {concierge:3, so:3},   // July MTD, created_at basis, payment on file
     pending:  {concierge:4, so:1, total:5},
     // Terminations MTD (end-date-in-month, PAYING members only; nurture/reconcile
     // cancels, never-paid pendings and comps/F&F excluded). Net growth = adds − terms.
     terminations_mtd: {concierge:0, so:0, total:0},
     basis: "signup date (created_at) + payment method on file; Friends & Family comps excluded",
-    source_mix: {google:1, google_lsa:0, bing:0, ai:0, social:0, provider_referral:0, word_of_mouth:0, other:4},
-    lead_source_gap: "1 of 5 July members have Lead Source filled in Hint (4 unrecorded)"
+    source_mix: {google:2, google_lsa:0, bing:0, ai:0, social:0, provider_referral:0, word_of_mouth:0, other:4},
+    lead_source_gap: "2 of 6 July members map to Google in Hint Lead Source; 4 fall in 'other' (unrecorded or off-channel). Lead Source at signup still the gap."
   },
   /* v2026-07-16c correction carried forward: consults now come from the feed's
      booked_mtd_running_tally (erasure-proof tally), which read 10 vs the 30-min-slot
      heuristic's 14 (kept in the feed as consults_legacy_30min for comparison). */
-  consults: {scheduled_mtd:20, completed_mtd:8, upcoming:12, cancelled:3,
+  consults: {scheduled_mtd:21, completed_mtd:8, upcoming:13, cancelled:3,
              rule:"erasure-proof running tally of consults booked this month (supersedes the 30-min-slot heuristic, which over-read 13)"},
   funnel_mtd: {
-    visits:1803, taps_booking:186, taps_phone:8, handoffs:51,
-    visits_src:{organic:400, direct:449, google:128, meta:719, other:107},
-    taps_src:{organic:73, direct:17, google:29, meta:43, other:32},
+    visits:1934, taps_booking:193, taps_phone:9, handoffs:51,
+    /* TAP METRICS ARE PEOPLE-FIRST AS OF 2026-07-29.
+       taps_booking / taps_phone / taps_src are GA4 eventCount. booking_click
+       double-fired on every tap (capture-phase listener + the CTA onClick) through
+       2026-07-28, measured inflation ~2.31x, fixed in commit 2529b3c. So the EVENT
+       series overstates demand and is NOT comparable across 2026-07-28. It is kept
+       for continuity and for the presence/absence detectors, never as a headline.
+       The *_people fields are GA4 totalUsers over the SAME events and SAME MTD
+       window: a tap that fired twice still dedupes to one person, so they are
+       immune to the double-fire and comparable across the fix date. NO SCALING
+       FACTOR IS EVER APPLIED to the event series - dividing by 2.31 would be a
+       guess, and the inflation was not uniform per day or per channel.
+       null = NOT YET PULLED (zero != null, DASHBOARD_METRICS.md 0.4). The daily
+       refresh task fills these; see mbm_daily_task_prompt.txt step 2. */
+    taps_booking_people:89, taps_phone_people:6,
+    visits_src:{organic:416, direct:478, google:134, meta:787, other:119},
+    taps_src:{organic:83, direct:17, google:32, meta:42, other:28},
+    /* totalUsers for booking_click+phone_click per sessionDefaultChannelGroup.
+       NOT summable to a monthly unique total (one person can appear in two
+       channels) - the deduped monthly figure is users.tappers below. */
+    taps_src_people:{organic:33, direct:10, google:17, meta:22, other:12},
     /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
        after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
        Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
-    users: {tappers:88, handoff:35, booking_channel:39, as_of:"2026-07-28",
+    users: {tappers:92, handoff:35, booking_channel:40, as_of:"2026-07-29",
             note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: phone-only people this month)"},
     /* ON-SITE booking flow (/book-beta, cutover 2026-07-18). EVERY stage carries
        BOTH counts: <stage>_events (GA4 eventCount) and <stage>_people (totalUsers).
@@ -368,14 +400,14 @@ const SNAPSHOT = {
        clicks_events is INFLATED ~2.31× for everything before 2026-07-28 (capture-phase
        listener + onClick both fired; fixed in commit 2529b3c) — this MTD series is NOT
        comparable across that date. booking_unavailable shipped 2026-07-28: no data yet. */
-    booking: {clicks_events:186,          clicks_people:null,
-              starts_events:93,           starts_people:51,
-              step1_events:24,            step1_people:10,
-              step2_events:20,            step2_people:8,
+    booking: {clicks_events:193,          clicks_people:89,
+              starts_events:106,          starts_people:57,
+              step1_events:27,            step1_people:10,
+              step2_events:21,            step2_people:9,
               completes_events:13,        completes_people:7,
-              completes_server_events:16, completes_server_people:null,
+              completes_server_events:18, completes_server_people:10,
               unavailable_events:null,    unavailable_people:null,
-              as_of:"2026-07-28"},
+              as_of:"2026-07-29"},
     /* GROUND TRUTH, GA4-verified live 2026-07-28 for the post-cutover window.
        This block — not the MTD one — drives the rendered funnel: 49 people tapped →
        49 reached the booking page (1:1, there is NO click-to-page leak) → 10 picked a
@@ -383,35 +415,44 @@ const SNAPSHOT = {
        booking_complete_server is AUTHORITATIVE; the client-side booking_complete
        undercounts because ad blockers suppress it (11 events/7 people vs 14/8). */
     booking_since_cutover: {
-      window_start:"2026-07-18", window_end:"2026-07-27", as_of:"2026-07-28",
-      clicks_events:113,          clicks_people:49,
-      starts_events:86,           starts_people:49,
-      form_start_events:25,       form_start_people:16,
+      window_start:"2026-07-18", window_end:"2026-07-28", as_of:"2026-07-29",
+      clicks_events:121,          clicks_people:53,
+      starts_events:98,           starts_people:56,
+      form_start_events:26,       form_start_people:17,
       step1_events:19,            step1_people:10,
-      step2_events:15,            step2_people:8,
-      completes_server_events:14, completes_server_people:8,
+      step2_events:16,            step2_people:9,
+      completes_server_events:15, completes_server_people:9,
       completes_events:11,        completes_people:7,
       unavailable_events:null,    unavailable_people:null,
-      portal_open_events:5,       portal_open_people:3,
-      phone_click_events:2,       phone_click_people:2,
+      portal_open_events:7,       portal_open_people:4,
+      phone_click_events:3,       phone_click_people:3,
       lead_submit_events:1,       lead_submit_people:1,
-      page_views:87,              page_users:52
+      page_views:98,              page_users:56
     }
   },
   daily: { // Jul 1..27 (through yesterday) — feeds the chart + anomaly detectors
-    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16","07-17","07-18","07-19","07-20","07-21","07-22","07-23","07-24","07-25","07-26","07-27"],
-    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,11,4,18,10,11,6,19,4,5,5,19,18],
-    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,7,2,4,0,1,0,1,0,0,0,0,0],
-    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,16,8,6,4,19,13,8,8,6,3,5,10],
-    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,3,0,3,3],
-    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0,0,0,1,0,1,1,3,0,3,3]
+    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16","07-17","07-18","07-19","07-20","07-21","07-22","07-23","07-24","07-25","07-26","07-27","07-28"],
+    /* taps = booking_click+phone_click EVENTS per day. Every day up to and
+       including 2026-07-28 is inflated ~2.31x by the booking_click double-fire
+       (fixed 2529b3c), so this series is not comparable across that date and must
+       not be read as a trend. taps_people is the same days measured with GA4
+       totalUsers (dimension: date) and IS comparable end to end; the chart prefers
+       it. Daily uniques do NOT sum to the monthly unique total. null until the
+       daily task backfills it - GA4 can still be re-queried for the whole month,
+       so this history is recoverable, not lost. */
+    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,11,4,18,10,11,6,19,4,5,5,19,20,7],
+    taps_people:[2,3,0,1,0,2,1,1,3,6,3,3,4,1,3,4,3,4,5,7,3,8,2,4,3,6,9,4],
+    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,7,2,4,0,1,0,1,0,0,0,0,0,0],
+    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,16,8,6,4,19,13,8,8,6,3,5,10,9],
+    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,3,0,3,3,1],
+    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0,0,0,1,0,1,1,3,0,3,3,1]
   },
   gads: {
-    mtd:{spend:924.98, impressions:3733, clicks:296, conv_primary:15, conv_ga4_all:20},
+    mtd:{spend:945.57, impressions:3895, clicks:302, conv_primary:15, conv_ga4_all:20},
     campaigns_mtd:[
-      {name:"IV & NAD | Bellingham | Search", spend:350.23, impr:570, clicks:61, conv:9},
-      {name:"Concierge Medicine | Bellingham | Search", spend:303.20, impr:2615, clicks:176, conv:5},
-      {name:"Ketamine Relaunch | Bellingham | Search", spend:190.85, impr:151, clicks:23, conv:1},
+      {name:"IV & NAD | Bellingham | Search", spend:357.44, impr:616, clicks:64, conv:9},
+      {name:"Concierge Medicine | Bellingham | Search", spend:306.67, impr:2749, clicks:181, conv:5},
+      {name:"Ketamine Relaunch | Bellingham | Search", spend:200.76, impr:167, clicks:24, conv:1},
       {name:"Branded | Bellingham | Search", spend:60.83, impr:321, clicks:32, conv:0},
       {name:"Perimenopause | Bellingham | Search", spend:19.87, impr:42, clicks:1, conv:0}
     ],
@@ -461,11 +502,11 @@ const SNAPSHOT = {
      never $0, while unwired. QB expenses LAG manual entry/categorization - the
      widget says so. No trend arrows; month is partial until EOM. */
   finance: {month:"2026-07",
-    revenue:{mtd:7637.00, as_of:"2026-07-28T16:15Z", source:"hint", basis:"payments collected in Hint this month (25 payments; exporter reports amount_in_cents, cents_assumed=true → dollars)"},
+    revenue:{mtd:8647.00, as_of:"2026-07-29T16:15Z", source:"hint", basis:"payments collected in Hint this month (27 payments; exporter reports amount_in_cents, cents_assumed=true → dollars)"},
     costs:{mtd:7128.52, as_of:"2026-07-28T16:48Z", source:"quickbooks", basis:"QuickBooks P&L total expenses, MTD (Medical supplies 2806.13, Rent 1944.85, Office/software 1355.92, Marketing 852.31, Travel/meals 92.32, Insurance 74.50, Fees 2.49)"},
     caveat:"QB costs lag entry/categorization; partial month until EOM. Net = collected revenue minus booked expenses - not GAAP, a pulse."},
-  kit: {checklist_signups_mtd:6, list_total:14, as_of:"2026-07-28T16:48Z",
-        note:"Perimenopause checklist form signups (Kit). 6 signups added this month (form 9467856); ad-driven share visible in GA4 via utm_campaign=perimenopause_checklist (Facebook/paid). list_total includes ~8 internal/test subscribers from June setup."},
+  kit: {checklist_signups_mtd:7, list_total:15, as_of:"2026-07-29T16:44Z",
+        note:"Perimenopause checklist form signups (Kit). 7 signups added this month (form 9467856); ad-driven share visible in GA4 via utm_campaign=perimenopause_checklist (Facebook/paid). list_total includes 8 internal/test subscribers from June setup."},
   gsc: {
     latest_month:{month:"2026-06", clicks:206, impressions:7360, ctr:2.8, position:15.6},
     trend:[
@@ -495,8 +536,8 @@ const SNAPSHOT = {
    PRE-CATEGORY-CHANGE BASELINE (category switched 2026-07-16): June full month =
    13 calls / 29 website clicks / 67 directions. Jul 1–15 = 11 / 11 / 51.
    Jul 14 had an anomalous 22 direction requests — remember at the Aug 6 readout. */
-SNAPSHOT.gbp_perf = {calls:17, website_clicks:35, direction_requests:61,
-  window:"Jul 1–28", as_of:"2026-07-28", source:"GBP Performance API",
+SNAPSHOT.gbp_perf = {calls:17, website_clicks:38, direction_requests:62,
+  window:"Jul 1–28", as_of:"2026-07-29", source:"GBP Performance API",
   june_baseline:{calls:13, website_clicks:29, direction_requests:67}};
 /* GBP → site attribution: GA4 events where sessionMedium == "gbp" (the profile's
    website link was already UTM-tagged ?utm_source=google&utm_medium=gbp — verified
@@ -510,15 +551,21 @@ SNAPSHOT.gbp_attrib = {sessions:36, users:29, taps:4, handoffs:1, as_of:"2026-07
    BELOW Hint's door attribution is blind for every channel until Hint lead source is
    recorded at signup; this table measures cost per person DELIVERED TO the booking flow. */
 /* chan_people = unique users who reached a BOOKING CHANNEL (Hint page OR phone tap),
-   per session channel. Not summable across rows (one person can cross channels). */
-SNAPSHOT.channel_econ = { as_of:"2026-07-28", chan_people_as_of:"2026-07-24", rows:[
-  {ch:"Organic search", spend:0,      window:"—",                    taps:73, chan_people:15, note:"strongest feeder, $0 marginal"},
-  {ch:"Google Ads (paid search)", spend:924.98, window:"MTD",        taps:29, chan_people:8,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
-  {ch:"Meta (paid social)", spend:193.60, window:"Jun 27–Jul 26 trailing", taps:43, chan_people:6, note:"weekly Ads Manager pull 2026-07-27: $193.60 across 3 delivering campaigns (prior frozen state cleared). Trailing-30 window ≠ MTD; treat $/person as approximate. LPV, not leads.", warn:true},
-  {ch:"Direct", spend:0, window:"—",                                 taps:17, chan_people:8,  note:"includes people returning after seeing MBM elsewhere"},
-  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:4,  chan_people:1,  note:"UTM-attributed; badly undercounts — 17 profile CALLS + 61 direction requests this month bypass the site entirely"},
-  {ch:"Nextdoor", spend:118.58, window:"since Jul 8 launch", taps:30, chan_people:0, note:"Spend/impr/clicks held from 07-20 (Ads Manager stuck loading 07-27). UTM tags LIVE - GA4 shows 30 nextdoor/paid sessions MTD (up from 5); no pixel so chan_people unknown."},
-  {ch:"LSA (Local Services)", spend:0, window:"—",                   taps:0,  chan_people:0,  note:"pay-per-lead; PAUSED — first paid entrant play, see LSA task. Leads arrive as forwarded phone/message contacts, not GA4 taps, so this row stays 0/0 here until go-live"}
+   per session channel. Not summable across rows (one person can cross channels).
+   taps  = booking_click+phone_click EVENTS on that channel (copied from
+           funnel_mtd.taps_src). Inflated ~2.31x for any window up to 2026-07-28
+           (booking_click double-fire, fixed 2529b3c).
+   taps_people = the same thing as GA4 totalUsers (from funnel_mtd.taps_src_people).
+           Immune to the double-fire; this is what the table renders when present.
+           null = not yet pulled, never 0. */
+SNAPSHOT.channel_econ = { as_of:"2026-07-29", chan_people_as_of:"2026-07-24", rows:[
+  {ch:"Organic search", spend:0,      window:"—",                    taps:83, taps_people:33, chan_people:15, note:"strongest feeder, $0 marginal"},
+  {ch:"Google Ads (paid search)", spend:945.57, window:"MTD",        taps:32, taps_people:17, chan_people:8,  note:"phone-heavy (search intent calls); July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
+  {ch:"Meta (paid social)", spend:193.60, window:"Jun 27–Jul 26 trailing", taps:42, taps_people:22, chan_people:6, note:"weekly Ads Manager pull 2026-07-27: $193.60 across 3 delivering campaigns (prior frozen state cleared). Trailing-30 window ≠ MTD; treat $/person as approximate. LPV, not leads.", warn:true},
+  {ch:"Direct", spend:0, window:"—",                                 taps:17, taps_people:10, chan_people:8,  note:"includes people returning after seeing MBM elsewhere"},
+  {ch:"GBP (profile link)", spend:0, window:"—",                     taps:4,  taps_people:null, chan_people:1,  note:"UTM-attributed; badly undercounts — 17 profile CALLS + 62 direction requests this month bypass the site entirely"},
+  {ch:"Nextdoor", spend:118.58, window:"since Jul 8 launch", taps:30, taps_people:null, chan_people:0, note:"Spend/impr/clicks held from 07-20 (Ads Manager stuck loading 07-27). UTM tags LIVE - GA4 shows 30 nextdoor/paid sessions MTD (up from 5); no pixel so chan_people unknown."},
+  {ch:"LSA (Local Services)", spend:0, window:"—",                   taps:0,  taps_people:null, chan_people:0,  note:"pay-per-lead; PAUSED — first paid entrant play, see LSA task. Leads arrive as forwarded phone/message contacts, not GA4 taps, so this row stays 0/0 here until go-live"}
 ]};
 const GBP_LOCATION_ID = "3763111265482720361"; // from business.google.com URL (#mpd=~<id>)
 /* LSA go-live date. NULL until the Local Services campaign is un-paused. Every LSA
@@ -575,8 +622,10 @@ function seedRealData(){
   const per=SNAPSHOT.period;
   store.set("funnel:"+per, {site_visits:SNAPSHOT.funnel_mtd.visits, inq_booking:SNAPSHOT.funnel_mtd.taps_booking,
     inq_phone:SNAPSHOT.funnel_mtd.taps_phone, handoffs:SNAPSHOT.funnel_mtd.handoffs,
+    inq_booking_people:SNAPSHOT.funnel_mtd.taps_booking_people, inq_phone_people:SNAPSHOT.funnel_mtd.taps_phone_people,
     consults:SNAPSHOT.consults.scheduled_mtd, new_members:SNAPSHOT.members.new_paid.concierge+SNAPSHOT.members.new_paid.so});
-  store.set("funnel_src:"+per, {visits:SNAPSHOT.funnel_mtd.visits_src, inquiries:SNAPSHOT.funnel_mtd.taps_src});
+  store.set("funnel_src:"+per, {visits:SNAPSHOT.funnel_mtd.visits_src, inquiries:SNAPSHOT.funnel_mtd.taps_src,
+    inquiries_people:SNAPSHOT.funnel_mtd.taps_src_people});
   store.set("ads:"+per+":google", {spend:SNAPSHOT.gads.mtd.spend, impressions:SNAPSHOT.gads.mtd.impressions, clicks:SNAPSHOT.gads.mtd.clicks, conversions:SNAPSHOT.gads.mtd.conv_ga4_all});
   store.set("ads:"+per+":meta", {spend:SNAPSHOT.meta_ads.spend, impressions:SNAPSHOT.meta_ads.impressions, clicks:SNAPSHOT.meta_ads.clicks, conversions:SNAPSHOT.meta_ads.lpv});
   store.set("ads:"+per+":nextdoor", {spend:SNAPSHOT.nextdoor_ads.spend, impressions:SNAPSHOT.nextdoor_ads.impressions, clicks:SNAPSHOT.nextdoor_ads.clicks, conversions:0});
@@ -606,7 +655,7 @@ function setRangePill(id, period){ const el=document.getElementById(id); if(el) 
 
 /* ---------- accessors ---------- */
 function getAds(period){ const o={}; PLATFORMS.forEach(p=>{ o[p]=Object.assign({spend:0,impressions:0,clicks:0,conversions:0}, store.get("ads:"+period+":"+p, {})); }); return o; }
-function getFunnel(period){ return Object.assign({site_visits:0,inq_booking:0,inq_phone:0,handoffs:0,consults:0,new_members:0}, store.get("funnel:"+period, {})); }
+function getFunnel(period){ return Object.assign({site_visits:0,inq_booking:0,inq_phone:0,handoffs:0,consults:0,new_members:0,inq_booking_people:null,inq_phone_people:null}, store.get("funnel:"+period, {})); }
 function getActive(){
   // Prefer the FEED-baked active counts (SNAPSHOT.members.active, written by the
   // daily/weekly refresh from members_feed.json.active_members) over manual entry,
@@ -674,6 +723,11 @@ function renderStatus(){
   document.getElementById("srcChips").innerHTML=chips;
 
   const alerts=[]; const D=SNAPSHOT.daily;
+  /* Detectors 1 and 2 deliberately stay on the EVENT series (D.taps) even though it
+     is inflated: both test presence/absence of tracking, not the level of demand.
+     Inflation cannot turn a zero into a non-zero or vice versa, and the >=10 floor in
+     detector 1 is a tracking-is-alive floor, not a demand threshold. Switching them
+     to people would silently change both thresholds. */
   /* 1. Ads primary-conversion blackout: taps flowing but Conversions column silent.
         This exact detector would have fired on Jul 3 for the incident fixed today. */
   const look=7;
@@ -758,10 +812,42 @@ function renderNorthStar(){
 }
 function periodShort(p){ const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; const a=(p||"").split("-"); return a[1]?m[+a[1]-1]:""; }
 
+/* ---------- VISITS CONTEXT STRIP (restored 2026-07-29) ----------
+   Site visits used to be the first bar of the four-bar acquisition funnel; the
+   2026-07-28 people-first rebuild removed it and left SNAPSHOT.funnel_mtd.visits,
+   .visits_src and the whole "funnel_src:<period>" store key WRITE-ONLY (nothing
+   read them). Reconstructed from the surviving pre-rebuild build in
+   _dash_build.html (fbar()/srcSegs()/SRCC, lines ~425-493 there).
+   It comes back as a CONTEXT STRIP above the funnel, not as a funnel stage:
+   visits are SESSIONS and the stages below are PEOPLE, and stacking the two in one
+   funnel is exactly the events-vs-people lie the rebuild set out to remove. */
+const VISIT_SRC_C=[["organic","#144120","Organic search"],["direct","#4A8D66","Direct"],["google","#c7a14b","Google Ads"],["meta","#3b6ea5","Meta"],["other","#b8c2bb","Other"]];
+function srcSegs(split, colors){
+  let segs='', tot=0;
+  colors.forEach(function(c){ tot+=+(split&&split[c[0]])||0; });
+  colors.forEach(function(c){ const v=+(split&&split[c[0]])||0; if(v>0) segs+='<span style="flex:'+v+';background:'+c[1]+'" title="'+escapeHtml(c[2]||c[0])+': '+v+'"></span>'; });
+  if(tot<=0) segs='<span style="flex:1;background:#d3dcd5"></span>';
+  return segs;
+}
+function renderVisitsStrip(period, f){
+  const el=document.getElementById("visitsStrip"); if(!el) return;
+  const fs=store.get("funnel_src:"+period, null);
+  const split=(fs&&fs.visits)||null;
+  const v=+f.site_visits||0;
+  const bar = v>0
+    ? '<div class="fbar fbar-split"><span class="fnum">'+fmtN(v)+'</span>'+srcSegs(split,VISIT_SRC_C)+'</div>'
+    : '<div class="fbar fbar-empty">0 <span class="fsub">no GA4 visits recorded for this period</span></div>';
+  const leg=VISIT_SRC_C.map(function(c){ const n=+(split&&split[c[0]])||0; return n>0?('<span><i style="background:'+c[1]+'"></i>'+escapeHtml(c[2])+' '+fmtN(n)+'</span>'):''; }).join('');
+  el.innerHTML='<div class="small" style="font-weight:600;font-size:13px;color:var(--forest);margin-bottom:8px">Site visits \u2014 context for the funnel below '
+    +'<span class="small" style="font-weight:400;color:var(--muted)">GA4 <span class="vcode">session_start</span>, month to date, split by session channel. These are SESSIONS, not people, and not a funnel stage \u2014 most visitors never intend to book, so a visits bar stacked on the booking stages would invent a conversion rate that means nothing.</span></div>'
+    +bar+(leg?'<div class="mixlegend" style="margin-top:8px">'+leg+'</div>':'');
+}
+
 /* ---------- FUNNEL ---------- */
 function renderFunnel(){
   const period=selectedPeriod(); const f=getFunnel(period);
   setRangePill("funnelRange", period);
+  renderVisitsStrip(period, f);
   const ch=store.get("consults_hint:"+period, null);
   const taps=(+f.inq_booking||0)+(+f.inq_phone||0);
   const consults=(ch&&(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled))||(+f.consults||0);
@@ -857,10 +943,23 @@ function renderFunnel(){
   }
   document.getElementById("leakBox").innerHTML=leakHtml;
 
-  // daily chart — emphasis pattern: the metric that matters (reached Hint) in the
-  // series green; taps de-emphasized in neutral gray
+  /* DAILY INTENT SERIES - people-first as of 2026-07-29.
+     SNAPSHOT.daily.taps is eventCount and is inflated ~2.31x for every day through
+     2026-07-28 (booking_click double-fire, fixed in commit 2529b3c), so the event
+     series is NOT comparable across that date. daily.taps_people is the same days
+     as GA4 totalUsers (dimension: date) - a double-fired tap dedupes to one person,
+     so it is immune to the bug and comparable end to end. Prefer it; fall back to
+     events ONLY with the basis line below saying so in plain words. Never scale the
+     event series by a correction factor: 2.31 is a measured average, not a per-day
+     truth, and a scaled series is a fabricated series. */
+  const dP=SNAPSHOT.daily.taps_people;
+  const dPeople=Array.isArray(dP)&&dP.length===SNAPSHOT.daily.dates.length;
   barsAndLine("chDaily", SNAPSHOT.daily.dates,
-    [{label:"Book/Call taps", data:SNAPSHOT.daily.taps, backgroundColor:"#20713F"}]);
+    [{label:dPeople?"People who tapped Book/Call":"Book/Call taps (events)", data:dPeople?dP:SNAPSHOT.daily.taps, backgroundColor:"#20713F"}]);
+  const dtb=document.getElementById("dailyTapsBasis");
+  if(dtb) dtb.innerHTML = dPeople
+    ? 'Unique people per day (GA4 <span class="vcode">totalUsers</span>) \u2014 immune to the booking_click double-fire. Daily uniques do not sum to the monthly unique total.'
+    : '\u26a0 Showing <b>events</b> (GA4 <span class="vcode">eventCount</span>), not people. <b>booking_click double-fired ~2.31\u00d7 on every tap through 2026-07-28</b> (fixed in commit 2529b3c), so bars up to that date are inflated and not comparable with later ones. The daily refresh backfills <span class="vcode">daily.taps_people</span> (totalUsers by date, re-queryable from GA4 for the whole month) \u2014 this warning disappears when it does.';
 }
 function renderMemberSource(){
   const el=document.getElementById("memSourceBar"); const legEl=document.getElementById("memSourceLegend"); if(!el) return;
@@ -932,18 +1031,23 @@ function renderPaid(){
   // channel economics table
   const ceEl=document.getElementById("chanEcon");
   if(ceEl && SNAPSHOT.channel_econ){
-    let ce='<table><thead><tr><th>Channel</th><th class="num">Spend</th><th>Window</th><th class="num">Taps</th><th class="num">People → booking channel</th><th class="num">$ / person</th><th>Read with care</th></tr></thead><tbody>';
+    let ce='<table><thead><tr><th>Channel</th><th class="num">Spend</th><th>Window</th><th class="num">Booking/phone taps</th><th class="num">People → booking channel</th><th class="num">$ / person</th><th>Read with care</th></tr></thead><tbody>';
     SNAPSHOT.channel_econ.rows.forEach(r=>{
       const cpp=(r.spend>0 && r.chan_people>0)?(r.spend/r.chan_people):null;
       ce+='<tr><td><b>'+escapeHtml(r.ch)+'</b></td>'+
         '<td class="num">'+(r.spend>0?fmtUSD(r.spend):'<span style="color:var(--good);font-weight:600">$0</span>')+'</td>'+
         '<td class="small">'+escapeHtml(r.window)+'</td>'+
-        '<td class="num">'+fmtN(r.taps)+'</td>'+
+        /* people-first: render totalUsers when we have it, events muted underneath.
+           Falling back to the raw event count is explicitly labelled 'events' so a
+           reader is never shown an inflated number that looks like people. */
+        '<td class="num">'+(r.taps_people!=null
+          ? '<b>'+fmtN(r.taps_people)+'</b> <span style="color:var(--muted);font-weight:400">people</span><br><span class="small" style="color:var(--stale)">'+fmtN(r.taps)+' events</span>'
+          : fmtN(r.taps)+' <span class="small" style="color:var(--stale)">events</span>')+'</td>'+
         '<td class="num"><b>'+fmtN(r.chan_people)+'</b></td>'+
         '<td class="num">'+(cpp!=null?('<b style="color:'+(cpp>50?'var(--bad)':'var(--forest)')+'">'+(r.warn?'~':'')+fmtUSD(cpp)+'</b>'):(r.spend>0?'<span class="pos-none">—</span>':'<span style="color:var(--good)">free</span>'))+'</td>'+
         '<td class="small">'+escapeHtml(r.note)+'</td></tr>';
     });
-    ce+='</tbody></table><div class="small" style="margin-top:8px;line-height:1.7"><b>Booking channel</b> = the person reached the Hint booking page OR tapped call — phone-first bookers count. Rows aren\'t summable (a person can cross channels). <b>What this table cannot say:</b> which channel produces MEMBERS — below the booking channel every row is blind until Lead Source is recorded at signup, and it weighs nothing for intent quality (search intent historically closes better than social). Windows differ where marked; never compare Meta\'s trailing spend to MTD as if equal. GBP\'s 17 profile calls live outside GA4 and can\'t be deduped into these counts. As of '+escapeHtml(SNAPSHOT.channel_econ.as_of)+'.</div>';
+    ce+='</tbody></table><div class="small" style="margin-top:8px;line-height:1.7"><b>Booking channel</b> = the person reached the Hint booking page OR tapped call — phone-first bookers count. Rows aren\'t summable (a person can cross channels). <b>What this table cannot say:</b> which channel produces MEMBERS — below the booking channel every row is blind until Lead Source is recorded at signup, and it weighs nothing for intent quality (search intent historically closes better than social). Windows differ where marked; never compare Meta\'s trailing spend to MTD as if equal. GBP\'s 17 profile calls live outside GA4 and can\'t be deduped into these counts. <b>The taps column:</b> rows showing <b>people</b> are GA4 <span class="vcode">totalUsers</span> for booking_click+phone_click on that channel and are not summable across rows; rows still showing <i>events</i> are raw <span class="vcode">eventCount</span>, which double-counted every booking tap ~2.31\u00d7 through 2026-07-28 (fixed in commit 2529b3c) \u2014 read those as an upper bound, not as demand. As of '+escapeHtml(SNAPSHOT.channel_econ.as_of)+'.</div>';
     ceEl.innerHTML=ce;
   }
   // campaign table (MTD)
@@ -1244,7 +1348,11 @@ function snip(o){ try{ return JSON.stringify(o).slice(0,200); }catch(e){ return 
 async function refreshGA4(){
   if(!(window.cowork && window.cowork.callMcpTool)) throw new Error("MCP bridge unavailable");
   const body={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
-    dimensions:[{name:"sessionDefaultChannelGroup"},{name:"eventName"}], metrics:[{name:"eventCount"}],
+    /* totalUsers is requested alongside eventCount so the live refresh returns PEOPLE
+       as well as events for every funnel event. People are the honest tap metric:
+       booking_click double-fired through 2026-07-28 and eventCount is inflated ~2.31x
+       across that date, while totalUsers dedupes it away. */
+    dimensions:[{name:"sessionDefaultChannelGroup"},{name:"eventName"}], metrics:[{name:"eventCount"},{name:"totalUsers"}],
     /* The booking-stage events are requested here so the live refresh returns them;
        the row loop below matches on eventName and simply ignores anything it has no
        branch for, so extra events cannot corrupt the parse. Stage counts still come
@@ -1256,16 +1364,23 @@ async function refreshGA4(){
     output:"channel, event, eventCount rows"});
   const data=unwrap(res); const rows=(data&&(data.results||data.rows))||[];
   if(!rows.length) throw new Error("GA4 returned 0 rows — raw: "+snip(data!=null?data:res));
-  const f={visits:0,book:0,phone:0};
-  const src={visits:{organic:0,direct:0,google:0,meta:0,other:0}, inquiries:{organic:0,direct:0,google:0,meta:0,other:0}};
+  const f={visits:0,book:0,phone:0,book_people:0,phone_people:0};
+  const src={visits:{organic:0,direct:0,google:0,meta:0,other:0}, inquiries:{organic:0,direct:0,google:0,meta:0,other:0},
+             inquiries_people:{organic:0,direct:0,google:0,meta:0,other:0}};
   rows.forEach(r=>{
     const chn=String(r.channel||r.sessionDefaultChannelGroup||"").toLowerCase();
     const ev=r.event_name||r.eventName||r.event||"";
     const c=parseInt(r.event_count||r.eventCount||0,10)||0;
+    const u=parseInt(r.total_users||r.totalUsers||0,10)||0;
     const b=chn.indexOf("paid search")>=0?"google":chn.indexOf("paid social")>=0?"meta":chn.indexOf("organic search")>=0?"organic":chn==="direct"?"direct":"other";
     if(ev==="session_start"){ f.visits+=c; src.visits[b]+=c; }
-    if(ev==="phone_click"){ f.phone+=c; src.inquiries[b]+=c; }
-    if(ev==="booking_click"){ f.book+=c; src.inquiries[b]+=c; }
+    /* People sums here are ADDITIVE ACROSS EVENTS AND CHANNELS, so they slightly
+       overcount anyone who both tapped Book and tapped Call, or who appeared in two
+       channels. They are still strictly better than the event count, which
+       double-counts every single booking tap before 2026-07-28. The one genuinely
+       deduped monthly figure is the no-dimension totalUsers query below (tappers). */
+    if(ev==="phone_click"){ f.phone+=c; src.inquiries[b]+=c; f.phone_people+=u; src.inquiries_people[b]+=u; }
+    if(ev==="booking_click"){ f.book+=c; src.inquiries[b]+=c; f.book_people+=u; src.inquiries_people[b]+=u; }
   });
   // handoffs: outbound clicks to the Hint booking domain, MTD
   const body2={ dateRanges:[{startDate:monthStartISO(),endDate:"today"}],
@@ -1290,7 +1405,8 @@ async function refreshGA4(){
   const d3=unwrap(res3); const row3=(d3&&(d3.results||d3.rows))||[];
   const tappers=(function(){ const r=Array.isArray(row3)?row3[0]:row3; return r?(parseInt(r.total_users||r.totalUsers||0,10)||0):((d3&&+d3.totalUsers)||0); })();
   const per=curPeriod();
-  store.set("funnel:"+per, Object.assign(getFunnel(per), {site_visits:f.visits, inq_booking:f.book, inq_phone:f.phone, handoffs:handoffs}));
+  store.set("funnel:"+per, Object.assign(getFunnel(per), {site_visits:f.visits, inq_booking:f.book, inq_phone:f.phone, handoffs:handoffs,
+    inq_booking_people:f.book_people||null, inq_phone_people:f.phone_people||null}));
   store.set("funnel_src:"+per, src);
   if(tappers>0) store.set("funnel_users:"+per, {tappers:tappers, handoff:handoffUsers, as_of:todayISO(),
     note:"GA4 totalUsers = unique browsers/devices"});

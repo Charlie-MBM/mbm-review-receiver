@@ -94,7 +94,6 @@ ARCHIVE_QUEUE_FILE = SCRIPT_DIR / "nurture_archive_queue.csv"  # weekly staff li
 SEQUENCE_DAYS = [0, 7, 21]
 CLEANUP_DAY = 28          # legacy fixed day-count; retained for old snapshots/tests. Live cleanup now keys off bill_date.
 CLEANUP_LEAD_DAYS = 2     # cancel a stale, unpaid pending membership when its real bill_date is <= this many days away
-CLEANUP_MIN_AGE_DAYS = 21  # NEVER pre-bill-cleanup a membership younger than this: an immediate-start assignment is a data-entry artifact, not a stale non-converter (2026-07-30)
 APPT_LOOKAHEAD_DAYS = 45  # "future appointment" guard window
 OFFICE_LINE = "(360) 498-7529"
 
@@ -166,11 +165,6 @@ NURTURE_EXCLUDE_PLANS = {
     "pln-BhgiC3jP0yzq",  # Friends & Family $0 comp - never nurture or auto-cancel
     "pln-jnMH3ruMbXhm",  # SO - Walk-In - handled by the review poller's walk-in branch; never nurture
     "pln-qHzXwjyZ8xPP",  # SO - IV      - handled by the review poller's walk-in branch; never nurture
-    # 2026-08-01: Medicare Beneficiary plans frozen until the Medicare/compliance
-    # question is settled (rate table showed $0.00; cause unknown). No nurture
-    # texts, no signup links, no auto-cleanup for these plans until unfrozen.
-    "pln-lN2eJKDLrUPy",  # Concierge - Medicare Beneficiary Couple (per person) - FROZEN 2026-08-01
-    "pln-vKXyMzt13o6P",  # Concierge - Medicare Beneficiary (individual) - FROZEN 2026-08-01
 }
 
 NURTURE_TEXTS_CONCIERGE_IND = {

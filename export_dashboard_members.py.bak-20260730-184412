@@ -102,7 +102,7 @@ EXCLUDE_NAME_SUBSTRINGS = ["charles robert platt", "zztest", "zz-test", "test", 
 EXCLUDE_PLAN_SUBSTRINGS = ["friends and family", "friends & family", "friend", "f&f"]
 
 # The 7 dashboard lead-source buckets (must match the dashboard + Hint dropdown).
-SOURCE_KEYS = ["google", "google_ads", "google_gbp", "google_lsa", "bing", "ai", "social", "nextdoor", "provider_referral", "word_of_mouth", "other"]
+SOURCE_KEYS = ["google", "google_ads", "google_lsa", "bing", "ai", "social", "nextdoor", "provider_referral", "word_of_mouth", "other"]
 
 # LSA kill/keep test window (dashboard "LSA test" tile; DASHBOARD_METRICS.md §1).
 # Patients attributed = members/SO with Hint Lead Source mapping to google_lsa,
@@ -354,10 +354,6 @@ def map_source(raw):
     # organic result.
     if "google ads" in r or "google_ads" in r or "adwords" in r or "google paid" in r:
         return "google_ads"
-    # GBP split (2026-07-30): "Google Business Profile" contains "google" and
-    # would vanish into the generic bucket, same trap as LSA/Ads above.
-    if "business profile" in r or "google business" in r or r == "gbp":
-        return "google_gbp"
     if "bing" in r:
         return "bing"
     if "google" in r or "search" in r or "online" in r:

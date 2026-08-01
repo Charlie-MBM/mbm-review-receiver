@@ -50,3 +50,8 @@ mbm-ga4-reader*.json
 _to_delete/
 _v0719_*.html
 _dash_build.html
+
+# 2026-08-01 hardening: ALL logs and state files can carry patient names/phones.
+# Blanket-ban them instead of listing one by one (send_log.txt etc. above stay too).
+*.log
+*state*.json

@@ -78,17 +78,6 @@ def _save(st):
         pass
 
 
-def _is_test_booking(ev, priv):
-    """True for synthetic test bookings: the patient-name segment starts with 'test'
-    (Testalpha/Testbeta/Testgamma convention). Mirrors the manual calendar-cleanup
-    rule so tests never enter the tally in the first place."""
-    name = str(priv.get("name") or "")
-    if not name:
-        summary = str(ev.get("summary") or "")
-        name = summary.split("\u2014")[-1].strip() if "\u2014" in summary else ""
-    return name.strip().lower().startswith("test")
-
-
 def _gcal_enabled():
     return os.environ.get("GCAL_ENABLED", "false").lower() == "true"
 
@@ -124,38 +113,18 @@ def _merge_gcal_bookings(st, month_start, daily_end):
     if not events:  # None (hard failure) or [] (nothing) -> leave the tally as-is
         return
     counted = st["counted"]
-    visible = set()   # every non-cancelled event id in this SUCCESSFUL fetch, any date
     for ev in events:
         if not isinstance(ev, dict) or ev.get("status") == "cancelled":
             continue
         eid = ev.get("id")
         if not eid:
             continue
-        visible.add("gcal:" + eid)
         priv = ((ev.get("extendedProperties") or {}).get("private") or {})
-        if _is_test_booking(ev, priv):
-            continue   # test bookings never enter the tally (they used to ghost forever)
         raw = priv.get("booked_at") or ev.get("created") or ((ev.get("start") or {}).get("dateTime"))
         created = _parse_dt(raw)
         if created is None or not (month_start <= created < daily_end):
             continue
-        start_iso = ((ev.get("start") or {}).get("dateTime")) or ((ev.get("start") or {}).get("date"))
-        # {booked_at, start} snapshot (same reason the cancellation watcher snapshots
-        # start/phone): `start` lets the ghost sweep re-check FUTURE bookings later.
-        counted["gcal:" + eid] = {"booked_at": created.isoformat(), "start": start_iso}
-    # GHOST SWEEP (2026-07-30, diag-recommended): a FUTURE-start gcal entry absent from
-    # a SUCCESSFUL fetch was cancelled/deleted -- un-count it. Past bookings are never
-    # touched (a consult that happened stays counted even after it ages out of the
-    # window), and a failed fetch never reaches this point (early return above).
-    # Legacy string-valued entries carry no start and are never swept; they heal to
-    # snapshot form whenever their event is re-fetched, and age out at month roll.
-    for _key in list(counted):
-        if not str(_key).startswith("gcal:") or _key in visible:
-            continue
-        _v = counted[_key]
-        _start = _parse_dt(_v.get("start") if isinstance(_v, dict) else None)
-        if _start is not None and _start > now:
-            del counted[_key]
+        counted["gcal:" + eid] = created.isoformat()   # idempotent: re-seeing an id is a no-op
     st["counted"] = counted
 
 
@@ -205,8 +174,7 @@ def tally(appts, daily_start, daily_end, month_start):
     _merge_gcal_bookings(st, month_start, daily_end)
     _save(st)
     window = 0
-    for v in counted.values():
-        iso = v.get("booked_at") if isinstance(v, dict) else v   # snapshot dict or legacy str
+    for iso in counted.values():
         d = _parse_dt(iso)
         if d is not None and daily_start <= d < daily_end:
             window += 1

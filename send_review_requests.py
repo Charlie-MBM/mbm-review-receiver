@@ -283,8 +283,8 @@ def fetch_clicked_fname_hashes() -> set:
         return set()
     try:
         resp = http.get(
-            f"{base}/api/review-clicked",
-            headers={"Authorization": f"Bearer {token}"},
+            f"{base}/api/review-clicked?_cb={int(__import__('time').time())}",
+            headers={"Authorization": f"Bearer {token}", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"},
             timeout=15,
         )
         if resp.status_code != 200:

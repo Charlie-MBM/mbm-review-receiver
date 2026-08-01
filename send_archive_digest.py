@@ -22,7 +22,7 @@ import ssl
 import smtplib
 from pathlib import Path
 from email.message import EmailMessage
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 import requests as http
 
@@ -61,6 +61,91 @@ def hint_web_link(pid):
     return ""
 
 
+UNASSIGNED_MIN_DAYS = 30
+
+
+def collect_unassigned(exclude_pids):
+    """2026-07-31 (Charlie): VISIBILITY bucket - patients whose mbm-book consult
+    happened >= UNASSIGNED_MIN_DAYS ago and who have NEVER had a membership of any
+    status. These are NOT archive candidates by default; James/Charlie decide per
+    person. Covers post-cutover (2026-07-18+) mbm-book consults, matched patient->
+    consult by phone digits. Skips Test* records. Email stays names-free (ids +
+    links only), same as the rest of this script. Local-only."""
+    cal = os.environ.get("GCAL_CALENDAR_ID", "")
+    sa = os.environ.get("GOOGLE_SA_KEY_FILE", "")
+    if not (KEY and cal and sa):
+        return []
+    try:
+        import gcal_bookings
+    except Exception:
+        return []
+    now = datetime.now(timezone.utc)
+    events = gcal_bookings.fetch_mbm_book_events(now, cal, sa, 400, lookahead_days=1)
+    if not events:
+        return []
+    cutoff = now - timedelta(days=UNASSIGNED_MIN_DAYS)
+    consulted = {}   # phone digits (last 10) -> earliest past consult date (YYYY-MM-DD)
+    for ev in events:
+        if not isinstance(ev, dict) or ev.get("status") == "cancelled":
+            continue
+        priv = ((ev.get("extendedProperties") or {}).get("private") or {})
+        digits = "".join(c for c in str(priv.get("phone") or "") if c.isdigit())[-10:]
+        start = ((ev.get("start") or {}).get("dateTime")) or ""
+        if not (digits and start):
+            continue
+        try:
+            sdt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if sdt <= cutoff and (digits not in consulted or start[:10] < consulted[digits]):
+            consulted[digits] = start[:10]
+    if not consulted:
+        return []
+
+    def _pages(path):
+        page = 1
+        while True:
+            try:
+                r = http.get(f"{BASE}{path}", headers={"Authorization": f"Bearer {KEY}"},
+                             params={"page": page, "per_page": 100}, timeout=30)
+            except Exception:
+                return
+            if r.status_code != 200:
+                return
+            data = r.json()
+            rows = data if isinstance(data, list) else data.get("data", [])
+            if not rows:
+                return
+            yield from rows
+            if len(rows) < 100:
+                return
+            page += 1
+
+    assigned = set()   # every patient id that has EVER had a membership (any status, incl. comps)
+    for m in _pages("/api/provider/memberships"):
+        if m.get("patient_id"):
+            assigned.add(m["patient_id"])
+        for mp in (m.get("membership_patients") or []):
+            pt = (mp or {}).get("patient") or {}
+            if isinstance(pt, dict) and pt.get("id"):
+                assigned.add(pt["id"])
+
+    out = []
+    for p in _pages("/api/provider/patients"):
+        pid = p.get("id") or ""
+        if not pid or pid in assigned or pid in exclude_pids:
+            continue
+        if str(p.get("first_name") or "").lower().startswith("test"):
+            continue
+        for ph in (p.get("phones") or []):
+            num = "".join(c for c in str((ph or {}).get("number") or "") if c.isdigit())[-10:]
+            if num and num in consulted:
+                out.append({"pid": pid, "source": "unassigned-30d", "queued_at": "",
+                            "reason": f"consulted {consulted[num]}, no membership ever assigned"})
+                break
+    return out
+
+
 def load_sent():
     try:
         return set(json.loads(STATE_FILE.read_text()))
@@ -84,24 +169,43 @@ def main():
             items.append({"pid": pid, "source": src,
                           "queued_at": row.get("queued_at", ""), "reason": row.get("reason", "")})
 
-    if not items:
+    # 2026-07-31 (Charlie): separate visibility bucket, never mixed with archives.
+    unassigned = [u for u in collect_unassigned({it["pid"] for it in items})
+                  if u["pid"] not in sent]
+
+    if not items and not unassigned:
         print("archive digest: nothing new to archive this week - no email sent.")
         return
 
-    lines = [
-        "These patient records are ready to archive in Hint (Hint's API can't archive,",
-        "so it's a manual step). Open each link and archive the record. Each is listed once.",
-        "",
-    ]
-    for it in sorted(items, key=lambda x: x["source"]):
-        link = hint_web_link(it["pid"])
-        tail = f"  ->  {link}" if link else "   (search this ID in Hint)"
-        why = f"   [{it['reason']}]" if it["reason"] else ""
-        lines.append(f"- ({it['source']}) {it['pid']}{tail}{why}")
-    lines += ["", f"Total: {len(items)}."]
+    lines = []
+    if items:
+        lines += [
+            "These patient records are ready to archive in Hint (Hint's API can't archive,",
+            "so it's a manual step). Open each link and archive the record. Each is listed once.",
+            "",
+        ]
+        for it in sorted(items, key=lambda x: x["source"]):
+            link = hint_web_link(it["pid"])
+            tail = f"  ->  {link}" if link else "   (search this ID in Hint)"
+            why = f"   [{it['reason']}]" if it["reason"] else ""
+            lines.append(f"- ({it['source']}) {it['pid']}{tail}{why}")
+        lines += ["", f"To archive: {len(items)}.", ""]
+    if unassigned:
+        lines += [
+            "NEVER ASSIGNED - consulted 30+ days ago, no membership ever assigned.",
+            "Visibility only: decide person by person (assign, follow up, or archive).",
+            "Do NOT archive these by default.",
+            "",
+        ]
+        for it in unassigned:
+            link = hint_web_link(it["pid"])
+            tail = f"  ->  {link}" if link else "   (search this ID in Hint)"
+            lines.append(f"- {it['pid']}{tail}   [{it['reason']}]")
+        lines += ["", f"Never assigned: {len(unassigned)}."]
 
     msg = EmailMessage()
-    msg["Subject"] = f"MBM: {len(items)} record(s) to archive - {datetime.now().date()}"
+    msg["Subject"] = (f"MBM: {len(items)} to archive, {len(unassigned)} never-assigned"
+                      f" - {datetime.now().date()}")
     msg["From"] = SMTP_USER
     msg["To"] = ", ".join(TO)
     msg.set_content("\n".join(lines))
@@ -112,8 +216,8 @@ def main():
         s.login(SMTP_USER, SMTP_PASS)
         s.send_message(msg)
 
-    save_sent(sent | {it["pid"] for it in items})
-    print(f"archive digest: emailed {len(items)} record(s) to {', '.join(TO)}.")
+    save_sent(sent | {it["pid"] for it in items} | {it["pid"] for it in unassigned})
+    print(f"archive digest: emailed {len(items) + len(unassigned)} record(s) to {', '.join(TO)}.")
 
 
 if __name__ == "__main__":

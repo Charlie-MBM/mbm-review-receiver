@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""AUTO-BAKE: fill dashboard_index.html's SNAPSHOT from members_feed.json.
+
+Why this exists: every Hint-derived number in the dashboard used to be hand-copied
+out of the feed. On 2026-07-29 that left `active: {concierge:16}` sitting on the
+live dashboard while the feed already knew it was 20. Hand-copying is the bug.
+
+What it does
+------------
+Reads members_feed.json (the exporter's output) and rewrites, in place, every
+SNAPSHOT field that is sourced from that feed:
+
+  sources.hint.as_of        <- feed.generated_at
+  members.active            <- feed.active_members  (per PATIENT, couples counted)
+  members.active_recon      <- feed.active_members.reconciliation_by_status
+  members.new_paid          <- feed.members
+  members.pending           <- feed.members_pending
+  members.terminations_mtd  <- feed.terminations_mtd
+  members.source_mix        <- feed.members_source
+  members.lead_source_gap   <- computed from the two above
+  the status-histogram comment block
+  consults                  <- feed.consults
+  finance.revenue           <- feed.revenue_mtd
+  lsa.patients_attributed   <- feed.lsa_test
+  DATA_VERSION + baked_at
+
+Every edit is regex-anchored and COUNT-ASSERTED: if any pattern does not match
+exactly once, NOTHING is written and the script exits 3. Makes a timestamped
+backup before writing. Safe to run repeatedly.
+
+PHI: reads only aggregate counters out of the feed. No name, patient id, plan
+name or membership id is ever read, printed, or written into the HTML. The hosted
+copy lives on Cloudflare, which is not BAA-covered, so that is not optional.
+
+Usage
+-----
+  py bake_dashboard.py                # bake
+  py bake_dashboard.py --dry-run      # show what would change, write nothing
+  py bake_dashboard.py --push         # bake, then push to the hosted worker
+"""
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+TARGET = HERE / "dashboard_index.html"
+FEED = Path(os.environ.get(
+    "FEED_OUT",
+    r"C:\Users\charl\OneDrive\Documents\Claude\Artifacts\mbm-performance-dashboard\members_feed.json",
+))
+
+# recon keys that are NOT plan buckets
+NON_BUCKET = {"test_account_excluded", "friends_family"}
+MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+          "August", "September", "October", "November", "December"]
+
+
+# ---------------------------------------------------------------- helpers ---
+def utc_stamp(iso):
+    """'2026-07-29T10:55:03.12-07:00' -> '2026-07-29T17:55Z'. Falls back to now."""
+    if iso:
+        try:
+            dt = datetime.fromisoformat(str(iso))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+        except Exception:
+            pass
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+
+
+def recon_row(recon, status):
+    return (recon or {}).get(status, {}) or {}
+
+
+def bucket_sum(row):
+    return sum(v for k, v in row.items() if k not in NON_BUCKET)
+
+
+def next_version(cur):
+    """'2026-07-29g' -> '2026-07-29h'; new day -> '<today>a'."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    m = re.match(r"^(\d{4}-\d{2}-\d{2})([a-z]?)$", cur or "")
+    if m and m.group(1) == today:
+        letter = m.group(2) or "a"
+        return today + (chr(ord(letter) + 1) if letter < "z" else "z2")
+    return today + "a"
+
+
+class Baker:
+    def __init__(self, text):
+        self.s = text
+        self.edits = []   # (label, before, after)
+        self.fail = []
+
+    def sub(self, pattern, repl, label, flags=0):
+        rx = re.compile(pattern, flags)
+        n = len(rx.findall(self.s))
+        if n != 1:
+            self.fail.append(f"{label}: pattern matched {n} time(s), expected 1")
+            return
+        mo = rx.search(self.s)
+        before = mo.group(0)
+        after = repl(mo) if callable(repl) else repl
+        self.s = self.s[:mo.start()] + after + self.s[mo.end():]
+        if before.strip() != after.strip():
+            self.edits.append((label, before.strip(), after.strip()))
+
+
+# ------------------------------------------------------------------- main ---
+def do_push():
+    """Publish whatever dashboard_index.html is currently on disk.
+
+    Deliberately independent of whether this run changed anything: the hosted
+    copy can lag the local file (bake without --push, then --push later), and
+    --push must always mean "make the host match disk".
+    """
+    push = HERE / "push_hosted_dashboard.py"
+    if not push.exists():
+        print("push_hosted_dashboard.py not found - cannot publish.", file=sys.stderr)
+        return 5
+    print("\npushing...")
+    r = subprocess.run([sys.executable, str(push)], cwd=str(HERE))
+    return r.returncode
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true",
+                    help="print the changes, write nothing")
+    ap.add_argument("--push", action="store_true",
+                    help="after a successful bake, run push_hosted_dashboard.py")
+    ap.add_argument("--feed", default=None, help="override the feed path")
+    ap.add_argument("--force", action="store_true",
+                    help="write even if only DATA_VERSION/baked_at would change")
+    args = ap.parse_args()
+
+    feed_path = Path(args.feed) if args.feed else FEED
+    if not feed_path.exists():
+        print(f"ABORT: feed not found: {feed_path}", file=sys.stderr)
+        print("       Run export_dashboard_members.py first, or pass --feed PATH.",
+              file=sys.stderr)
+        return 2
+    if not TARGET.exists():
+        print(f"ABORT: {TARGET} not found", file=sys.stderr)
+        return 2
+
+    feed = json.loads(feed_path.read_text(encoding="utf-8"))
+
+    # ---- pull the aggregates we need (nothing identifying) ------------------
+    am = feed.get("active_members") or {}
+    if not am:
+        print("ABORT: feed has no active_members block - the exporter's tally failed "
+              "this run. Refusing to bake zeros over good numbers.", file=sys.stderr)
+        return 4
+
+    as_of = utc_stamp(feed.get("generated_at"))
+    period = feed.get("period") or ""
+    try:
+        month_name = MONTHS[int(period.split("-")[1]) - 1]
+    except Exception:
+        month_name = "this month"
+
+    recon = am.get("reconciliation_by_status") or {}
+    hist = am.get("status_histogram") or {}
+
+    act_c, act_s = int(am.get("concierge", 0)), int(am.get("so", 0))
+    mem_objects = int(am.get("membership_objects", 0))
+    multi = int(am.get("multi_person_memberships", 0))
+    comp_active = int(am.get("friends_family_active_excluded", 0))
+    test_excl = int(am.get("test_accounts_active_excluded", 0))
+
+    unpaid = recon_row(recon, "unpaid")
+    pend_row = recon_row(recon, "pending")
+    unconf = bucket_sum(recon_row(recon, "unconfirmed"))
+
+    mem = feed.get("members") or {}
+    pend = feed.get("members_pending") or {}
+    term = feed.get("terminations_mtd") or {}
+    src = feed.get("members_source") or {}
+    rev = feed.get("revenue_mtd") or {}
+    con = feed.get("consults") or {}
+    lsa = feed.get("lsa_test") or {}
+
+    new_c, new_s = int(mem.get("concierge", 0)), int(mem.get("so", 0))
+    new_total = int(mem.get("total", new_c + new_s))
+    src_google = int(src.get("google", 0))
+    src_other = int(src.get("other", 0))
+
+    sched = con.get("booked_mtd_running_tally")
+    if sched is None:
+        sched = con.get("scheduled_mtd", 0)
+    sched = int(sched)
+    done = int(con.get("completed_mtd", 0))
+    sc = con.get("status_counts") or {}
+    cancelled = sum(int(v) for k, v in sc.items()
+                    if k.lower() in ("cancelled", "canceled"))
+    upcoming = max(sched - done, 0)
+
+    raw = TARGET.read_text(encoding="utf-8")
+    crlf = "\r\n" in raw
+    b = Baker(raw.replace("\r\n", "\n"))
+
+    cur_ver = ""
+    mv = re.search(r'const DATA_VERSION = "([^"]+)";', b.s)
+    if mv:
+        cur_ver = mv.group(1)
+    new_ver = next_version(cur_ver)
+    baked_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+
+    # ---- the edits ----------------------------------------------------------
+    b.sub(r'(    hint:   \{as_of:")[^"]*(")',
+          lambda m: m.group(1) + as_of + m.group(2), "sources.hint.as_of")
+
+    b.sub(r'    // Feed status histogram this run:[^\n]*\n'
+          r'    // \([^\n]*\n'
+          r'    //  those[^\n]*\n',
+          "    // Feed status histogram this run: "
+          + " / ".join(f"{k} {v}" for k, v in sorted(hist.items())) + "\n"
+          f"    // ({hist.get('active', 0)} active = {mem_objects} countable membership "
+          f"objects + {comp_active} F&F + {test_excl} test excluded;\n"
+          f"    //  those {mem_objects} objects carry {act_c + act_s} people \u2014 "
+          f"{multi} of them are two-person memberships).\n",
+          "status-histogram comment")
+
+    b.sub(r'(    active: \{concierge:)\d+(, so:)\d+(, as_of:")[^"]*(", source:"hint"\},)',
+          lambda m: f"{m.group(1)}{act_c}{m.group(2)}{act_s}{m.group(3)}{as_of}{m.group(4)}",
+          "members.active")
+
+    b.sub(r'    active_recon: \{as_of:"[^"]*", unpaid_concierge:\d+, pending_concierge:\d+,\n'
+          r'[ ]+unpaid_so:\d+, unconfirmed_total:\d+,\n'
+          r'[ ]+comp_active:\d+, test_active_excluded:\d+\},',
+          f'    active_recon: {{as_of:"{as_of}", unpaid_concierge:{int(unpaid.get("concierge", 0))}, '
+          f'pending_concierge:{int(pend_row.get("concierge", 0))},\n'
+          f'                   unpaid_so:{int(unpaid.get("so", 0))}, unconfirmed_total:{unconf},\n'
+          f'                   comp_active:{comp_active}, test_active_excluded:{test_excl}}},',
+          "members.active_recon")
+
+    b.sub(r'(    new_paid: \{concierge:)\d+(, so:)\d+(\},)',
+          lambda m: f"{m.group(1)}{new_c}{m.group(2)}{new_s}{m.group(3)}",
+          "members.new_paid")
+
+    b.sub(r'    pending:  \{concierge:\d+, so:\d+, total:\d+\},',
+          f'    pending:  {{concierge:{int(pend.get("concierge", 0))}, '
+          f'so:{int(pend.get("so", 0))}, total:{int(pend.get("total", 0))}}},',
+          "members.pending")
+
+    b.sub(r'    terminations_mtd: \{concierge:\d+, so:\d+, total:\d+\},',
+          f'    terminations_mtd: {{concierge:{int(term.get("concierge", 0))}, '
+          f'so:{int(term.get("so", 0))}, total:{int(term.get("total", 0))}}},',
+          "members.terminations_mtd")
+
+    b.sub(r'    source_mix: \{[^}]*\},',
+          "    source_mix: {" + ", ".join(
+              f"{k}:{int(src.get(k, 0))}" for k in
+              # MUST stay in sync with SOURCE_KEYS in export_dashboard_members.py
+              # AND with the `order` array in dashboard_index.html. A key missing
+              # from this tuple is dropped at bake time and renders nowhere --
+              # that is exactly how `nextdoor` went missing until 2026-07-30.
+              ("google", "google_ads", "google_gbp", "google_lsa", "bing", "ai", "social",
+               "nextdoor", "provider_referral", "word_of_mouth",
+               "other")) + "},",
+          "members.source_mix")
+
+    b.sub(r'    lead_source_gap: "[^"]*"',
+          f'    lead_source_gap: "{src_google} of {new_total} {month_name} members map to '
+          f'Google in Hint Lead Source; {src_other} fall in \'other\' (unrecorded or '
+          f'off-channel). Lead Source at signup still the gap."',
+          "members.lead_source_gap")
+
+    b.sub(r'  consults: \{scheduled_mtd:\d+, completed_mtd:\d+, upcoming:\d+, cancelled:\d+,',
+          f'  consults: {{scheduled_mtd:{sched}, completed_mtd:{done}, '
+          f'upcoming:{upcoming}, cancelled:{cancelled},',
+          "consults")
+
+    if rev.get("collected") is not None:
+        b.sub(r'(    revenue:\{mtd:)[\d.]+(, as_of:")[^"]*(", source:"hint", basis:")[^"]*(")',
+              lambda m: (f'{m.group(1)}{float(rev["collected"]):.2f}{m.group(2)}{as_of}'
+                         f'{m.group(3)}payments collected in Hint this month '
+                         f'({int(rev.get("payments_count", 0))} payments; exporter reports '
+                         f'amount_in_cents, cents_assumed='
+                         f'{str(bool(rev.get("cents_assumed"))).lower()} \u2192 dollars)'
+                         f'{m.group(4)}'),
+              "finance.revenue")
+
+    if lsa:
+        b.sub(r'(\n[ ]+patients_attributed:)\d+(,)',
+              lambda m: f'{m.group(1)}{int(lsa.get("patients_attributed", 0))}{m.group(2)}',
+              "lsa.patients_attributed")
+
+    b.sub(r'const DATA_VERSION = "[^"]*";',
+          f'const DATA_VERSION = "{new_ver}";', "DATA_VERSION")
+    b.sub(r'  baked_at: "[^"]*",', f'  baked_at: "{baked_at}",', "baked_at")
+
+    # ---- report -------------------------------------------------------------
+    if b.fail:
+        print("ABORT - file NOT modified. The dashboard's shape drifted from what this\n"
+              "script expects; fix the pattern rather than hand-editing the numbers:\n",
+              file=sys.stderr)
+        for f in b.fail:
+            print(f"  FAIL  {f}", file=sys.stderr)
+        return 3
+
+    print(f"feed      {feed_path}")
+    print(f"generated {feed.get('generated_at')}  ->  as_of {as_of}")
+    print(f"period    {period}")
+    print(f"version   {cur_ver}  ->  {new_ver}\n")
+
+    substantive = [e for e in b.edits if e[0] not in ("DATA_VERSION", "baked_at")]
+    if not substantive and not args.force:
+        print("No feed-derived changes - the dashboard already matches the feed.\n"
+              "Nothing written (a DATA_VERSION bump alone would force every browser to\n"
+              "reseed localStorage for no reason). Use --force to bump anyway.")
+        # BUGFIX 2026-07-29: this used to `return 0` right here, which made --push
+        # unreachable whenever the file was already current. Result: bake (no --push)
+        # then `--push` = local file baked, hosted copy never updated, silently.
+        # A no-op bake with --push must still publish what is on disk.
+        if args.push and not args.dry_run:
+            print("\n--push given: nothing to re-bake, but publishing the file already\n"
+                  "on disk in case an earlier bake never reached the host.")
+            return do_push()
+        return 0
+
+    for label, before, after in b.edits:
+        print(f"  ~ {label}")
+        for line in before.splitlines():
+            print(f"      - {line.strip()}")
+        for line in after.splitlines():
+            print(f"      + {line.strip()}")
+
+    print("\n-- headline --")
+    print(f"  active concierge (North Star) : {act_c}   [+ so {act_s}]")
+    print(f"    from {mem_objects} membership objects, {multi} of them two-person")
+    print(f"  new {month_name} members         : {new_c} concierge + {new_s} so = {new_total}")
+    print(f"  terminations this month       : {int(term.get('total', 0))}")
+    print(f"  unpaid (concierge/so)         : {int(unpaid.get('concierge', 0))}/"
+          f"{int(unpaid.get('so', 0))}   unconfirmed: {unconf}")
+    print("    NOTE: unpaid/pending/unconfirmed come from reconciliation_by_status,")
+    print("    which counts membership OBJECTS. A couple in one of those states reads")
+    print("    as 1, not 2. Active counts are per PERSON. Do not compare them 1:1.")
+
+    for w in (feed.get("warnings") or []):
+        print(f"  !  feed warning: {w}")
+
+    if args.dry_run:
+        print("\n--dry-run: nothing written.")
+        if args.push:
+            print("--push ignored under --dry-run.")
+        return 0
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    bak = TARGET.with_name(f"{TARGET.name}.bak-{stamp}")
+    bak.write_text(raw, encoding="utf-8", newline="")
+    out = b.s.replace("\n", "\r\n") if crlf else b.s
+    TARGET.write_text(out, encoding="utf-8", newline="")
+    print(f"\nBAKED  {TARGET.name}  ({len(out)} bytes)")
+    print(f"backup {bak.name}")
+
+    if args.push:
+        return do_push()
+    print("\nNot pushed. To publish:  py push_hosted_dashboard.py")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

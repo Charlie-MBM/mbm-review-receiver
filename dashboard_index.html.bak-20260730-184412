@@ -318,7 +318,7 @@ const AHREFS = "mcp__251f7265-d61c-4518-9e56-a66aaf47914f__";
 const ZAPIER = "mcp__25e489ea-9c54-494e-8164-97c5a40fa209__execute_zapier_write_action";
 const GA4 = { property:"properties/513547844" };
 const GADS_ACCOUNT = "1167880168";
-const DATA_VERSION = "2026-07-31i";
+const DATA_VERSION = "2026-07-30d";
 /* Hint deep links. NO patient ids ever appear in this file - these are list views
    only, so the hosted copy stays free of PHI (Cloudflare is not BAA-covered).
    past-due view is a SUPERSET of unpaid memberships: it lists every past-due
@@ -329,20 +329,20 @@ const HINT_PATIENTS_URL = "https://app.hint.com/patients";
 
 /* ---------- SNAPSHOT: every number verified against its source 2026-07-16 ---------- */
 const SNAPSHOT = {
-  baked_at: "2026-07-31T16:45Z",
+  baked_at: "2026-07-30T16:45Z",
   period: "2026-07",
   sources: {
-    hint:   {as_of:"2026-07-31T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
-    ga4:    {as_of:"2026-07-31T16:45Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
-    gads:   {as_of:"2026-07-31T16:45Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
+    hint:   {as_of:"2026-07-30T16:15Z", cadence_h:26,  label:"Hint (members & consults)", how:"daily 9:15am poller → members_feed.json (v2 feed: active_members + terminations_mtd)"},
+    ga4:    {as_of:"2026-07-30T16:45Z", cadence_h:26,  label:"GA4 (visits & taps)", how:"Data API runReport, MTD"},
+    gads:   {as_of:"2026-07-30T16:45Z", cadence_h:26,  label:"Google Ads", how:"GAQL v21, true MTD"},
     gsc:    {as_of:"2026-07-16T00:00Z", cadence_h:192, label:"Search Console", how:"weekly; settles 2-3 days late"},
     ahrefs: {as_of:"2026-07-27T16:20Z", cadence_h:192, label:"Ahrefs (DR/links)", how:"Ranks: Rank Tracker API (project 9915753, mobile, 0 units). DR/links: Chrome read of Ahrefs web UI (Site Explorer needs units; trial limit 0)"},
-    gbp:    {as_of:"2026-07-31T16:45Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
+    gbp:    {as_of:"2026-07-30T16:45Z", cadence_h:32,  label:"GBP (profile actions)", how:"Performance API via Zapier raw GET, location 3763111265482720361; Google lags 2-3 days"},
     meta:   {as_of:"2026-07-27T16:31Z", cadence_h:192, label:"Meta Ads", how:"weekly Ads Manager pull (Chrome); trailing-30 window, excluded from MTD"},
     nextdoor:{as_of:"2026-07-20T13:01Z", cadence_h:192, label:"Nextdoor", how:"weekly Ads Manager pull (Chrome), since-launch window"},
-    lsa:    {as_of:"2026-07-31T16:45Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"},
-    qb:     {as_of:"2026-07-31T16:44Z", cadence_h:32,  label:"QuickBooks (costs)", how:"P&L total expenses MTD via QuickBooks connector (MBM Services, Inc.)"},
-    kit:    {as_of:"2026-07-31T16:45Z", cadence_h:32,  label:"Kit (checklist signups)", how:"v4 API: form subscribers created MTD (Perimenopause Checklist form 9467856)"},
+    lsa:    {as_of:"2026-07-30T16:45Z", cadence_h:24,  label:"LSA (Local Services)", how:"local_services_lead GAQL v21, MTD by creation_date_time"},
+    qb:     {as_of:"2026-07-28T16:48Z", cadence_h:32,  label:"QuickBooks (costs)", how:"P&L total expenses MTD via QuickBooks connector (MBM Services, Inc.)"},
+    kit:    {as_of:"2026-07-30T16:45Z", cadence_h:32,  label:"Kit (checklist signups)", how:"v4 API: form subscribers created MTD (Perimenopause Checklist form 9467856)"},
   },
   members: {
     // FEED-BAKED active totals — first populated 2026-07-17 by the upgraded exporter
@@ -355,123 +355,32 @@ const SNAPSHOT = {
     // Feed status histogram this run: active 49 / ended 9 / pending 2 / unpaid 1
     // (49 active memberships = 37 countable objects + 11 F&F + 1 test excluded;
     //  those 37 objects carry 42 paying people — 5 of them are two-person memberships).
-    active: {concierge:23, so:21, as_of:"2026-07-31T16:15Z", source:"hint"},
+    active: {concierge:21, so:21, as_of:"2026-07-30T16:15Z", source:"hint"},
     /* Hint-badge reconciliation (from feed active_members.reconciliation_by_status —
        refresh task copies it forward each bake). Explains "Hint shows 17, dashboard
        shows 14": badges count memberships in EVERY status; the North Star counts
        status-active, non-comp, non-test only. unpaid_concierge is a REAL patient
        whose membership is live but not paying — billing follow-up, alerted below. */
-    active_recon: {as_of:"2026-07-31T16:15Z", unpaid_concierge:1, pending_concierge:2,
+    active_recon: {as_of:"2026-07-30T16:15Z", unpaid_concierge:0, pending_concierge:2,
                    unpaid_so:1, unconfirmed_total:0,
                    comp_active:11, test_active_excluded:1},
     goal_concierge: 300,
-    new_paid: {concierge:6, so:5},   // July MTD, created_at basis, per patient; Hint-active OR card on file
-    pending:  {concierge:5, so:0, total:5},
+    new_paid: {concierge:4, so:5},   // July MTD, created_at basis, per patient; Hint-active OR card on file
+    pending:  {concierge:4, so:0, total:4},
     // Terminations MTD (end-date-in-month, PAYING members only; nurture/reconcile
     // cancels, never-paid pendings and comps/F&F excluded). Net growth = adds − terms.
     terminations_mtd: {concierge:0, so:0, total:0},
     basis: "signup date (created_at); counted PER PATIENT (a couple = 2); membership is Hint-active OR has a payment method on file; Friends & Family comps excluded",
-    source_mix: {google:4, google_ads:0, google_lsa:0, bing:0, ai:0, social:0, nextdoor:0, provider_referral:0, word_of_mouth:0, other:7},
-    lead_source_gap: "4 of 11 July members map to Google in Hint Lead Source; 7 fall in 'other' (unrecorded or off-channel). Lead Source at signup still the gap."
+    source_mix: {google:4, google_ads:0, google_lsa:0, bing:0, ai:0, social:0, nextdoor:0, provider_referral:0, word_of_mouth:0, other:5},
+    lead_source_gap: "4 of 9 July members map to Google in Hint Lead Source; 5 fall in 'other' (unrecorded or off-channel). Lead Source at signup still the gap."
   },
   /* v2026-07-16c correction carried forward: consults now come from the feed's
      booked_mtd_running_tally (erasure-proof tally), which read 10 vs the 30-min-slot
      heuristic's 14 (kept in the feed as consults_legacy_30min for comparison). */
-  /* `upcoming` was FABRICATED until 2026-07-31 (Charlie caught it: the tile claimed
-     "17 upcoming" consults that do not exist). It rendered scheduled_mtd - completed_mtd
-     = 25 - 8 = 17, SUBTRACTING TWO INCOMPATIBLE BASES:
-       scheduled_mtd = the erasure-proof running tally = consults BOOKED this month, on a
-         BOOKING-DATE basis, whenever the appointment itself falls.
-       completed_mtd = an APPOINTMENT-DATE basis count of July appointments whose non-staff
-         attendee is still a Contact.
-     The exporter reports occurred == scheduled == 8 for July (export_dashboard_members.py
-     ~line 1007), i.e. every consult that FELL in July had already happened - ZERO were
-     still pending in-window. The 17 was dominated by prospects who ENROLLED, because Hint
-     deletes the Contact attendee on enrollment - the exact erasure the running tally exists
-     to defeat. It was never a queue of people still to come.
-     upcoming is now null = NOT MEASURED (zero != null, DASHBOARD_METRICS.md 0.4). A real
-     upcoming count needs a future-dated appointment query added to the laptop exporter;
-     it cannot be derived from anything already in the feed. */
-  /* `completed_mtd` IS NOT "CONSULTS HELD" (corrected 2026-07-31, Charlie caught it:
-     James's calendar showed ~8 free consults in the WEEK of Jul 26 alone, against a tile
-     claiming 8 for the whole month). consult_count.is_consult_booking() matches an
-     appointment ONLY IF its non-staff attendee has NO patient id - i.e. is still a
-     Contact. Hint assigns a patient id at ENROLLMENT, so a consult DISAPPEARS from both
-     `occurred` and `scheduled` the moment that prospect signs up. `completed_mtd` is
-     therefore a RESIDUAL: July consults whose prospect has NOT enrolled. It shrinks as
-     conversion improves - reading it as throughput inverts its meaning.
-     CONSULTS HELD IS NOT MEASURABLE FROM HINT after the fact. The operational source of
-     truth is the "Free Consult" blocks on James's Google Calendar; counting those needs a
-     laptop-side job (PHI: aggregate count only, never through Cowork).
-     `scheduled_mtd` (25) = the daily running tally, booking-date basis, which defeats the
-     erasure ONLY for prospects who had not enrolled by the time that day's scan ran; a
-     same-day book-and-enroll can still slip through it. Treat 25 as a floor. */
-  /* *** THE CONSULT TALLY IS STRUCTURALLY BROKEN SINCE THE 2026-07-18 BOOKING CUTOVER ***
-     (root-caused 2026-07-31 after Charlie flagged the counts). MBM Book does an INSTANT
-     HINT PATIENT-CREATE at booking (mbm-book-ops: "Hint (BAA) gets an instant
-     patient-create"). consult_count.is_consult_booking() only matches an appointment whose
-     non-staff attendee has patient.id == None. A patient id now exists from the MOMENT OF
-     BOOKING, so post-cutover consults are NEVER counted - not "erased on enrollment",
-     never seen at all. DASHBOARD_METRICS.md flagged exactly this as cutover checklist item
-     (d)/(e) on 2026-07-18 and it was never actioned.
-     EVIDENCE, consult_count_state.json booking dates, 2026-07-31:
-       Jul 1-17 (pre-cutover, 17d):  10 counted  (0.59/day)
-       Jul 18-31 (post-cutover,14d):  2 counted  (0.14/day)
-       + 13 undated legacy entries that are no longer healing (they no longer match)
-     James's calendar shows ~6 Free Consult blocks in the WEEK of Jul 26 alone (~1/day),
-     so the tally is capturing roughly a seventh of reality post-cutover.
-     => `scheduled_mtd` is NOT COMPARABLE ACROSS 2026-07-18 and is not a floor for the
-     post-cutover period in any useful sense. Fix requires either (a) counting the
-     Free Consult blocks on James's Google Calendar laptop-side, or (b) re-writing
-     is_consult_booking to identify consults by appointment TYPE/title rather than by the
-     attendee lacking a patient id. Until then the tile carries an on-face warning. */
-  consults: {scheduled_mtd:25, completed_mtd:8, upcoming:null, cancelled:3,
-             completed_mtd_is_residual:true,
-             broken_since:"2026-07-18",
-             tally_pre_cutover:10, tally_post_cutover:2,
-             break_reason:"MBM Book instant Hint patient-create defeats is_consult_booking()'s Contact-attendee rule",
-             superseded_by:"consults_gcal",
+  consults: {scheduled_mtd:25, completed_mtd:8, upcoming:17, cancelled:3,
              rule:"erasure-proof running tally of consults booked this month (supersedes the 30-min-slot heuristic, which over-read 13)"},
-  /* GOOGLE CALENDAR CONSULTS - the replacement metric (consult_count_gcal.py, run
-     2026-07-31). The calendar is authoritative: Hint now receives only a generic busy
-     block and carries no consult identity at all.
-     *** WINDOW: 2026-07-18 ONWARD ONLY - THIS IS NOT A JULY TOTAL. ***
-     The run's booked-by-day histogram starts at 07-18 and has ZERO entries before it:
-     pre-cutover consults were booked in Hint and never landed on the calendar as
-     "Free Consult" blocks, so they are invisible to this counter. booked(12) ==
-     held(8) + upcoming(4) exactly, confirming every consult the calendar can see was
-     booked post-cutover.
-     Jul 1-17 is covered only by Hint's residual (8), which is itself an undercount
-     (it drops anyone who enrolled). So JULY HAS NO SINGLE TRUSTWORTHY TOTAL and the
-     two numbers must never be added as if they were one series - they are different
-     bases over different windows. AUGUST IS THE FIRST CLEAN MONTH.
-     channel split comes from the Worker's own extendedProperties.private.channel;
-     staff-phone = booked by Charlie/James on /book-beta?staff=1 for a caller. Never
-     split on the source=mbm-book tag - staff bookings carry it too. */
-  consults_gcal: {window_start:"2026-07-18", window_end:"2026-07-31",
-    booked:12, held:8, upcoming:4, upcoming_window_days:60,
-    self_serve_web:9, staff_phone:2, legacy_manual:1,
-    /* ATTRIBUTION (consult_count_gcal.py, run 2026-07-31). The lead-source CHIP is a
-       self-report and wins over derived metadata; click ids are the fallback.
-       11 of 12 bookings carry a self-report = 92% capture, against 4 of 11 for the
-       same month in Hint. The booking page's chip has effectively closed the
-       lead-source gap this doc has flagged since 2026-07-16.
-       paid_google_booked (3) > booked_by_source["Google Ads"] (2) on purpose: one
-       booking carries a hard Google click id but the caller self-reported a different
-       origin. Both are true (the ad was the last click; the chip is where demand
-       started) and they answer different questions. AD EFFICIENCY uses the click
-       evidence, so paid_google_booked is the CPA denominator. */
-    paid_google_booked:3,
-    booked_by_source:{"Google":4,"Google Ads":2,"Nextdoor":1,"Word of mouth":1,
-                      "Other":1,"AI":1,"Social media":1,"unattributed":1},
-    selfreported_total:11,
-    phone_booked_by_source:{"Other":1,"Google":1},
-    held_by_type:{general:7, ketamine:1},
-    upcoming_by_type:{general:3, hrt:1},
-    ads_spend_window:339.62,   // Google Ads Jul 18-31, GAQL v21, same window as `booked`
-    as_of:"2026-07-31T17:45Z", source:"google-calendar (consult_count_gcal.py)"},
   funnel_mtd: {
-    visits:2119, taps_booking:197, taps_phone:9, handoffs:60,
+    visits:2003, taps_booking:194, taps_phone:9, handoffs:51,
     /* TAP METRICS ARE PEOPLE-FIRST AS OF 2026-07-29.
        taps_booking / taps_phone / taps_src are GA4 eventCount. booking_click
        double-fired on every tap (capture-phase listener + the CTA onClick) through
@@ -485,17 +394,17 @@ const SNAPSHOT = {
        guess, and the inflation was not uniform per day or per channel.
        null = NOT YET PULLED (zero != null, DASHBOARD_METRICS.md 0.4). The daily
        refresh task fills these; see mbm_daily_task_prompt.txt step 2. */
-    taps_booking_people:93, taps_phone_people:6,
-    visits_src:{organic:449, direct:513, google:143, meta:882, other:132},
-    taps_src:{organic:86, direct:17, google:33, meta:43, other:27},
+    taps_booking_people:90, taps_phone_people:6,
+    visits_src:{organic:430, direct:483, google:139, meta:825, other:126},
+    taps_src:{organic:85, direct:17, google:32, meta:42, other:27},
     /* totalUsers for booking_click+phone_click per sessionDefaultChannelGroup.
        NOT summable to a monthly unique total (one person can appear in two
        channels) - the deduped monthly figure is users.tappers below. */
-    taps_src_people:{organic:36, direct:10, google:20, meta:23, other:12},
+    taps_src_people:{organic:34, direct:10, google:17, meta:22, other:12},
     /* UNIQUE PEOPLE (GA4 totalUsers, deduped across booking+phone) — verified 2026-07-17
        after Charlie caught the "64 people" mislabel: taps are EVENTS (~1.9/person).
        Refresh alongside the event counts (see DASHBOARD_METRICS.md §1 funnel). */
-    users: {tappers:96, handoff:39, booking_channel:68, as_of:"2026-07-31",
+    users: {tappers:93, handoff:35, booking_channel:43, as_of:"2026-07-30",
             note:"GA4 totalUsers = unique browsers/devices; cross-device may double-count. booking_channel = deduped people who reached the Hint page OR tapped phone (phone-first bookers count: phone-only people this month)"},
     /* ON-SITE booking flow (/book-beta, cutover 2026-07-18). EVERY stage carries
        BOTH counts: <stage>_events (GA4 eventCount) and <stage>_people (totalUsers).
@@ -504,14 +413,14 @@ const SNAPSHOT = {
        clicks_events is INFLATED ~2.31× for everything before 2026-07-28 (capture-phase
        listener + onClick both fired; fixed in commit 2529b3c) — this MTD series is NOT
        comparable across that date. booking_unavailable shipped 2026-07-28: no data yet. */
-    booking: {clicks_events:197,          clicks_people:93,
-              starts_events:118,          starts_people:64,
-              step1_events:33,            step1_people:15,
-              step2_events:25,            step2_people:12,
-              completes_events:16,        completes_people:9,
-              completes_server_events:24, completes_server_people:11,
+    booking: {clicks_events:194,          clicks_people:90,
+              starts_events:108,          starts_people:58,
+              step1_events:30,            step1_people:13,
+              step2_events:22,            step2_people:10,
+              completes_events:14,        completes_people:8,
+              completes_server_events:20, completes_server_people:10,
               unavailable_events:null,    unavailable_people:null,
-              as_of:"2026-07-31"},
+              as_of:"2026-07-30"},
     /* GROUND TRUTH, GA4-verified live 2026-07-28 for the post-cutover window.
        This block — not the MTD one — drives the rendered funnel: 49 people tapped →
        49 reached the booking page (1:1, there is NO click-to-page leak) → 10 picked a
@@ -519,24 +428,24 @@ const SNAPSHOT = {
        booking_complete_server is AUTHORITATIVE; the client-side booking_complete
        undercounts because ad blockers suppress it (11 events/7 people vs 14/8). */
     booking_since_cutover: {
-      window_start:"2026-07-18", window_end:"2026-07-30", as_of:"2026-07-31",
-      visitors_people:1208,       visitors_events:1315,  // totalUsers / sessions, all traffic, same window (GA4 2026-07-30)
-      clicks_events:127,          clicks_people:59,
-      starts_events:112,          starts_people:63,
-      form_start_events:29,       form_start_people:19,
-      step1_events:27,            step1_people:14,
-      step2_events:19,            step2_people:11,
-      completes_server_events:22, completes_server_people:11,
-      completes_events:14,        completes_people:9,
+      window_start:"2026-07-18", window_end:"2026-07-29", as_of:"2026-07-30",
+      visitors_people:1118,       visitors_events:1215,  // totalUsers / sessions, all traffic, same window (GA4 2026-07-30)
+      clicks_events:124,          clicks_people:56,
+      starts_events:103,          starts_people:58,
+      form_start_events:28,       form_start_people:18,
+      step1_events:25,            step1_people:13,
+      step2_events:17,            step2_people:10,
+      completes_server_events:18, completes_server_people:10,
+      completes_events:12,        completes_people:8,
       unavailable_events:null,    unavailable_people:null,
-      portal_open_events:8,       portal_open_people:5,
+      portal_open_events:7,       portal_open_people:4,
       phone_click_events:3,       phone_click_people:3,
-      lead_submit_events:2,       lead_submit_people:2,
-      page_views:109,             page_users:64
+      lead_submit_events:1,       lead_submit_people:1,
+      page_views:102,             page_users:59
     }
   },
   daily: { // Jul 1..28 (through yesterday) — feeds the chart + anomaly detectors
-    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16","07-17","07-18","07-19","07-20","07-21","07-22","07-23","07-24","07-25","07-26","07-27","07-28","07-29","07-30"],
+    dates:["07-01","07-02","07-03","07-04","07-05","07-06","07-07","07-08","07-09","07-10","07-11","07-12","07-13","07-14","07-15","07-16","07-17","07-18","07-19","07-20","07-21","07-22","07-23","07-24","07-25","07-26","07-27","07-28","07-29"],
     /* taps = booking_click+phone_click EVENTS per day. Every day up to and
        including 2026-07-28 is inflated ~2.31x by the booking_click double-fire
        (fixed 2529b3c), so this series is not comparable across that date and must
@@ -545,23 +454,23 @@ const SNAPSHOT = {
        it. Daily uniques do NOT sum to the monthly unique total. null until the
        daily task backfills it - GA4 can still be re-queried for the whole month,
        so this history is recoverable, not lost. */
-    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,11,4,18,10,11,6,19,4,5,5,19,20,7,3,3],
-    taps_people:[2,3,0,1,0,2,1,1,3,6,4,3,4,1,3,4,3,4,5,7,3,8,2,4,3,7,9,4,3,3],
-    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,8,2,4,1,1,0,1,2,0,0,0,2,1,0,1],
-    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,16,8,6,4,19,13,8,8,6,3,5,10,9,11,3],
-    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,3,0,3,3,1,1,0],
-    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0,0,0,1,0,1,1,3,0,3,3,1,1,0]
+    taps:[5,4,0,1,0,3,2,2,6,9,11,5,7,1,5,11,4,18,10,11,6,19,4,5,5,19,20,7,3],
+    taps_people:[2,3,0,1,0,2,1,1,3,6,3,3,4,1,3,4,3,4,5,7,3,8,2,4,3,6,9,4,3],
+    handoffs:[2,3,0,1,0,3,1,1,3,7,5,2,4,1,3,7,2,4,0,1,0,1,0,0,0,0,0,0,0],
+    ads_clicks:[15,15,9,9,11,20,18,7,20,15,3,7,13,11,12,16,8,6,4,19,13,8,8,6,3,5,10,9,11],
+    ads_conv_primary:[1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,1,1,3,0,3,3,1,1],
+    ads_conv_ga4_all:[1,1,0,1,0,0,0,0,0,1,0,1,1,0,0,1,0,0,0,1,0,1,1,3,0,3,3,1,1]
   },
   gads: {
-    mtd:{spend:964.38, impressions:4122, clicks:318, conv_primary:16, conv_ga4_all:21},
+    mtd:{spend:955.54, impressions:3993, clicks:309, conv_primary:16, conv_ga4_all:21},
     campaigns_mtd:[
-      {name:"IV & NAD | Bellingham | Search", spend:364.30, impr:672, clicks:66, conv:10},
-      {name:"Concierge Medicine | Bellingham | Search", spend:318.62, impr:2866, clicks:192, conv:5},
-      {name:"Ketamine Relaunch | Bellingham | Search", spend:200.76, impr:187, clicks:24, conv:1},
+      {name:"IV & NAD | Bellingham | Search", spend:358.90, impr:655, clicks:65, conv:10},
+      {name:"Concierge Medicine | Bellingham | Search", spend:315.18, impr:2807, clicks:187, conv:5},
+      {name:"Ketamine Relaunch | Bellingham | Search", spend:200.76, impr:168, clicks:24, conv:1},
       {name:"Branded | Bellingham | Search", spend:60.83, impr:321, clicks:32, conv:0},
       {name:"Perimenopause | Bellingham | Search", spend:19.87, impr:42, clicks:1, conv:0}
     ],
-    local_actions_mtd:{calls:14, directions:30, website:33, other:55},
+    local_actions_mtd:{calls:14, directions:24, website:30, other:51},
     incident:{
       what:"GA4-imported booking_click/phone_click were demoted from PRIMARY to secondary ~Jul 1, so the Conversions column read 0 for 14 days while the actions showed ENABLED. The import itself never broke — real conversions kept landing in All conversions.",
       fixed:"2026-07-16 via API: both actions restored to primary. Expect the Conversions column to populate from ~Jul 17.",
@@ -582,7 +491,7 @@ const SNAPSHOT = {
      the campaign-spend feed automatically (FROM campaign has no type filter — verified
      live: the LOCAL_SERVICES campaign appears in that query with cost_micros 0). */
   lsa: {leads_phone_mtd:0, leads_message_mtd:0, leads_charged_mtd:0, leads_credited_mtd:0,
-        spend_mtd:0, as_of:"2026-07-31",
+        spend_mtd:0, as_of:"2026-07-30",
     /* LSA TEST — kill/keep decision tracker (NOT a KPI trend: no arrows, no rates).
        Cumulative since 2026-07-17, deliberately NOT MTD — the test window crosses
        month boundaries. Refresh contract (DASHBOARD_METRICS.md §1):
@@ -607,11 +516,11 @@ const SNAPSHOT = {
      never $0, while unwired. QB expenses LAG manual entry/categorization - the
      widget says so. No trend arrows; month is partial until EOM. */
   finance: {month:"2026-07",
-    revenue:{mtd:9427.00, as_of:"2026-07-31T16:15Z", source:"hint", basis:"payments collected in Hint this month (30 payments; exporter reports amount_in_cents, cents_assumed=true → dollars)"},
-    costs:{mtd:7837.25, as_of:"2026-07-31T16:44Z", source:"quickbooks", basis:"QuickBooks P&L total expenses, MTD (Medical & clinic supplies 2904.35, Rent & CAM 1944.85, Office/software 1355.92, Marketing & advertising 1352.31, Utilities 110.51, Travel/meals 92.32, Insurance 74.50, Bank/merchant fees 2.49)"},
+    revenue:{mtd:8837.00, as_of:"2026-07-30T16:15Z", source:"hint", basis:"payments collected in Hint this month (28 payments; exporter reports amount_in_cents, cents_assumed=true → dollars)"},
+    costs:{mtd:7128.52, as_of:"2026-07-28T16:48Z", source:"quickbooks", basis:"QuickBooks P&L total expenses, MTD (Medical supplies 2806.13, Rent 1944.85, Office/software 1355.92, Marketing 852.31, Travel/meals 92.32, Insurance 74.50, Fees 2.49)"},
     caveat:"QB costs lag entry/categorization; partial month until EOM. Net = collected revenue minus booked expenses - not GAAP, a pulse."},
-  kit: {checklist_signups_mtd:6, list_total:14, as_of:"2026-07-31T16:45Z",
-        note:"Perimenopause checklist form signups (Kit). 6 signups added this month (form 9467856); ad-driven share visible in GA4 via utm_campaign=perimenopause_checklist (Facebook/paid). list_total includes 8 internal/test subscribers from June setup."},
+  kit: {checklist_signups_mtd:7, list_total:15, as_of:"2026-07-30T16:45Z",
+        note:"Perimenopause checklist form signups (Kit). 7 signups added this month (form 9467856); ad-driven share visible in GA4 via utm_campaign=perimenopause_checklist (Facebook/paid). list_total includes 8 internal/test subscribers from June setup."},
   gsc: {
     latest_month:{month:"2026-06", clicks:206, impressions:7360, ctr:2.8, position:15.6},
     trend:[
@@ -642,7 +551,7 @@ const SNAPSHOT = {
    13 calls / 29 website clicks / 67 directions. Jul 1–15 = 11 / 11 / 51.
    Jul 14 had an anomalous 22 direction requests — remember at the Aug 6 readout. */
 SNAPSHOT.gbp_perf = {calls:17, website_clicks:41, direction_requests:67,
-  window:"Jul 1–31", as_of:"2026-07-31", source:"GBP Performance API",
+  window:"Jul 1–29", as_of:"2026-07-30", source:"GBP Performance API",
   june_baseline:{calls:13, website_clicks:29, direction_requests:67}};
 /* GBP → site attribution: GA4 events where sessionMedium == "gbp" (the profile's
    website link was already UTM-tagged ?utm_source=google&utm_medium=gbp — verified
@@ -669,15 +578,15 @@ SNAPSHOT.gbp_attrib = {sessions:36, users:29, taps:4, handoffs:1, as_of:"2026-07
    data, but read it against members_unrecorded: a 0 usually means "not attributed",
    not "no members". Hint's "Google" bucket does NOT split paid search vs organic, so
    those members sit on the Google Ads row with that caveat. members_as_of = feed time. */
-SNAPSHOT.channel_econ = { as_of:"2026-07-31", chan_people_as_of:"2026-07-31",
-  members_as_of:"2026-07-31T16:15Z", members_recorded:4, members_unrecorded:7, rows:[
-  {ch:"Organic search", spend:0,      window:"—",                    taps:86, taps_people:36, chan_people:17, members:null, consults:4, consults_window:"Jul 18–31", note:"strongest feeder, $0 marginal. 4 consults self-reported 'Google' with NO paid click id — organic, or an ad click whose id was lost in transit; this row and Google Ads can't be cleanly separated for those."},
-  {ch:"Google Ads (paid search)", spend:964.38, window:"MTD",        taps:33, taps_people:20, chan_people:10,  members:4, consults:3, consults_floor:true, consults_window:"Jul 18–31", spend_consult_window:339.62, note:"$/consult uses Jul 18–31 spend ($339.62) ÷ 3 consults carrying hard paid-click evidence — NOT the 12 all-source consults (that would read $28 and flatter the account ~4×). A 4th booking self-reported a non-Google origin while carrying a Google click id; counted here for ad efficiency, and also on its self-reported row. Ad-driven PHONE calls stay uncredited: the staff page strips click ids, so this is a floor."},
-  {ch:"Meta (paid social)", spend:193.60, window:"Jun 27–Jul 26 trailing", taps:43, taps_people:23, chan_people:6, members:0, consults:1, consults_window:"Jul 18–31", note:"1 consult self-reported 'Social media'. No $/consult: the trailing-30 spend window does not line up with the Jul 18–31 consult window, and mixing them would invent a number. Weekly Ads Manager pull 2026-07-27: $193.60 across 3 delivering campaigns (prior frozen state cleared). Trailing-30 window ≠ MTD; treat $/person as approximate. LPV, not leads.", warn:true},
+SNAPSHOT.channel_econ = { as_of:"2026-07-30", chan_people_as_of:"2026-07-30",
+  members_as_of:"2026-07-30T16:15Z", members_recorded:4, members_unrecorded:5, rows:[
+  {ch:"Organic search", spend:0,      window:"—",                    taps:85, taps_people:34, chan_people:17, members:null, note:"strongest feeder, $0 marginal"},
+  {ch:"Google Ads (paid search)", spend:955.54, window:"MTD",        taps:32, taps_people:17, chan_people:10,  members:4, note:"phone-heavy (search intent calls); 4 July members self-reported 'Google' in Hint — not split paid vs organic, so could be organic. July handicapped by the conversion-goal misconfig, fixed 7/16 — conversions now flowing again"},
+  {ch:"Meta (paid social)", spend:193.60, window:"Jun 27–Jul 26 trailing", taps:42, taps_people:22, chan_people:6, members:0, note:"weekly Ads Manager pull 2026-07-27: $193.60 across 3 delivering campaigns (prior frozen state cleared). Trailing-30 window ≠ MTD; treat $/person as approximate. LPV, not leads.", warn:true},
   {ch:"Direct", spend:0, window:"—",                                 taps:17, taps_people:10, chan_people:8,  members:null, note:"includes people returning after seeing MBM elsewhere"},
   {ch:"GBP (profile link)", spend:0, window:"—",                     taps:6,  taps_people:3, chan_people:1,  members:null, note:"UTM-attributed; badly undercounts — 17 profile CALLS + 62 direction requests this month bypass the site entirely"},
-  {ch:"Nextdoor", spend:118.58, window:"since Jul 8 launch", taps:8, taps_people:5, chan_people:0, members:0, consults:1, consults_window:"Jul 18–31", note:"1 consult self-reported 'Nextdoor' — the channel's first. No $/consult: spend window (since Jul 8, stale from 07-20) doesn't align with the consult window. Spend/impr/clicks held from 07-20 (Ads Manager stuck loading 07-27). UTM tags LIVE - GA4 shows 30 nextdoor/paid sessions MTD (up from 5); no pixel so chan_people unknown."},
-  {ch:"LSA (Local Services)", spend:0, window:"—",                   taps:0,  taps_people:0, chan_people:0,  members:0, consults:0, note:"pay-per-lead; PAUSED — first paid entrant play, see LSA task. Leads arrive as forwarded phone/message contacts, not GA4 taps, so this row stays 0/0 here until go-live"}
+  {ch:"Nextdoor", spend:118.58, window:"since Jul 8 launch", taps:8, taps_people:5, chan_people:0, members:0, note:"Spend/impr/clicks held from 07-20 (Ads Manager stuck loading 07-27). UTM tags LIVE - GA4 shows 30 nextdoor/paid sessions MTD (up from 5); no pixel so chan_people unknown."},
+  {ch:"LSA (Local Services)", spend:0, window:"—",                   taps:0,  taps_people:0, chan_people:0,  members:0, note:"pay-per-lead; PAUSED — first paid entrant play, see LSA task. Leads arrive as forwarded phone/message contacts, not GA4 taps, so this row stays 0/0 here until go-live"}
 ]};
 const GBP_LOCATION_ID = "3763111265482720361"; // from business.google.com URL (#mpd=~<id>)
 /* LSA go-live date. NULL until the Local Services campaign is un-paused. Every LSA
@@ -902,11 +811,7 @@ function renderNorthStar(){
   const t=spendMTD(period);
   const newTot=(+ms.concierge||0)+(+ms.so||0);
   const cpm=newTot>0? t.spend/newTot : null;
-  /* Cost per consult deliberately does NOT live here any more (2026-07-31, Charlie).
-     Ad efficiency belongs in the channel-economics table, where each channel's spend
-     is divided by ITS OWN attributed consults. Dividing Google Ads spend by consults
-     from every source is not a paid CPA - it flatters the ad account by counting
-     organic, direct and GBP consults as if the ads produced them. */
+  const cpc2=(ch&&ch.scheduled_mtd>0)? t.spend/ch.scheduled_mtd : ((ch&&ch.scheduled>0)? t.spend/ch.scheduled:null);
 
   let actHtml, actExtra="", actAsof="";
   if(act && act.concierge!=null){
@@ -929,37 +834,18 @@ function renderNorthStar(){
     actExtra='<div class="small" style="margin-top:6px;line-height:1.6">Not wired yet: enter today\'s count in <b>Data Entry → Members</b> (one time). The Hint feed upgrade will take over automatically once the exporter update lands.</div>';
   }
   const schEl=(ch&&(ch.scheduled_mtd!=null||ch.scheduled!=null))?(ch.scheduled_mtd!=null?ch.scheduled_mtd:ch.scheduled):null;
-  /* Calendar consults supersede the Hint tally entirely (2026-07-31). Only used for the
-     current period - past months predate the cutover and keep their Hint numbers. */
-  const cgv=(SNAPSHOT.consults_gcal && period===SNAPSHOT.period)? SNAPSHOT.consults_gcal : null;
   const compEl=(ch&&(ch.completed_mtd!=null||ch.completed!=null))?(ch.completed_mtd!=null?ch.completed_mtd:ch.completed):null;
-  /* Tile body. Current period -> the Google Calendar metric (Hint can no longer see
-     consults at all). Past periods -> the legacy Hint wording, which was valid then. */
-  let consultBody;
-  if(cgv){
-    consultBody =
-      '<div class="small" style="margin-top:6px">booked '+escapeHtml(cgv.window_start)+' – '+escapeHtml(cgv.window_end)+' · <b>Google Calendar</b> (authoritative)</div>'+
-      '<div class="small" style="margin-top:4px"><b>'+fmtN(cgv.held)+'</b> held · <b>'+fmtN(cgv.upcoming)+'</b> upcoming (next '+fmtN(cgv.upcoming_window_days)+'d)</div>'+
-      '<div class="small" style="margin-top:4px">'+fmtN(cgv.self_serve_web)+' self-serve · '+fmtN(cgv.staff_phone)+' staff phone · '+fmtN(cgv.legacy_manual)+' legacy</div>'+
-      '<div class="alert amber" style="margin-top:8px;font-size:12px">⚠<div><b>Jul 1–17 is not included.</b> Those consults were booked in Hint and never appear on the calendar as Free Consult blocks. Hint&rsquo;s own residual counted <b>8</b> for that stretch and is itself an undercount. <b>July has no single trustworthy total — never add the two.</b> August is the first clean month; the old Hint tally (25) is retired.</div></div>'+
-      '<div class="small" style="margin-top:4px">the leading indicator — predicts joins ~4–8 weeks out</div>'+smallN();
-  } else {
-    consultBody =
-      '<div class="small" style="margin-top:6px">Hint tally (pre-2026-07-18 basis)</div>'+
-      '<div class="small" style="margin-top:4px">'+fmtN(compEl)+' with the prospect still un-enrolled — a residual, not throughput.</div>'+
-      '<div class="small" style="margin-top:4px">the leading indicator — predicts joins ~4–8 weeks out</div>'+smallN();
-  }
   document.getElementById("northstar").innerHTML =
     card("Active Concierge members", actHtml, actExtra, false, actAsof, true) +
     card("New members — "+periodShort(period), fmtN(newTot)+' <small>('+fmtN(ms.concierge)+'C / '+fmtN(ms.so)+'SO)</small>',
       ((mp&&mp.total)?'<div class="small" style="margin-top:6px">+ '+fmtN(mp.total)+' pending payment ('+fmtN(mp.concierge)+'C/'+fmtN(mp.so)+'SO)</div>':'')+
       '<div class="small" style="margin-top:4px">'+escapeHtml(SNAPSHOT.members.basis)+'</div>'+smallN(),
       hint.cls==="stale", "Hint · "+fmtAge(hint.ageH)) +
-    card("Booked consults — "+periodShort(period), fmtN(cgv?cgv.booked:schEl),
-      consultBody,
-      hint.cls==="stale", cgv?"Google Calendar · "+cgv.window_start:("Hint · "+fmtAge(hint.ageH))) +
+    card("Booked consults — "+periodShort(period), fmtN(schEl),
+      '<div class="small" style="margin-top:6px">'+fmtN(compEl)+' completed · '+fmtN(ch?ch.upcoming:null)+' upcoming</div><div class="small" style="margin-top:4px">the leading indicator — predicts joins ~4–8 weeks out</div>'+smallN(),
+      hint.cls==="stale", "Hint · "+fmtAge(hint.ageH)) +
     card("Cost per new member", fmtUSD(cpm),
-      '<div class="small" style="margin-top:6px">'+escapeHtml(t.note)+' ÷ all new members (blended)</div><div class="small" style="margin-top:4px">Cost per consult now lives in <b>Channel economics</b> — split by channel, against paid-attributed consults only.</div>'+smallN(),
+      '<div class="small" style="margin-top:6px">'+escapeHtml(t.note)+' ÷ all new members (blended)</div><div class="small" style="margin-top:4px">cost per booked consult: <b>'+fmtUSD(cpc2)+'</b></div>'+smallN(),
       false, "computed · spend "+fmtUSD(t.spend));
 }
 function periodShort(p){ const m=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]; const a=(p||"").split("-"); return a[1]?m[+a[1]-1]:""; }
@@ -1172,7 +1058,7 @@ function renderMemberSource(){
   // is relabelled because it is now genuinely the organic-only bucket: a booking
   // carrying a Google click id (gclid/gbraid/wbraid) or a paid utm_medium is
   // classified "Google Ads" server-side and never lands here.
-  const order=[["google","Google (organic)","#20713F"],["google_ads","Google Ads (paid)","#C9950C"],["google_gbp","Google Business Profile","#147A6F"],["google_lsa","Google Local Services","#8A4A7D"],["bing","Bing","#2C6FC4"],["ai","AI","#7059B3"],["social","Social media","#4A8DB5"],["nextdoor","Nextdoor","#96B41E"],["provider_referral","Provider/ER referral","#7A5A2E"],["word_of_mouth","Word of mouth","#61A879"],["other","Other / not recorded","#C2703F"]];
+  const order=[["google","Google (organic)","#20713F"],["google_ads","Google Ads (paid)","#C9950C"],["google_lsa","Google Local Services","#8A4A7D"],["bing","Bing","#2C6FC4"],["ai","AI","#7059B3"],["social","Social media","#4A8DB5"],["nextdoor","Nextdoor","#96B41E"],["provider_referral","Provider/ER referral","#7A5A2E"],["word_of_mouth","Word of mouth","#61A879"],["other","Other / not recorded","#C2703F"]];
   const tot=ms?order.reduce((a,c)=>a+(+ms[c[0]]||0),0):0;
   if(!ms||tot<=0){ el.innerHTML='<div class="fbar fbar-empty" style="width:100%">awaiting Hint lead-source data</div>'; if(legEl) legEl.innerHTML=''; return; }
   let bar=''; order.forEach(c=>{ const v=+ms[c[0]]||0; if(v>0) bar+='<span style="flex:'+v+';background:'+c[2]+'" title="'+c[1]+': '+v+'"></span>'; });
@@ -1238,16 +1124,9 @@ function renderPaid(){
   // channel economics table
   const ceEl=document.getElementById("chanEcon");
   if(ceEl && SNAPSHOT.channel_econ){
-    let ce='<table><thead><tr><th>Channel</th><th class="num">Spend</th><th>Window</th><th class="num">Booking/phone taps</th><th class="num">People → booking channel</th><th class="num">$ / person</th><th class="num">Consults</th><th class="num">$ / consult</th><th class="num">Members MTD</th><th>Read with care</th></tr></thead><tbody>';
+    let ce='<table><thead><tr><th>Channel</th><th class="num">Spend</th><th>Window</th><th class="num">Booking/phone taps</th><th class="num">People → booking channel</th><th class="num">$ / person</th><th class="num">Members MTD</th><th>Read with care</th></tr></thead><tbody>';
     SNAPSHOT.channel_econ.rows.forEach(r=>{
       const cpp=(r.spend>0 && r.chan_people>0)?(r.spend/r.chan_people):null;
-      /* Cost per CONSULT for this channel. Denominator = consults attributed to THIS
-         channel only (r.consults), never the all-source total. null renders "—"
-         rather than a number computed off the wrong denominator. */
-      /* Requires spend_consult_window - spend measured over the SAME dates as the
-         consult count. A row with only a full-month or trailing spend figure renders
-         "—" rather than dividing across mismatched windows (DASHBOARD_METRICS.md 0.3). */
-      const cpcRow=(r.consults>0 && r.spend_consult_window>0)?(r.spend_consult_window/r.consults):null;
       ce+='<tr><td><b>'+escapeHtml(r.ch)+'</b></td>'+
         '<td class="num">'+(r.spend>0?fmtUSD(r.spend):'<span style="color:var(--good);font-weight:600">$0</span>')+'</td>'+
         '<td class="small">'+escapeHtml(r.window)+'</td>'+
@@ -1259,12 +1138,10 @@ function renderPaid(){
           : fmtN(r.taps)+' <span class="small" style="color:var(--stale)">events</span>')+'</td>'+
         '<td class="num"><b>'+fmtN(r.chan_people)+'</b></td>'+
         '<td class="num">'+(cpp!=null?('<b style="color:'+(cpp>50?'var(--bad)':'var(--forest)')+'">'+(r.warn?'~':'')+fmtUSD(cpp)+'</b>'):(r.spend>0?'<span class="pos-none">—</span>':'<span style="color:var(--good)">free</span>'))+'</td>'+
-        '<td class="num">'+(r.consults!=null?('<b>'+fmtN(r.consults)+'</b>'+(r.consults_floor?'<br><span class="small" style="color:var(--stale)">floor</span>':'')):'<span class="pos-none">—</span>')+'</td>'+
-        '<td class="num">'+(cpcRow!=null?('<b style="color:'+(cpcRow>150?'var(--bad)':'var(--forest)')+'">≤'+fmtUSD(cpcRow)+'</b><br><span class="small" style="color:var(--stale)">'+escapeHtml(r.consults_window||'')+'</span>'):(r.spend>0?'<span class="pos-none">— <span class="small">window</span></span>':'<span style="color:var(--good)">free</span>'))+'</td>'+
         '<td class="num">'+(r.members!=null?('<b>'+fmtN(r.members)+'</b>'):'<span class="pos-none">—</span>')+'</td>'+
         '<td class="small">'+escapeHtml(r.note)+'</td></tr>';
     });
-    ce+='</tbody></table><div class="small" style="margin-top:8px;line-height:1.7"><b>Booking channel</b> = the person reached the Hint booking page OR tapped call — phone-first bookers count. Rows aren\'t summable (a person can cross channels). <b>Members MTD</b> = new paid members who self-reported that channel as their Hint Lead Source. Only 2 of 6 July members have a Lead Source set — both map to Hint\'s <b>Google</b> bucket, which does NOT split paid search vs organic, so they show on the Google Ads row but could be organic. The other 4 are <b>unrecorded</b>, so a <b>0 in this column means \'not attributed\', not \'no members from this channel\'</b>. Until Lead Source is captured at signup this column stays near-blind — that intake fix is the only durable channel→member truth, and it weighs nothing for intent quality (search intent historically closes better than social). Windows differ where marked; never compare Meta\'s trailing spend to MTD as if equal. GBP\'s 17 profile calls live outside GA4 and can\'t be deduped into these counts. <b>Consults / $ per consult:</b> the consult count is consults <i>attributed to that channel</i> — for Google Ads that means bookings carrying a real Google click id (gclid/gbraid/wbraid) or a paid utm_medium, the same rule the enrollment poller uses. <b>Never divide ad spend by all consults</b> — that counts organic, direct and GBP consults as if the ads bought them and can understate true paid CPA several-fold. Click ids get lost (cross-device, iOS, and they are deliberately stripped on staff-phone bookings), so the attributed count is a <b>floor</b> and the cost shown is an <b>upper bound</b> — hence the ≤. Consults come from James&rsquo;s Google Calendar (<span class="vcode">consult_count_gcal.py</span>); Hint has been blind to consults since the 2026-07-18 cutover. <b>The taps column:</b> rows showing <b>people</b> are GA4 <span class="vcode">totalUsers</span> for booking_click+phone_click on that channel and are not summable across rows; rows still showing <i>events</i> are raw <span class="vcode">eventCount</span>, which double-counted every booking tap ~2.31\u00d7 through 2026-07-28 (fixed in commit 2529b3c) \u2014 read those as an upper bound, not as demand. As of '+escapeHtml(SNAPSHOT.channel_econ.as_of)+'.</div>';
+    ce+='</tbody></table><div class="small" style="margin-top:8px;line-height:1.7"><b>Booking channel</b> = the person reached the Hint booking page OR tapped call — phone-first bookers count. Rows aren\'t summable (a person can cross channels). <b>Members MTD</b> = new paid members who self-reported that channel as their Hint Lead Source. Only 2 of 6 July members have a Lead Source set — both map to Hint\'s <b>Google</b> bucket, which does NOT split paid search vs organic, so they show on the Google Ads row but could be organic. The other 4 are <b>unrecorded</b>, so a <b>0 in this column means \'not attributed\', not \'no members from this channel\'</b>. Until Lead Source is captured at signup this column stays near-blind — that intake fix is the only durable channel→member truth, and it weighs nothing for intent quality (search intent historically closes better than social). Windows differ where marked; never compare Meta\'s trailing spend to MTD as if equal. GBP\'s 17 profile calls live outside GA4 and can\'t be deduped into these counts. <b>The taps column:</b> rows showing <b>people</b> are GA4 <span class="vcode">totalUsers</span> for booking_click+phone_click on that channel and are not summable across rows; rows still showing <i>events</i> are raw <span class="vcode">eventCount</span>, which double-counted every booking tap ~2.31\u00d7 through 2026-07-28 (fixed in commit 2529b3c) \u2014 read those as an upper bound, not as demand. As of '+escapeHtml(SNAPSHOT.channel_econ.as_of)+'.</div>';
     ceEl.innerHTML=ce;
   }
   // campaign table (MTD)

@@ -1,15 +1,31 @@
 #!/usr/bin/env python3
+# ---------------------------------------------------------------------------
+# 2026-07-23 WORKING RECIPE for --mode link (confirmed today; all 16 backlog
+# contacts were linked 2026-07-23, so this script is now for future use):
+#
+#   POST {SPRUCE_BASE_URL}/contacts/{entityId}/integrationlinks
+#   body: {"type": "hint", "externalId": "hint_pat-XXXX"}
+#
+#   * externalId MUST carry the "hint_" prefix ON WRITE. A bare "pat-XXXX"
+#     returns 500 internal_error with no useful message.
+#   * Spruce STORES AND RETURNS the link WITHOUT the prefix: a subsequent GET
+#     shows integrationLinks[].externalId == "pat-XXXX". So write "hint_pat-...",
+#     but compare/read the bare "pat-..." form (hint_ids() below already
+#     matches the bare form, so no change needed there).
+#   * Do NOT send an s-idempotency-key header. (Untested in isolation, but the
+#     working call omitted it; the failing calls included it.)
+# ---------------------------------------------------------------------------
 """
 _fix_spruce_links.py -- Make Hint patients show their NAME in Spruce instead of
 a bare phone number.
 
-Two modes (the integration-link endpoint returns 500 for this account's managed
-Hint integration, so NAME is the default/reliable fix):
+Two modes:
 
   --mode name  (default): PATCH /v1/contacts/{id} with givenName/familyName from
                the Hint record. Sets the visible name directly.
   --mode link           : POST /v1/contacts/{id}/integrationlinks (type=hint).
-               Kept for testing; currently 500s on this account.
+               WORKS as of 2026-07-23 with the "hint_" externalId prefix
+               (see recipe block above; bare "pat-..." returns 500).
 
 SAFE: dry-run unless --apply. Test one first with --only <contact_id> or
 --limit 1. Redacted output; runs on your machine (no PHI through Cowork).
@@ -83,9 +99,11 @@ def set_name(contact_id, given, family):
 
 def create_link(contact_id, pat_id):
     url = f"{E.SPRUCE_BASE_URL}/contacts/{contact_id}/integrationlinks"
-    headers = {**E._spruce_headers(), "Content-Type": "application/json",
-               "s-idempotency-key": f"link-{contact_id}-{pat_id}"[:255]}
-    r = requests.post(url, headers=headers, json={"type": "hint", "externalId": pat_id}, timeout=30)
+    headers = {**E._spruce_headers(), "Content-Type": "application/json"}
+    # 2026-07-23: externalId needs the "hint_" prefix on write (bare "pat-..."
+    # 500s); Spruce stores/returns it without the prefix. No s-idempotency-key.
+    external_id = pat_id if str(pat_id).startswith("hint_") else f"hint_{pat_id}"
+    r = requests.post(url, headers=headers, json={"type": "hint", "externalId": external_id}, timeout=30)
     return r.status_code, (r.text or "")[:180]
 
 

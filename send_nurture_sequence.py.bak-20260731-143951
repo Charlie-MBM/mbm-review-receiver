@@ -395,24 +395,6 @@ def evaluate(m, all_patients, contacts, state, approved, go_live_at, today):
     bill_iso = fresh.get("bill_date") or fresh.get("start_date") or m.get("start_date")
     bill_days = E.days_until(bill_iso)
     if bill_days is not None and bill_days <= E.CLEANUP_LEAD_DAYS:
-        # 2026-07-30 AGE GUARD: cleanup is the END of a nurture runway, not a
-        # reaction to a mis-dated assignment. Staff keep assigning memberships
-        # that START immediately, which puts the bill date inside the cleanup
-        # window before Day 0 has even sent -- the old behavior canceled the
-        # membership while the prospect was still hot. A young membership is a
-        # date-entry artifact, not a stale non-converter: defer cleanup, let the
-        # sequence run, and leave re-dating to staff (Hint's own unpaid-balance
-        # email already alerts Charlie when a card-less membership hits its
-        # bill date). Once the membership is CLEANUP_MIN_AGE_DAYS old, the
-        # original guarded cleanup applies unchanged.
-        age = E.days_since(m["created_at"]) if m.get("created_at") else None
-        if age is not None and age < E.CLEANUP_MIN_AGE_DAYS:
-            E.audit("prebill_cleanup_deferred", pat_id, mem_id,
-                    "bill date inside cleanup window but membership too young - mis-dated assignment suspected",
-                    {"bill_days": bill_days, "age_days": age})
-            plan.update(action="wait",
-                        reason=f"bill in {bill_days}d but membership only {age}d old; cleanup deferred, sequence continues")
-            return plan
         return attempt_cleanup(plan, m, state, mem_id, pat_id, our, other, contact, name_red, bill_days)
 
     # Day-0 timing: never text on the same calendar day as the consult/assignment.

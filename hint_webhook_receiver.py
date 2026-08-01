@@ -424,7 +424,8 @@ def send_review_sms(first_name: str, phone: str) -> bool:
     name = first_name.strip() if first_name else "there"
     name_param = urllib.parse.quote(name) if name and name != "there" else ""
     # Use the short URL /r?n=Charles (saves ~12 chars vs /review?fname=Charles).
-    # The Worker redirects /r?n=X to /review?fname=X.
+    # The Worker records the tap (SHA-256 hashed, for suppression) then 302s the
+    # patient STRAIGHT to the Google review form — no intermediate /review page.
     if name_param:
         review_link = f"{REVIEW_BASE_URL}/r?n={name_param}"
     else:
@@ -432,13 +433,16 @@ def send_review_sms(first_name: str, phone: str) -> bool:
 
     # SMS body — no physician name (minimum-necessary under HIPAA; WA MHMD).
     # Prosocial framing per JMIS 2025 healthcare RCT (open appeal > targeted benefit).
+    # Neutral/open-ended by design: Google's 2026 review policy bans asking a patient
+    # to include specific services/keywords (treated as Rating Manipulation), so we
+    # never prompt them to name their treatment. DONE line removed 2026-07 — the tap
+    # itself is the suppression signal now (link goes straight to Google, tracked).
     # Kept under ~180 chars to fit a single SMS segment after the short URL.
     body = (
         f"Hi {name}, this is Mt. Baker Medical. "
         "Thanks for trusting us with your care. "
         "Honest patient reviews - whatever you'd say - help the next person find care like this. "
-        f"{review_link} "
-        "Reply DONE if you've already left us a review."
+        f"{review_link}"
     )
 
     # Spruce requires E.164. Hint returns phones in free-form.

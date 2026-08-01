@@ -22,18 +22,43 @@ Never fake a timestamp on stale data. Zero != null.
    to Charlie in your run summary. If the feed file's generated_at is older than
    24h, do NOT bake it - report that the 9:15 exporter didn't run.
 
-2. GA4 (Data API runReport, true MTD): visits + booking/phone tap EVENTS by
-   channel; outbound linkDomain clicks (handoffs - instrumentation only); deduped
-   PEOPLE via totalUsers with the booking-OR-phone orGroup filter ->
+2. GA4 (Data API runReport, true MTD): visits + booking/phone taps by channel;
+   outbound linkDomain clicks (handoffs - instrumentation only); deduped PEOPLE
+   via totalUsers with the booking-OR-phone orGroup filter ->
    SNAPSHOT.funnel_mtd {visits, taps_booking, taps_phone, handoffs, visits_src,
    taps_src, users:{tappers, handoff, booking_channel, as_of}}. Update
-   SNAPSHOT.channel_econ rows (spend + taps + chan_people per channel; windows
-   labeled honestly - never mix trailing windows into MTD).
+   SNAPSHOT.channel_econ rows (spend + taps + taps_people + chan_people per
+   channel; windows labeled honestly - never mix trailing windows into MTD).
+   TAPS ARE PEOPLE-FIRST (2026-07-29). The by-channel runReport MUST request
+   metrics:[{name:"eventCount"},{name:"totalUsers"}], not eventCount alone, and
+   you MUST bake BOTH:
+     taps_booking / taps_phone / taps_src        <- eventCount  (kept, muted)
+     taps_booking_people / taps_phone_people /
+     taps_src_people{organic,direct,google,meta,other}
+     channel_econ.rows[].taps_people             <- totalUsers (headline)
+   Reason: booking_click double-fired on every tap through 2026-07-28 (~2.31x,
+   fixed in commit 2529b3c), so the EVENT series is inflated and not comparable
+   across that date; totalUsers dedupes the double-fire away. NEVER divide an
+   event count by 2.31 or any other correction factor - that fabricates data.
+   An event GA4 returns no row for is null, never 0. Per-channel totalUsers is
+   NOT summable to a monthly unique total; the deduped monthly figure stays
+   users.tappers.
 
 3. EXTEND SNAPSHOT.daily ARRAYS THROUGH YESTERDAY - EVERY RUN, not weekly:
-   dates, taps, handoffs, ads_clicks, ads_conv_primary, ads_conv_ga4_all. The
-   anomaly detectors read these; QA fails any bake whose last date lags baked_at
-   by >2 days.
+   dates, taps, taps_people, handoffs, ads_clicks, ads_conv_primary,
+   ads_conv_ga4_all. The anomaly detectors read these; QA fails any bake whose
+   last date lags baked_at by >2 days.
+   daily.taps_people is REQUIRED and is what the chart renders. Pull it with the
+   SAME runReport as daily.taps but dimensions:[{name:"date"}],
+   metrics:[{name:"totalUsers"}], dimensionFilter eventName inListFilter
+   [booking_click, phone_click], month 1st -> yesterday. It must be an array the
+   same length as daily.dates or the chart silently falls back to the inflated
+   event series and shows a red warning line.
+   BACKFILL, NOT APPEND: this series is not append-only history - GA4 still holds
+   the raw events, so re-query the WHOLE month every run and rewrite both arrays
+   end to end. That is what makes the pre-2026-07-28 double-fire correctable
+   retroactively rather than frozen into the file. Daily uniques do NOT sum to
+   the monthly unique total; never total this array.
 
 4. GOOGLE ADS: GAQL v21 searchStream ONLY (never create_report), true MTD ->
    SNAPSHOT.gads.mtd {spend, impressions, clicks, conv_primary, conv_ga4_all}

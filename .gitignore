@@ -55,3 +55,4 @@ _dash_build.html
 # Blanket-ban them instead of listing one by one (send_log.txt etc. above stay too).
 *.log
 *state*.json
+*.bak-*

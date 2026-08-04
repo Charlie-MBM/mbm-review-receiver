@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Render an Abstractive summary JSON into a paste-ready clinical document.
+"""Render an Abstractive summary JSON into an upload-ready clinical document.
 
-The raw JSON is ~1.5 MB, almost all of it `section_summaries` (one entry per
-source document - 472 for the first real pull). That bulk is ARCHIVE material.
-The rolled-up longitudinal view lives in `meta_summary` and is only a few KB:
-that is what a physician actually pastes into the chart.
+The raw JSON is ~1.5 MB, nearly all of it `section_summaries` (one entry per
+source document - 492 on the first real pull). That bulk is ARCHIVE material.
+The rolled-up longitudinal view lives in `meta_summary` and is a few KB: that
+is what a physician actually puts in the chart.
 
-Writes "<same folder>/<same stem>.md" next to the JSON. Local only - this
-handles PHI and must never run anywhere but Charlie's machine.
+OUTPUT IS .txt, DELIBERATELY. OpenEvidence rejects .md - verified 2026-08-03,
+its uploader states: "Only .pdf, .doc(x), .xls(x), images (.jpg, .png, .webp,
+.heic), and plain text files are accepted." Plain text needs no dependencies
+and uploads cleanly, so headers are CAPS rather than markdown.
 
-  py abstractive_render.py                  # newest summary under ~/MBM_Abstractive_Out
+Writes "<same folder>/<same stem>.txt". Local only - this handles PHI and must
+never run anywhere but the practice machine.
+
+  py abstractive_render.py                  # newest summary found
   py abstractive_render.py <path.json>
   py abstractive_render.py --all            # every summary JSON found
 """
@@ -19,40 +24,49 @@ import os
 import sys
 from pathlib import Path
 
-OUT_ROOT = Path.home() / "MBM_Abstractive_Out"
+DEFAULT_OUT_ROOT = Path.home() / "MBM_Abstractive_Out"
+ENV_PATH = Path(__file__).parent / ".env"
 
-# (key in meta_summary, heading) in clinical reading order. Keys absent from a
-# given payload are skipped silently; Abstractive omits empty sections.
 SECTIONS = [
-    ("HPI", "History of Present Illness"),
-    ("Past Clinical Events", "Past Clinical Events"),
-    ("Surgical History", "Surgical History"),
-    ("Pathology and Oncology History", "Pathology and Oncology History"),
-    ("Family History", "Family History"),
-    ("Social History", "Social History"),
-    ("Allergies", "Allergies"),
-    ("All Historical Medications", "Medications (historical)"),
-    ("Labs", "Labs"),
-    ("Images", "Imaging"),
-    ("Vitals", "Vitals"),
-    ("Medical Devices", "Medical Devices"),
-    ("All Historical Providers", "Prior Providers"),
-    ("All Historical Followups", "Outstanding Follow-ups"),
+    ("HPI", "HISTORY OF PRESENT ILLNESS"),
+    ("Past Clinical Events", "PAST CLINICAL EVENTS"),
+    ("Surgical History", "SURGICAL HISTORY"),
+    ("Pathology and Oncology History", "PATHOLOGY AND ONCOLOGY HISTORY"),
+    ("Family History", "FAMILY HISTORY"),
+    ("Social History", "SOCIAL HISTORY"),
+    ("Allergies", "ALLERGIES"),
+    ("All Historical Medications", "MEDICATIONS (HISTORICAL)"),
+    ("Labs", "LABS"),
+    ("Images", "IMAGING"),
+    ("Vitals", "VITALS"),
+    ("Medical Devices", "MEDICAL DEVICES"),
+    ("All Historical Providers", "PRIOR PROVIDERS"),
+    ("All Historical Followups", "OUTSTANDING FOLLOW-UPS"),
 ]
 
 
+def out_root():
+    """Honour ABSTRACTIVE_OUT_DIR so --all finds files written to Drive."""
+    try:
+        for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line.startswith("ABSTRACTIVE_OUT_DIR="):
+                v = line.partition("=")[2].strip().strip('"')
+                if v:
+                    return Path(v)
+    except Exception:
+        pass
+    return DEFAULT_OUT_ROOT
+
+
 def emit(value):
-    """Render one meta_summary value as markdown. str -> paragraph, list -> bullets."""
     if value is None:
         return None
     if isinstance(value, str):
-        v = value.strip()
-        return v or None
+        return value.strip() or None
     if isinstance(value, list):
         items = [str(x).strip() for x in value if str(x).strip()]
-        if not items:
-            return None
-        return "\n".join(f"- {i}" for i in items)
+        return "\n".join(f"- {i}" for i in items) if items else None
     return str(value)
 
 
@@ -65,80 +79,66 @@ def render(path):
     secs = doc.get("section_summaries") or []
 
     name = " ".join(x for x in [pm.get("first_name"), pm.get("last_name")] if x)
-    lines = []
-    lines.append(f"# Outside records summary - {name or 'patient'}")
-    lines.append("")
+    L = []
+    L.append(f"OUTSIDE RECORDS SUMMARY - {name or 'patient'}")
     ident = [x for x in [
         f"DOB {pm['dob']}" if pm.get("dob") else None,
         f"Sex {pm['sex']}" if pm.get("sex") else None,
         pm.get("address"),
     ] if x]
     if ident:
-        lines.append(" | ".join(ident))
-        lines.append("")
-    lines.append(f"Source: Abstractive Health via Carequality. "
-                 f"Assembled from {len(secs)} source documents.")
-    lines.append("")
-    lines.append("> AI-generated summary of records from outside this practice. "
-                 "Verify anything clinically material against the source documents "
-                 "in the accompanying ZIP before acting on it.")
-    lines.append("")
-    lines.append("---")
+        L.append(" | ".join(ident))
+    L.append("")
+    L.append(f"Source: Abstractive Health via Carequality. "
+             f"Assembled from {len(secs)} source documents.")
+    L.append("AI-generated summary of records from outside this practice. Verify "
+             "anything clinically material against the source documents in the "
+             "accompanying ZIP before acting on it.")
+    L.append("=" * 70)
 
     written = 0
-    for key, heading in SECTIONS:
+    seen = {s[0] for s in SECTIONS}
+    ordered = SECTIONS + [(k, k.upper()) for k in sorted(ms) if k not in seen]
+    for key, heading in ordered:
         body = emit(ms.get(key))
         if not body:
             continue
         written += 1
-        lines.append("")
-        lines.append(f"## {heading}")
-        lines.append("")
-        lines.append(body)
+        L.append("")
+        L.append(heading)
+        L.append("-" * len(heading))
+        L.append(body)
 
-    # Surface any meta_summary key we did not map, so a schema change shows up
-    # instead of silently dropping content.
-    unmapped = [k for k in ms.keys() if k not in {s[0] for s in SECTIONS}]
-    for key in sorted(unmapped):
-        body = emit(ms.get(key))
-        if not body:
-            continue
-        written += 1
-        lines.append("")
-        lines.append(f"## {key}")
-        lines.append("")
-        lines.append(body)
-
-    lines.append("")
-    lines.append("---")
-    lines.append("")
-    lines.append(f"Full source documents: same folder, "
-                 f"\"{Path(path).stem.replace('Abstractive summary', 'full docs')}.zip\"")
+    L.append("")
+    L.append("=" * 70)
+    stem = Path(path).stem
+    L.append(f"Full source documents: same folder, "
+             f"\"{stem.replace('Abstractive summary', 'full docs')}.zip\"")
     if doc.get("conversation_id"):
-        lines.append(f"Abstractive conversation: {doc['conversation_id']}")
-    lines.append("")
-    lines.append("Paste this into the patient's Hint chart the same day - "
-                 "Hint is the legal record.")
-    lines.append("")
+        L.append(f"Abstractive conversation: {doc['conversation_id']}")
+    L.append("")
 
-    out = Path(path).with_suffix(".md")
-    out.write_text("\n".join(lines), encoding="utf-8")
+    out = Path(path).with_suffix(".txt")
+    out.write_text("\n".join(L), encoding="utf-8")
     return out, written, len(secs)
 
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    root = out_root()
     if "--all" in sys.argv:
-        paths = sorted(glob.glob(str(OUT_ROOT / "*" / "*summary.json")))
+        paths = sorted(glob.glob(str(root / "*" / "*summary.json")))
     elif args:
         paths = args
     else:
-        hits = sorted(glob.glob(str(OUT_ROOT / "*" / "*summary.json")),
+        hits = sorted(glob.glob(str(root / "*" / "*summary.json")),
                       key=os.path.getmtime, reverse=True)
         if not hits:
-            sys.exit(f"No summary JSON found under {OUT_ROOT}")
+            sys.exit(f"No summary JSON found under {root}")
         paths = hits[:1]
 
+    if not paths:
+        sys.exit(f"No summary JSON found under {root}")
     for p in paths:
         try:
             out, written, nsec = render(p)
